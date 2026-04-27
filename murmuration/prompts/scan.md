@@ -204,6 +204,17 @@ Empty arrays are fine — they're informative ("no LLM observability detected"
 is a recommendation trigger). Don't omit empty fields; downstream
 prompts pattern-match on them.
 
+## Get the timestamp from the system clock
+
+`scanned_at` must be the actual current UTC time, not inferred. Run:
+
+```
+date -u +%Y-%m-%dT%H:%M:%SZ
+```
+
+via Bash and use the result. Don't fabricate a timestamp from training
+data or default to midnight.
+
 ## Print the markdown summary
 
 After writing scan.json, print a 4–6 line summary so the user sees what
@@ -215,7 +226,7 @@ landed without opening the JSON. Format:
   outbound: <K> publishable candidates flagged
   cached:   .murmur/scan.json
 
-next: say "show my stack" for the slot view, or "what tools am I missing" for recommendations.
+next: say "render the murmuration stack view" for the slot rendering, or browse https://usemur.dev/explore for tools that fill the empty slots.
 ```
 
 If outbound candidates were found, name the top one in a single line —

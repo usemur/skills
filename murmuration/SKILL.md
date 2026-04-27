@@ -55,14 +55,24 @@ Route to **`prompts/scan.md`** when the user says things like:
 
 Route to **`prompts/stack.md`** when the user says things like:
 
-- "show my stack" / "show me the stack"
-- "render the stack view"
-- "what does my stack look like"
-- if a scan already exists and the user wants to see it without re-scanning
+- "show my murmuration stack" / "render the murmuration stack view"
+- "show me the scan results" / "show what the scan found"
+- "stack view" / "render the stack view from the last scan"
+- generally: any phrase that combines "stack" or "scan" with a clear
+  reference to viewing previous output
+
+**Disambiguation note.** The bare phrase "show my stack" is
+intentionally NOT a trigger — in a Claude session with multiple skills
+installed, "stack" is too generic and gets misrouted (e.g. to "list my
+installed skills"). Users will be guided to the more specific phrase by
+the footer in `prompts/scan.md`'s output. If a user does type the
+ambiguous phrase, ask them whether they mean the Murmuration stack view
+from the last scan, or something else.
 
 If you're unsure between `scan.md` and `stack.md`: check whether
-`<project>/.murmur/scan.json` exists. If yes, the user probably wants
-`stack.md`. If no, they need `scan.md` first.
+`<project>/.murmur/scan.json` exists. If yes and the user is asking
+about output/results/the view, use `stack.md`. If no, they need
+`scan.md` first.
 
 ## Hard contracts
 

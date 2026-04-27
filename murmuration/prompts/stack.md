@@ -71,16 +71,19 @@ render an empty header).
 
 ## Footer line
 
-End with one navigational line. Pick the most useful next step:
+End with one navigational line. Pick the most useful next step from the
+list of *currently shipped* verbs only — never advertise a verb whose
+prompt file doesn't exist yet (do `ls ~/.claude/skills/murmuration/prompts/`
+if uncertain).
 
-- If there are empty inbound slots: `next: say "what tools am I missing" for recommendations.`
-- Else if there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a paid flow.`
+- If there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a paid flow.`
+- Else if there are empty inbound slots: `next: browse https://usemur.dev/explore for tools that fill the empty slots — agent-driven recommendations are coming in a future phase.`
 - Else: `next: say "scan my repo" again whenever you've changed your stack.`
 
-Phase 2 hasn't shipped yet — recommendations aren't wired up. If the user
-asks for "what tools am I missing" right now, tell them honestly that
-recommend isn't shipped yet (planned for the next phase) and direct
-them to the explore page at https://usemur.dev/explore.
+Phase 2 (recommend) hasn't shipped yet. If the user reacts with "what
+tools am I missing" or similar, tell them honestly that the
+agent-driven recommend verb isn't shipped yet (planned for the next
+phase) and direct them to the explore page at https://usemur.dev/explore.
 
 ## Don't
 
