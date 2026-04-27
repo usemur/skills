@@ -1,0 +1,29 @@
+name: PostHog
+category: product-analytics
+homepage: https://posthog.com
+source: https://github.com/PostHog/posthog
+license: MIT
+self_hostable: true
+
+deploy:
+  kinds: [docker-compose, kubernetes, helm]
+  link: https://posthog.com/docs/self-host
+
+detection:
+  category_signals:
+    - product_category: b2c
+    - product_category: app
+    - frontend_detected: true
+    - missing: signals.analytics
+  presence_signals:
+    - package_import: posthog-js
+    - package_import: posthog-node
+    - package_import: "posthog-python"
+    - env_var_prefix: POSTHOG_
+
+reason_template: |
+  You're building {{product_summary_short}} with no product analytics. PostHog
+  bundles event tracking + session replay + feature flags + funnels in one
+  OSS package — covers what would otherwise need Mixpanel + Hotjar + LaunchDarkly.
+
+alternatives: [mixpanel, amplitude, segment]

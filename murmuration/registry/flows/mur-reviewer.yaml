@@ -1,0 +1,31 @@
+slug: "@mur/reviewer"
+display_name: PR Reviewer
+category: code-review
+wraps_tool: null
+
+mcp:
+  endpoint: https://usemur.dev/mcp/mur-reviewer
+  http: https://usemur.dev/api/flows/mur-reviewer/invoke
+
+pricing:
+  unit_price: "$0.022"
+  unit: "per PR"
+  network: "base"
+  trigger: "GitHub webhook on PR open / sync"
+
+detection:
+  category_signals:
+    - active_git_repo: true
+    - prs_per_week: ">=3"
+    - missing: ci.review_bot
+  presence_signals:
+    - file_glob: ".github/workflows/codereview*"
+    - file_glob: ".github/workflows/*review*.yml"
+    - has_keyword: ["coderabbit", "graphite-review", "ellipsis"]
+
+reason_template: |
+  You merged {{prs_last_week}} PRs last week with no automated pre-merge
+  review agent. @mur/reviewer reads the diff, flags structural issues,
+  SQL safety, missing tests, and posts a single comment per PR. $0.022/PR.
+
+self_host_alternative: null

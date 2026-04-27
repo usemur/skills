@@ -1,0 +1,7 @@
+slug: dependency-health
+display_name: Dependency Health
+description: |
+  Drift detection across package manifests + lockfiles. Weekly report
+  on what's behind, what's a security concern, what to bump first.
+canonical_tools: []
+canonical_flows: [flows/mur-dep-drift.yaml]

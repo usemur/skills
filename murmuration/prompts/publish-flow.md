@@ -110,6 +110,7 @@ This sub-prompt is for the **manual** publish path — user gives you a
   candidates and the manual `@usemur/cli publish` path here closes the
   loop.
 - **See their stack** from a previous scan → read `prompts/stack.md`.
+- **Get recommendations** on missing infra → read `prompts/recommend.md`.
 
 ## Links
 

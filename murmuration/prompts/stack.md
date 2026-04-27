@@ -76,14 +76,14 @@ list of *currently shipped* verbs only — never advertise a verb whose
 prompt file doesn't exist yet (do `ls ~/.claude/skills/murmuration/prompts/`
 if uncertain).
 
-- If there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a paid flow.`
-- Else if there are empty inbound slots: `next: browse https://usemur.dev/explore for tools that fill the empty slots — agent-driven recommendations are coming in a future phase.`
+- If there are empty inbound slots: `next: say "what tools am I missing" for recommendations on the empty slots.`
+- Else if there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a paid flow.`
 - Else: `next: say "scan my repo" again whenever you've changed your stack.`
 
-Phase 2 (recommend) hasn't shipped yet. If the user reacts with "what
-tools am I missing" or similar, tell them honestly that the
-agent-driven recommend verb isn't shipped yet (planned for the next
-phase) and direct them to the explore page at https://usemur.dev/explore.
+Phase 3 (automated install) hasn't shipped yet. If the user accepts a
+recommendation and asks "go ahead and install it," tell them honestly
+that automated install isn't shipped (planned for the next phase) and
+point them at the self-host link or explore page.
 
 ## Don't
 

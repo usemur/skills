@@ -226,7 +226,7 @@ landed without opening the JSON. Format:
   outbound: <K> publishable candidates flagged
   cached:   .murmur/scan.json
 
-next: say "render the murmuration stack view" for the slot rendering, or browse https://usemur.dev/explore for tools that fill the empty slots.
+next: say "what tools am I missing" for recommendations on the empty slots, or "render the murmuration stack view" for the full slot rendering.
 ```
 
 If outbound candidates were found, name the top one in a single line —

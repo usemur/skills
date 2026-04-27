@@ -1,0 +1,31 @@
+name: Uptime-Kuma
+category: uptime-monitoring
+homepage: https://uptime.kuma.pet
+source: https://github.com/louislam/uptime-kuma
+license: MIT
+self_hostable: true
+
+deploy:
+  kinds: [docker-compose, fly, railway]
+  link: https://github.com/louislam/uptime-kuma#-installation
+
+mur_flow:
+  slug: "@mur/uptime-ping"
+  unit_price: "$0.001"
+  unit: "per check"
+
+detection:
+  category_signals:
+    - public_url_detected: true
+    - missing: signals.uptime
+  presence_signals:
+    - package_import: uptime-kuma-api
+    - env_var_prefix: KUMA_
+    - file_glob: "**/uptime-kuma*"
+
+reason_template: |
+  You're shipping {{public_url_count}} public URLs with no uptime monitoring.
+  Uptime-Kuma is a self-hostable alternative to UptimeRobot/Pingdom —
+  status pages, Slack/email alerts, and SLA history all in one.
+
+alternatives: [checkly, better-uptime, pingdom]

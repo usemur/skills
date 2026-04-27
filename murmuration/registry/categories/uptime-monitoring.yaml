@@ -1,0 +1,7 @@
+slug: uptime-monitoring
+display_name: Uptime Monitoring
+description: |
+  External pings against your public URLs. Slack/email alerts when a
+  service is down. Status pages. Multi-region check capability.
+canonical_tools: [tools/uptime-kuma.yaml]
+canonical_flows: [flows/mur-uptime-ping.yaml]

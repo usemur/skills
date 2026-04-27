@@ -1,0 +1,7 @@
+slug: erp
+display_name: ERP / Operations
+description: |
+  Accounting, inventory, manufacturing, HR, payroll. OSS alternatives
+  to SAP, NetSuite, Odoo.
+canonical_tools: [tools/erpnext.yaml]
+canonical_flows: []

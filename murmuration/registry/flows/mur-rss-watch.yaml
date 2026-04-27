@@ -1,0 +1,30 @@
+slug: "@mur/rss-watch"
+display_name: Changelog / RSS Watch
+category: stack-monitoring
+wraps_tool: null
+
+mcp:
+  endpoint: https://usemur.dev/mcp/mur-rss-watch
+  http: https://usemur.dev/api/flows/mur-rss-watch/invoke
+
+pricing:
+  unit_price: "$0.003"
+  unit: "per post matched"
+  network: "base"
+  trigger: "polled hourly per subscribed feed"
+
+detection:
+  category_signals:
+    - third_party_apis_count: ">=2"
+    - missing: signals.changelog_subscriptions
+  presence_signals:
+    - package_import: rss-parser
+    - has_keyword: ["changelog watcher", "rss subscription"]
+
+reason_template: |
+  You depend on {{third_party_count}} external services ({{third_party_top}}).
+  Each one ships breaking changes you'll find out about from a 5xx in prod.
+  Subscribe to their changelogs/blogs/release feeds and get a daily summary
+  in chat or email.
+
+self_host_alternative: null

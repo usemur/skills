@@ -1,0 +1,33 @@
+name: Langfuse
+category: llm-observability
+homepage: https://langfuse.com
+source: https://github.com/langfuse/langfuse
+license: MIT
+self_hostable: true
+
+deploy:
+  kinds: [docker-compose, kubernetes]
+  link: https://github.com/langfuse/langfuse#self-hosting
+
+mur_flow:
+  slug: "@mur/langfuse-host"
+  unit_price: "$0.003"
+  unit: "per trace"
+
+detection:
+  category_signals:
+    - package_import: openai
+    - package_import: "@anthropic-ai/sdk"
+    - package_import: ai
+    - package_import: langchain
+    - package_import: llamaindex
+  presence_signals:
+    - package_import: langfuse
+    - env_var_prefix: LANGFUSE_
+
+reason_template: |
+  You've got {{llm_providers}} SDKs in {{llm_call_sites}} files with no LLM
+  observability. Without it you're blind to prompt regressions, latency
+  spikes, and runaway token costs.
+
+alternatives: [helicone, langsmith, phoenix, braintrust]

@@ -1,0 +1,7 @@
+slug: project-mgmt
+display_name: Project Management
+description: |
+  Issue tracking, sprints, kanban, pages. OSS alternatives to Jira,
+  Linear, Notion-as-PM.
+canonical_tools: [tools/plane.yaml]
+canonical_flows: []

@@ -1,0 +1,7 @@
+slug: product-analytics
+display_name: Product Analytics
+description: |
+  Event tracking, session replay, feature flags, funnels. Replaces
+  Mixpanel + Hotjar + LaunchDarkly with one stack.
+canonical_tools: [tools/posthog.yaml]
+canonical_flows: []

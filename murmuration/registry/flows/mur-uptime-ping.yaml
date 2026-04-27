@@ -1,0 +1,30 @@
+slug: "@mur/uptime-ping"
+display_name: Uptime Ping
+category: uptime-monitoring
+wraps_tool: tools/uptime-kuma.yaml
+
+mcp:
+  endpoint: https://usemur.dev/mcp/mur-uptime-ping
+  http: https://usemur.dev/api/flows/mur-uptime-ping/invoke
+
+pricing:
+  unit_price: "$0.001"
+  unit: "per check"
+  network: "base"
+  schedule: "every 5 minutes"
+
+detection:
+  category_signals:
+    - public_url_detected: true
+    - missing: signals.uptime
+  presence_signals:
+    - package_import: uptime-kuma-api
+    - env_var_prefix: KUMA_
+    - file_glob: "**/uptime-kuma*"
+
+reason_template: |
+  Pings your public URL every 5 minutes from {{check_regions}}. Slack/email
+  alert on the first failure, recovery confirmation when service is back.
+  TEE-hosted — we don't see your URL contents, just the status code.
+
+self_host_alternative: tools/uptime-kuma.yaml

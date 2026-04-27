@@ -1,0 +1,27 @@
+name: Sentry (self-hosted)
+category: error-tracking
+homepage: https://sentry.io
+source: https://github.com/getsentry/self-hosted
+license: BSL-1.1
+self_hostable: true
+
+deploy:
+  kinds: [docker-compose]
+  link: https://develop.sentry.dev/self-hosted/
+
+detection:
+  category_signals:
+    - missing: signals.errors
+  presence_signals:
+    - package_import: "@sentry/node"
+    - package_import: "@sentry/nextjs"
+    - package_import: "@sentry/react"
+    - package_import: "sentry-sdk"
+    - env_var_prefix: SENTRY_
+
+reason_template: |
+  No error tracker detected. Sentry catches uncaught exceptions, surfaces
+  release-tagged regressions, and links stack traces back to the commits
+  that caused them. Self-hostable if SaaS Sentry isn't an option.
+
+alternatives: [glitchtip, bugsnag, rollbar]

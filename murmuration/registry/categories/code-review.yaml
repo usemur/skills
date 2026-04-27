@@ -1,0 +1,7 @@
+slug: code-review
+display_name: Code Review
+description: |
+  Automated pre-merge review. Reads diffs, flags structural issues,
+  SQL safety, missing tests, regression risks.
+canonical_tools: []
+canonical_flows: [flows/mur-reviewer.yaml]

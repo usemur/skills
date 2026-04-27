@@ -1,0 +1,7 @@
+slug: crm
+display_name: CRM
+description: |
+  Customer / contact / deal management. OSS alternatives to HubSpot,
+  Salesforce, Pipedrive.
+canonical_tools: [tools/twenty.yaml]
+canonical_flows: [flows/mur-twenty-deploy.yaml]

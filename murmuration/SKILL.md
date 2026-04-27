@@ -1,13 +1,13 @@
 ---
 name: murmuration
-description: The Murmuration skill — agent-to-agent commerce platform. Scan the user's repo to identify missing infra (LLM observability, logging, uptime, etc.) and publishable artifacts (utilities, prompts, scripts) they've already written. Publish JS functions as paid TEE-hosted APIs (powered by Lit Protocol). Call paid flows from a global catalog (web search, scraping, transcription, image/video gen, OCR, data enrichment, etc.) using a single credit balance — no per-provider API keys, no wallet required. Use when the user mentions Murmuration, paid APIs, x402, MCP servers, publishing flows, calling external APIs without an account, scanning a repo for missing tools, or wanting to monetize JavaScript code.
+description: The Murmuration skill — agent-to-agent commerce platform. Scan the user's repo to identify missing infra (LLM observability, logging, uptime, etc.) and publishable artifacts (utilities, prompts, scripts) they've already written. Recommend OSS tools and Murmuration-native flows from a vendored registry to fill those gaps. Publish JS functions as paid TEE-hosted APIs (powered by Lit Protocol). Call paid flows from a global catalog (web search, scraping, transcription, image/video gen, OCR, data enrichment, etc.) using a single credit balance — no per-provider API keys, no wallet required. Use when the user mentions Murmuration, paid APIs, x402, MCP servers, publishing flows, calling external APIs without an account, scanning a repo for missing tools, asking what tools they should install, or wanting to monetize JavaScript code.
 ---
 
 # Murmuration
 
-The Murmuration skill — one pack, four verbs today (consume, publish,
-scan, stack), more coming. Routes the user's intent to the right
-sub-prompt below.
+The Murmuration skill — one pack, five verbs today (consume, publish,
+scan, stack, recommend), more coming. Routes the user's intent to the
+right sub-prompt below.
 
 ## Verbs and routing
 
@@ -21,6 +21,7 @@ contains the detailed instructions, examples, and edge cases you'll need.
 | Publish a `.js` file as a paid Murmuration flow                            | `prompts/publish-flow.md`     |
 | Scan their repo / audit their stack / find publishable code they've written | `prompts/scan.md`             |
 | Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
+| Recommend tools / flows for missing slots in their stack                   | `prompts/recommend.md`        |
 
 ## Trigger phrases
 
@@ -45,13 +46,24 @@ Route to **`prompts/publish-flow.md`** when the user says things like:
 Route to **`prompts/scan.md`** when the user says things like:
 
 - "scan my repo" / "scan this project" / "audit my stack"
-- "what tools am I missing"
 - "what's in my stack" *(may want stack instead — see below)*
-- "set up logging / observability / uptime"
 - "anything here worth publishing"
 - "is there anything I could monetize from this codebase"
 - "publish this utility / share my retry helper / can I sell this script"
 - general "look at my project and tell me what you see" prompts
+
+Route to **`prompts/recommend.md`** when the user says things like:
+
+- "what tools am I missing" / "what should I install"
+- "recommend tools for me" / "what does my stack need"
+- "set up logging / observability / uptime / error tracking / analytics"
+- "find me a CRM / project mgmt / e-sign / scheduling tool"
+- "fix my LLM observability gap"
+- generally: any "I have a hole, recommend something to fill it" framing
+
+If the user asks for recommendations but `.murmur/scan.json` doesn't
+exist yet, `recommend.md` will redirect them to scan first. Don't
+auto-scan — that bypasses the scan-level consent.
 
 Route to **`prompts/stack.md`** when the user says things like:
 
@@ -90,13 +102,16 @@ about output/results/the view, use `stack.md`. If no, they need
 
 ## What's coming next
 
-Future phases will add: `recommend` (match scan signals against a
-vendored OSS-tool registry to suggest what to install), `install`
-(automate the explore-page copy/paste flow with consent UX), `publish`
-(the agent-driven outbound conversation that takes a flagged candidate
-through tier choice + pricing + registry PR), `catalog` (mirror of the
-dashboard), and `morning-check` (daily digest across installed flows).
-Routing for those verbs will appear here once their prompts ship.
+Future phases will add: `install` (automate the explore-page copy/paste
+flow with consent UX), `publish` (the agent-driven outbound conversation
+that takes a flagged candidate through tier choice + pricing + registry
+PR), `catalog` (mirror of the dashboard), and `morning-check` (daily
+digest across installed flows). Routing for those verbs will appear
+here once their prompts ship.
+
+Until `install.md` ships, when the user says "yes" to a recommendation,
+`recommend.md` points them at the manual install path (self-host
+deploy link or `https://usemur.dev/explore/<slug>`).
 
 ## Links
 

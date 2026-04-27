@@ -137,9 +137,10 @@ This sub-prompt is for **calling** paid flows. If the user wants to:
 - **Scan** their repo for missing infra or publishable artifacts → read
   `prompts/scan.md`.
 - **See their stack** from a previous scan → read `prompts/stack.md`.
-- Mention installing recommended tools, the morning digest, or
-  agent-driven publish flows — those verbs aren't shipped yet (planned
-  for later phases). Tell them honestly.
+- **Get recommendations** on missing infra → read `prompts/recommend.md`.
+- Mention automated install, the morning digest, or agent-driven publish
+  flows — those verbs aren't shipped yet (planned for later phases).
+  Tell them honestly.
 
 ## Links
 

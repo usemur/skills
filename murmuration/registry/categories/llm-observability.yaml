@@ -1,0 +1,7 @@
+slug: llm-observability
+display_name: LLM Observability
+description: |
+  Trace + log + monitor LLM calls. Catches prompt regressions, latency
+  spikes, runaway token costs, and version drift across providers.
+canonical_tools: [tools/langfuse.yaml, tools/helicone.yaml]
+canonical_flows: [flows/mur-langfuse-host.yaml]
