@@ -98,14 +98,18 @@ npx -y @usemur/cli publish oracle.js --name "Signed Oracle" --price 5
 
 ## When to route elsewhere
 
-This sub-prompt is for **publishing** a JS file as a flow. If the user
-wants to:
+This sub-prompt is for the **manual** publish path — user gives you a
+`.js` file, you run `@usemur/cli publish`. If the user wants to:
 
 - **Call** a paid flow from the catalog (search/scrape/transcribe/etc.)
   → read `prompts/consume-flow.md` instead.
-- Scan their repo for publishable artifacts, install missing infra, or
-  see what they already have installed — those verbs aren't shipped yet
-  (planned for later phases of this skill pack).
+- **Scan** their repo to find publishable utilities they've *already*
+  written (the agent-driven discovery path) → read `prompts/scan.md`.
+  Note: the agent-driven *publish conversation* (tier choice + pricing
+  + registry PR) ships in Phase 4 — for now scanning surfaces
+  candidates and the manual `@usemur/cli publish` path here closes the
+  loop.
+- **See their stack** from a previous scan → read `prompts/stack.md`.
 
 ## Links
 

@@ -134,10 +134,12 @@ This sub-prompt is for **calling** paid flows. If the user wants to:
 
 - **Publish** their own JS file as a paid flow → read
   `prompts/publish-flow.md` instead.
-- Mention scanning, recommending, or installing tools — those verbs
-  aren't shipped yet (planned for later phases of this skill pack). For
-  now, route them to the publishing or consuming flow that best matches
-  their stated intent, or tell them those verbs are coming soon.
+- **Scan** their repo for missing infra or publishable artifacts → read
+  `prompts/scan.md`.
+- **See their stack** from a previous scan → read `prompts/stack.md`.
+- Mention installing recommended tools, the morning digest, or
+  agent-driven publish flows — those verbs aren't shipped yet (planned
+  for later phases). Tell them honestly.
 
 ## Links
 
