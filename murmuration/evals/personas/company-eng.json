@@ -1,0 +1,19 @@
+{
+  "id": "company-eng",
+  "backstory": "Mid-level engineer at a 50-person Series B company. Working in a turbo-managed monorepo. Sentry already deployed company-wide. Wants tools that help *them* personally, not the org.",
+  "repo_signals": {
+    "stack": "turbo monorepo, next.js + nest.js + postgres + redis",
+    "package_imports": ["next", "@nestjs/core", "@sentry/nextjs", "@sentry/node", "ioredis", "openai"],
+    "env_var_prefixes": ["SENTRY_DSN", "DATABASE_URL", "REDIS_URL"],
+    "github_signals": [".github/workflows/ci.yml", "CODEOWNERS", ".github/dependabot.yml", "open_prs_count: 18", "open_issues_count: 47"],
+    "lockfile_age_days": 4,
+    "monorepo_packages": 14,
+    "prs_per_week_estimate": 12
+  },
+  "accounts_present": ["github", "linear", "sentry"],
+  "accounts_likely_to_connect": ["github"],
+  "expected_wow": "The digest surfaces personal-scope items: 'PRs #1421, #1438 still open, you wrote both'. Stale-PR nudger is the personalized wow — they get to look like a 10x by closing their open PRs before standup.",
+  "expected_dropoff_risk": "Org policy on third-party connects (turn 4). They might say 'I can't connect company GitHub' — the GitHub-App per-repo scoping should help here (only watches one repo, not the whole org). Connect step needs to surface that scoping explicitly so the user feels safe.",
+  "wow_score_target": "≥ 2 in heuristic 5 (signal-to-suggestion specificity — they'll dismiss generic suggestions) and at least H6 = 1 (wow is digest, not earlier)",
+  "scoring_notes": "This persona has the most *infra already in place*. Recommend.md output (if reached) will be thin because Sentry+dependabot+CI cover most slots. The wow has to be the digest itself, not gap-filling. If the digest's chief-of-staff briefing names specific PRs by number, scores 3 on H5."
+}

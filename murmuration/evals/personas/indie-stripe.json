@@ -1,0 +1,19 @@
+{
+  "id": "indie-stripe",
+  "backstory": "Solo founder, 18 months in, building a B2B SaaS on Next.js. Stripe live for 6 months, ~$4k MRR. Plays with Linear but not seriously. Wants to look like a real engineering org without being one.",
+  "repo_signals": {
+    "stack": "next.js + typescript + prisma + postgres",
+    "package_imports": ["next", "@prisma/client", "stripe", "@sentry/nextjs", "openai"],
+    "env_var_prefixes": ["STRIPE_", "DATABASE_URL", "SENTRY_DSN", "OPENAI_API_KEY"],
+    "github_signals": [".github/workflows/ci.yml", ".github/workflows/deploy.yml", "open_prs_count: 4", "open_issues_count: 12"],
+    "production_url": "https://app.acme.dev",
+    "lockfile_age_days": 23,
+    "todos_md_present": true
+  },
+  "accounts_present": ["github", "stripe", "sentry"],
+  "accounts_likely_to_connect": ["github", "stripe"],
+  "expected_wow": "The Day-0 backfill digest is the peak — chief-of-staff briefing surfaces 'PR #142 fixes the bug in issue #98 affecting your top Stripe customer'. The intermediate wow is the first scan finding (specific TODO or open issue grounded in the persona's actual repo).",
+  "expected_dropoff_risk": "OAuth fatigue at /mur connect github (turn 4). Solo founder is busy and has done OAuth dances 100 times. The GitHub-App per-repo scoping might raise fewer hackles than full Composio OAuth, but the 90s digest backfill wait is another friction point.",
+  "wow_score_target": "≥ 3 in heuristic 3 (wow before ask) — multiple free wows precede the first paid digest",
+  "scoring_notes": "Watch H6 (wow latency). Digest backfill takes ~6 turns from welcome. If user gets impatient between connect (turn 5) and backfill landing (turn 6), the experience dies. Scan findings carry engagement through that gap."
+}

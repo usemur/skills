@@ -1,0 +1,167 @@
+# Mur Onboarding Heuristics
+#
+# A flow variant scores ≥ 2.5 average with no zeros and no "no" on
+# binary heuristics 1, 2, 7 to be considered ship-quality.
+#
+# Used today by paper walkthroughs (humans hand-trace each persona
+# through SKILL.md + prompts/scan.md + prompts/connect.md +
+# prompts/digest.md, scoring as they go). The judge-prompt.md is
+# staged for an automated runner once paper walking gets tedious.
+#
+# The arc being scored is upstream's canonical
+# **scan → connect → digest** path (SKILL.md "Getting started"),
+# starting from the first-contact welcome and ending after the Day-0
+# backfill digest fires.
+#
+# Each heuristic is graded against a *transcript* of an onboarding run
+# (real or simulated). The judge produces:
+#   { id: 1, score: <"yes"|"no"|0|1|2|3>, evidence: "<quote or turn-ref>" }
+
+heuristics:
+  - id: 1
+    short: "Decisions per turn ≤ 1"
+    grading: binary
+    description: |
+      Each assistant turn presents at most one decision the user must
+      make. A "decision" is a yes/no, pick-one-of-N, or paste-this-value.
+      Bundling ("approve A and tell me about B") fails. Soft pivots that
+      share information without asking ("I see you have Stripe —
+      connecting Stripe first?") count as a single decision.
+    score_yes_when: |
+      Every turn surfaces 0 or 1 explicit ask. Implicit micro-asks
+      ("type 'yes' to continue") count toward the cap. The first-contact
+      welcome's "or type 'what else can you do?' for the verb list" is
+      an escape hatch, not a second decision — still scores yes.
+    score_no_when: |
+      Any turn presents 2+ choices that aren't trivially-related. Note:
+      first-contact Branch B (gstack missing) bundles "run /mur scan"
+      AND "install gstack via this curl one-liner" — that's 2 distinct
+      asks in one screen. Branch A (gstack present) is clean.
+
+  - id: 2
+    short: "Whole arc named upfront"
+    grading: binary
+    description: |
+      The first-contact welcome turn names every phase the user is
+      about to walk through, with rough time estimate. The user
+      finishes turn 1 knowing the *shape* of the experience.
+    score_yes_when: |
+      The welcome screen names all three canonical phases — **scan,
+      connect, digest** — and signals optionality. Both first-contact
+      branches in upstream's SKILL.md do this.
+    score_no_when: |
+      Welcome only says "want me to scan?" without naming what comes
+      after.
+
+  - id: 3
+    short: "Wow before ask"
+    grading: 0-3
+    description: |
+      Ratio of "value demonstrated" to "asks made" before the first
+      paid moment. The first paid moment in Mur is the digest's
+      one-free-per-day fire (or any subsequent paid digest / install).
+      Free wows that count: scan findings shown, connect bonus credit,
+      app-sweep ("I noticed you have X"), Day-0 backfill briefing.
+    score_3_when: |
+      User sees ≥3 distinct value moments before any paid ask. In
+      upstream's flow the natural wows are: first scan finding (Turn 3),
+      bonus credit + app sweep (Turn 5), Day-0 briefing (Turn 6).
+      Day-0 backfill is free, so paid asks come on day 2+.
+    score_2_when: |
+      ≥2 value moments before the first paid ask.
+    score_1_when: |
+      Exactly 1 value moment before the first paid ask.
+    score_0_when: |
+      Onboarding asks for a credit card / paid digest / install before
+      showing any value.
+
+  - id: 4
+    short: "Consent is reversible somewhere obvious"
+    grading: binary
+    description: |
+      Every consent the user grants during onboarding is reversible
+      via a surface the user knows or can find easily. The web
+      dashboard at usemur.dev counts. OAuth provider UIs (GitHub App
+      revoke, Composio account revoke) count. Inline revoke prose in
+      every prompt is NOT required — that's noise during onboarding.
+    score_yes_when: |
+      Scan writes `.murmur/consents.json` (user-editable). OAuth
+      grants are revocable via usemur.dev/dashboard/vault and the
+      provider's own UI. Paid digest mode bounds spend per-fire and
+      per-day.
+    score_no_when: |
+      A consent is granted with no revocation path anywhere — local
+      file, web dashboard, OR provider UI. (Should not happen in
+      upstream's flow; flag if found.)
+
+  - id: 5
+    short: "Signal-to-suggestion specificity"
+    grading: 0-3
+    description: |
+      Every surfaced item (scan finding, connect suggestion, digest
+      pillar item) cites a concrete signal. "Generic match" = 0.
+      "We saw <specific thing>" with the thing rendered = 3.
+    score_3_when: |
+      Every scan finding cites a file/commit/import. Connect suggestion
+      names the specific app from scan output. Digest items "cite every
+      claim" per digest.md hard contract.
+    score_2_when: |
+      Most items cite a signal; a few are generic.
+    score_0_when: |
+      Surfaced items don't cite any repo signal. (Should never happen
+      in upstream's flow — `prompts/scan.md` "Cite every claim" is a
+      hard contract.)
+
+  - id: 6
+    short: "Wow latency"
+    grading: 0-3
+    description: |
+      Number of turns from the first-contact welcome (Turn 1) to the
+      *peak* wow moment (Day-0 digest briefing displays). Lower is
+      better. Mid-arc wows (first scan finding, connect bonus) help
+      but don't substitute for the peak.
+    score_3_when: |
+      Digest wow lands within 4 turns. Requires unusual pacing —
+      basically only achievable with a no-friction OAuth + same-turn
+      digest fire.
+    score_2_when: |
+      5 turns to digest wow.
+    score_1_when: |
+      6 turns to digest wow. **Upstream's expected pacing.** Welcome →
+      scan-consent → scan-output → connect-suggest → connect-success →
+      digest-fire = 6 turns.
+    score_0_when: |
+      Digest wow doesn't fire (user dropped) or takes 7+ turns.
+    note: |
+      H6 is the heuristic where upstream is most exposed. The
+      counterweight is the *intermediate* wow moments — first scan
+      finding fires by turn 3, which keeps engagement up while the
+      digest path completes. If H3 (wow before ask) scores 3 the
+      compounding effect generally compensates for H6 = 1.
+
+  - id: 7
+    short: "Drop-off recoverability"
+    grading: binary
+    description: |
+      If the user kills the session mid-onboarding, the next
+      invocation can resume from the same step without losing state
+      or re-asking already-answered questions.
+    score_yes_when: |
+      `.murmur/scan.json` carries the cursor for "what else?". State
+      `~/.murmur/state.json` carries projectId. `.murmur/consents.json`
+      carries scan + gh-probe consents. After a scan, "/mur" without
+      a verb closes the loop with the next step (connect) rather than
+      restarting onboarding.
+    score_no_when: |
+      Resume re-asks questions the user already answered, or skips to
+      the wrong step. (In upstream's flow this would only happen if
+      `.murmur/` got deleted between sessions.)
+
+# Acceptance criteria
+acceptance:
+  ship_when: |
+    For every canonical persona in evals/personas/:
+    - Average score across all 7 heuristics ≥ 2.5
+    - No heuristic scores 0
+    - All binary heuristics (1, 2, 7) score "yes"
+    - Binary "yes" normalized as 3 for averaging

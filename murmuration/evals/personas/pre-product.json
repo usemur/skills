@@ -1,0 +1,18 @@
+{
+  "id": "pre-product",
+  "backstory": "Engineer noodling on side projects. Repo is mostly README + a few utility scripts (`summarize.js`, `chunk-pdf.js`, `dedup-rss.js`). No customers yet. Curious about Mur as 'maybe I could publish these as paid APIs'.",
+  "repo_signals": {
+    "stack": "node + a handful of utility scripts, no framework",
+    "package_imports": ["openai", "marked", "rss-parser"],
+    "env_var_prefixes": ["OPENAI_API_KEY"],
+    "github_signals": ["open_issues_count: 0", "open_prs_count: 0"],
+    "lockfile_age_days": 89,
+    "outbound_candidates": ["lib/summarize.js", "lib/chunk-pdf.js", "lib/dedup-rss.js"]
+  },
+  "accounts_present": ["github"],
+  "accounts_likely_to_connect": ["github"],
+  "expected_wow": "Scan's outbound_candidates surface (turn 3) — Mur points at `lib/summarize.js` specifically and asks 'want to publish this as a paid API later? `/mur publish summarize.js`'. The digest is dim for this persona (no PRs, no issues, no incidents) but the publish path lights up.",
+  "expected_dropoff_risk": "Bounces at digest — there's nothing to digest. If the connect step proceeds and the digest backfill returns 'Quiet on all four pillars. 0 signals.' the persona will feel they wasted 90s. Honest empty digests are upstream's stated contract, but this persona will need that messaging to be encouraging rather than flat.",
+  "wow_score_target": "H6 = 1 acceptable (digest wow is dim for this persona); H5 ≥ 3 required (outbound candidates must name files specifically, not 'a utility you wrote')",
+  "scoring_notes": "This persona is the test case for whether the publish soft-pitch lands. Upstream's flow doesn't formally include publish in onboarding — but the scan step's outbound_candidates pass should surface them. Ship-readiness for this persona depends on whether the scan summary names specific publish candidates with file paths."
+}

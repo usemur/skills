@@ -1,0 +1,20 @@
+{
+  "id": "ai-app-dev",
+  "backstory": "Building an AI product (chat with documents). Heavy LLM API spend ($300/mo on OpenAI + Anthropic combined). Has shipped to early users but no observability beyond CloudWatch logs. Lives in fear of one bad prompt blowing $50.",
+  "repo_signals": {
+    "stack": "fastapi + python + chromadb + react frontend",
+    "package_imports": ["openai", "anthropic", "fastapi", "chromadb", "langchain", "tiktoken"],
+    "env_var_prefixes": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PINECONE_API_KEY"],
+    "github_signals": [".github/workflows/deploy.yml", "open_issues_count: 3"],
+    "lockfile_age_days": 12,
+    "no_observability": true,
+    "todos_md_present": true,
+    "fixme_count": 22
+  },
+  "accounts_present": ["github"],
+  "accounts_likely_to_connect": ["github"],
+  "expected_wow": "Scan finding (turn 3) flags 'no LLM observability — recommend @mur/langfuse-host or self-host' grounded in the openai+anthropic+langchain imports. Recommend.md surfaces Langfuse as a prompt-regression-on-PRs flow. The digest then surfaces production cost spikes if Stripe / billing is connected later. Wow compounds across turns.",
+  "expected_dropoff_risk": "Install fatigue. They've already added 12 SDKs this month and are wary of adding a 13th. Mur has to push the *managed* path (no infra to run) hard; if it sounds like another self-host they'll bounce.",
+  "wow_score_target": "≥ 3 in heuristic 5 (specific signals — openai + anthropic + langchain imports must be named in the LLM-obs finding) and ≥ 2 in H3 (wow before ask — they need to feel the value before granting OAuth)",
+  "scoring_notes": "Best-fit persona for the 'cite every claim' digest contract. The digest should reference specific files (e.g. 'agent.py:142 OpenAI call could be traced') rather than abstract recommendations. If this persona dogfoods well, the LLM-app GTM story is clear."
+}

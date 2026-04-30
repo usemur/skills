@@ -1,0 +1,20 @@
+{
+  "id": "agency-dev",
+  "backstory": "Freelance full-stack dev, 4 active client repos, charges hourly. Uses Linear for project tracking, Slack for client comms. Privacy-conscious — clients pay for code that doesn't leak.",
+  "repo_signals": {
+    "stack": "remix + typescript + drizzle + postgres",
+    "package_imports": ["remix", "drizzle-orm", "@linear/sdk", "@slack/web-api"],
+    "env_var_prefixes": ["LINEAR_API_KEY", "SLACK_BOT_TOKEN", "DATABASE_URL"],
+    "github_signals": [".github/workflows/test.yml", "open_issues_count: 6"],
+    "lockfile_age_days": 67,
+    "git_remote_org": "agency-corp",
+    "todos_md_present": false,
+    "fixme_count": 14
+  },
+  "accounts_present": ["github", "linear", "slack"],
+  "accounts_likely_to_connect": ["github", "linear"],
+  "expected_wow": "The digest's cross-system thread is the wow — 'PR #43 merged Friday touches Linear AGY-118 you marked blocked, customer DM in #client-acme last week was about same area'. Agency dev sees the value of cross-tool synthesis immediately.",
+  "expected_dropoff_risk": "Privacy hesitation at scan first-run consent (turn 2) — re-reads §2.0 disclosure carefully. The 'never upload raw source code' contract has to be visibly enforced. Also: skepticism on Slack OAuth — they may skip slack entirely.",
+  "wow_score_target": "≥ 3 in H5 (signal specificity — they need to see the specific cross-system thread to trust the synthesis)",
+  "scoring_notes": "Privacy-conscious persona. Watch §2.0 disclosure clarity in scan.md and the GitHub App per-repo scoping copy in connect.md. Revocation lives in usemur.dev/dashboard/vault and provider UIs — sufficient for H4."
+}
