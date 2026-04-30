@@ -1,13 +1,16 @@
 # Publishing a `.js` file as a paid Murmuration flow
 
 > Sub-prompt of the unified `murmuration` skill. The user wants to wrap a
-> JavaScript function into a paid TEE-hosted API endpoint with built-in
-> crypto/credit payments and automatic MCP exposure. One command to
-> publish, one HTTPS endpoint, one MCP server, billing handled.
+> JavaScript function into a paid API endpoint with built-in crypto/credit
+> payments and automatic MCP exposure. One command to publish, one HTTPS
+> endpoint, one MCP server, billing handled.
 
-Publish JavaScript functions as paid API endpoints running in a TEE
-(Trusted Execution Environment, powered by Lit Protocol). One command to
-publish, automatic MCP server, built-in payments.
+Publish JavaScript functions as paid API endpoints. One command to
+publish, automatic MCP server, built-in payments. (Runtime details:
+flows execute in a Trusted Execution Environment powered by Lit Protocol
+— see https://usemur.dev/docs for the security model. Most users don't
+need to know this; it matters only when writing code that uses the
+runtime globals listed below.)
 
 ## Publish a flow
 
@@ -60,7 +63,7 @@ All via `npx -y @usemur/cli <command>`:
 | `invoke <slug>` | Call a flow (`--params '{...}'`) |
 | `list` | List your flows |
 | `logs <slug>` | View execution logs |
-| `secrets set <slug> <KEY> <val>` | Set encrypted secret (TEE-only access) |
+| `secrets set <slug> <KEY> <val>` | Set encrypted secret (only your flow can read it) |
 | `secrets list <slug>` | List secret names |
 | `secrets delete <slug> <KEY>` | Delete a secret |
 | `connect <app>` | OAuth connect (gmail, slack, etc.) |
@@ -73,12 +76,13 @@ All via `npx -y @usemur/cli <command>`:
 | **x402** | Call without API key — get 402 with payment details. x402 client pays with USDC on Base automatically. [x402.org](https://x402.org) | No |
 | **MPP** | First request returns payment challenge. Complete via Stripe or Tempo, retry with credential. [docs.mppx.dev](https://docs.mppx.dev) | No |
 
-## TEE globals
+## Runtime globals available inside `main()`
 
-Code runs in the TEE with: `params` (caller input), `params.secrets`
-(encrypted secrets), `params.connections` (OAuth tokens), `params.pkpAddress`
-(vault PKP), `Lit.Actions` (signing/decryption — exposed by the
-underlying Lit Protocol runtime), `ethers`, `fetch`.
+Your flow runs with these globals: `params` (caller input),
+`params.secrets` (encrypted secrets), `params.connections` (OAuth
+tokens), `params.pkpAddress` (vault PKP), `Lit.Actions`
+(signing/decryption — exposed by the underlying Lit Protocol
+runtime), `ethers`, `fetch`.
 
 ## Example: Signing oracle
 

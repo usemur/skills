@@ -112,7 +112,7 @@ this before a session of work so you know how much spend headroom you have.
   $5/day, user-configurable from $0–$1000). A leaked key cannot drain the
   account in a burst. Setting the cap to $0 disables the key without
   revoking it (kill switch).
-- **Refunds on failure.** If a paid call fails inside the platform's TEE,
+- **Refunds on failure.** If a paid call fails on the platform side,
   credits are refunded automatically. Upstream 5xx responses where the
   seller already settled on-chain are NOT refunded — the agent should
   treat those as paid-but-broken and not retry blindly.

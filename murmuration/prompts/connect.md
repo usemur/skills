@@ -159,7 +159,7 @@ they happened to push to last.
   do GitHub first, then prompt for the next.
 - **Never store the OAuth token locally.** It lives in the platform's
   Composio-managed vault; the local agent only sees the connection
-  status. The platform extracts the token at TEE-execution time.
+  status. The platform extracts the token only at flow-execution time.
 - **Surface the description before sending.** `GET /api/connections/apps`
   returns each app's `label` and `description`. Print them so the user
   knows what they're authorizing.

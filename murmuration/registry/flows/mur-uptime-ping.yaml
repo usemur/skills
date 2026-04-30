@@ -1,6 +1,7 @@
 slug: "@mur/uptime-ping"
 display_name: Uptime Ping
 category: uptime-monitoring
+recommended: false  # uptime-kuma self-hosts free, Better Stack has a free tier; recommend.md points at OSS / free-tier instead. Browsable via /mur catalog.
 wraps_tool: tools/uptime-kuma.yaml
 
 mcp:
@@ -25,6 +26,6 @@ detection:
 reason_template: |
   Pings your public URL every 5 minutes from {{check_regions}}. Slack/email
   alert on the first failure, recovery confirmation when service is back.
-  TEE-hosted — we don't see your URL contents, just the status code.
+  Status-code only — we don't read your URL contents.
 
 self_host_alternative: tools/uptime-kuma.yaml

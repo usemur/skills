@@ -1,52 +1,131 @@
 ---
 name: murmuration
-description: The Murmuration skill — agent-to-agent commerce platform. Scan the user's repo to identify missing infra (LLM observability, logging, uptime, etc.) and publishable artifacts (utilities, prompts, scripts) they've already written. Recommend OSS tools and Murmuration-native flows from a vendored registry to fill those gaps. Publish JS functions as paid TEE-hosted APIs (powered by Lit Protocol). Call paid flows from a global catalog (web search, scraping, transcription, image/video gen, OCR, data enrichment, etc.) using a single credit balance — no per-provider API keys, no wallet required. Use when the user mentions Murmuration, paid APIs, x402, MCP servers, publishing flows, calling external APIs without an account, scanning a repo for missing tools, asking what tools they should install, or wanting to monetize JavaScript code.
+description: Mur — the agent skill for growing your business. Proactive chief-of-staff: scans the user's stack, surfaces what to fix today (one finding at a time), then earns the right to automate the recurring stuff with LLM-in-the-loop flows. The flagship is the daily digest — overnight, ranks open issues + TODOs + recent PR activity across every system the user has connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things you should look at today" with the cross-system thread. Other marquee paid flows: LLM PR review, prompt-regression eval on PRs, weekly dependency-release-note summaries, weekly competitor-site diffs, LLM issue triage. The more systems connected, the smarter the digest. Free in chat for scans, fixes, and recommendations; pay only for the automations watched while you sleep — single credit balance, no per-vendor API key juggling. On first contact with a project, reads everything locally (repo, git log, TODOs/FIXMEs, open PRs/issues via gh CLI, deploy configs, manifests, README) before asking the user to connect anything external. Multi-project aware — cd between repos and project context follows. Use when the user says /mur, /murmur, /murmuration, scan my project, what's broken, what should I fix today, what should I do next, what's in my stack, what tools am I missing, what should I automate, connect github, run a digest, automate a recurring check, browse the catalog, what else, skip, or any framing about getting a list of what to do, project status, growing the business, or shipping the next thing. /mur, /murmur, and /murmuration are equivalent prefixes. Docs: https://usemur.dev/docs.
 ---
 
-# Murmuration
+# Mur
 
-The Murmuration skill — one pack, multiple verbs. Murscan-side verbs
-(scan, stack, recommend, install, consume-flow, publish-flow) ship in
-PR #10/#13. Cofounder-side verbs (connect, whoami, digest, digest-deep,
-automate, morning-check, approve, why, ask, later) ship in PR #21+.
-Routes the user's intent to the right sub-prompt below.
+The agent skill for growing the user's business. Mur is a **proactive
+chief-of-staff** — scans the user's stack, surfaces what to fix
+*today* (one finding at a time), then earns the right to automate the
+recurring work with LLM-in-the-loop flows. Helpful first, automation
+second. Free in chat for scans, fixes, and recommendations; pay only
+for the automations running while you sleep.
+
+The flagship paid flow is the **daily digest**: overnight, it ranks
+open issues + TODOs + recent PR activity across every system you've
+connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things
+to look at today" with the cross-system thread (e.g. PR #142 fixes
+the bug in issue #98 that blocks the customer in Linear MUR-203).
+The more systems connected, the smarter the digest.
+
+When invoked, default to chief-of-staff voice: surface one finding at
+a time, wait for the user, then move to the next. Don't dump a status
+report.
+
+Docs: https://usemur.dev/docs.
+
+## How users invoke Mur
+
+The skill's name on disk is `murmuration` (technical identifier; don't
+break install paths). Users invoke it as **`/mur`** in conversation —
+that's the canonical short form. `/murmuration` works too. Both route
+to the verb table below. When you echo commands back to the user, lead
+with `/mur scan`, `/mur connect`, `/mur digest`, etc.
 
 ## Verbs and routing
 
 When the user's intent matches one of these, **read the corresponding
 prompt file from this skill's directory** before responding. The prompt
-contains the detailed instructions, examples, and edge cases you'll need.
+contains the detailed instructions, examples, and edge cases.
 
-### Murscan verbs (existing)
+### Read-and-react verbs (the core proactive loop)
+
+| If the user wants to…                                                      | Read this prompt              |
+|----------------------------------------------------------------------------|-------------------------------|
+| Scan the active project: read everything locally first (repo, git log, TODOs, gh CLI), then surface findings | `prompts/scan.md`             |
+| See what Mur already knows about the project (pages, business cat, connections) | `prompts/whoami.md`           |
+| Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
+| Trigger a fresh daily digest now (free, once/day)                          | `prompts/digest.md`           |
+| Trigger a deep digest with more sources + reasoning (billed)               | `prompts/digest-deep.md`      |
+| Open the morning loop / read the most recent fired digest                  | `prompts/morning-check.md`    |
+| Approve / fire the action for a digest item                                | `prompts/approve.md`          |
+| See the reasoning trace for a digest item                                  | `prompts/why.md`              |
+| Free-form follow-up about a digest item or page                            | `prompts/ask.md`              |
+| Defer a digest item ("snooze for 7 days")                                  | `prompts/later.md`            |
+
+### Connect + automate verbs
+
+| If the user wants to…                                                      | Read this prompt              |
+|----------------------------------------------------------------------------|-------------------------------|
+| Connect a third-party source (GitHub, Stripe, Slack, etc.) — Composio OAuth | `prompts/connect.md`          |
+| Wire a recurring automation ("every Mon 9am roll up MRR")                  | `prompts/automate.md`         |
+| Build/rebuild the local contact graph from Gmail / Slack / GitHub          | `prompts/contact-grapher.md`  |
+| Recommend LLM-in-the-loop automations for the gaps in this stack           | `prompts/recommend.md`        |
+| Browse the full flow + tool catalog (everything, not just the curated recs) | `prompts/catalog.md`          |
+| Install a recommended flow (after the user says yes)                       | `prompts/install.md`          |
+| Run an adversarial 3-agent bug hunt locally (Hunter → Skeptic → Referee)   | `prompts/bug-hunt.md`         |
+| Run a static security audit on the repo (OWASP-shaped, severity-rated)     | `prompts/security-audit.md`   |
+
+### Marketplace verbs (secondary surface)
 
 | If the user wants to…                                                      | Read this prompt              |
 |----------------------------------------------------------------------------|-------------------------------|
 | Call a paid flow / find a paid endpoint that does X                        | `prompts/consume-flow.md`     |
 | Publish a `.js` file as a paid Murmuration flow                            | `prompts/publish-flow.md`     |
-| Scan their repo / audit their stack / find publishable code they've written | `prompts/scan.md`             |
-| Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
-| Recommend tools / flows for missing slots in their stack                   | `prompts/recommend.md`        |
-| Install a recommended flow (after consent, or direct "install <slug>")     | `prompts/install.md`          |
-| Run an adversarial 3-agent bug hunt locally (Hunter → Skeptic → Referee)   | `prompts/bug-hunt.md`         |
-| Run a static security audit on the repo (OWASP-shaped, severity-rated)     | `prompts/security-audit.md`   |
-
-### Cofounder verbs (new — cofounder-skill.md §4.2)
-
-| If the user wants to…                                                      | Read this prompt              |
-|----------------------------------------------------------------------------|-------------------------------|
-| Connect a third-party source (GitHub, Stripe, Search Console)              | `prompts/connect.md`          |
-| See what the cofounder knows about them (pages, business cat, connections) | `prompts/whoami.md`           |
-| Trigger a fresh daily digest now (free, once/day)                          | `prompts/digest.md`           |
-| Trigger a deep digest with more sources + reasoning (billed)               | `prompts/digest-deep.md`      |
-| Wire a recurring automation (Stripe-to-Sheet, weekly MRR roll-up, etc.)    | `prompts/automate.md`         |
-| Open the morning loop / read the most recent fired digest                  | `prompts/morning-check.md`    |
-| Approve / fire the action for a digest item                                | `prompts/approve.md`          |
-| See the reasoning trace for a digest item                                  | `prompts/why.md`              |
-| Open a free-form conversation about a digest item or page                  | `prompts/ask.md`              |
-| Defer a digest item ("snooze for 7 days")                                  | `prompts/later.md`            |
-| Build/rebuild the local contact graph from Gmail / Slack / GitHub          | `prompts/contact-grapher.md`  |
 
 ## Trigger phrases
+
+**`/mur <verb>`, `/murmur <verb>`, and `/murmuration <verb>` are all
+equivalent.** All three forms route to the same prompts. Treat any
+message starting with one of those prefixes as an explicit
+invocation; the bare verb after the prefix takes priority over
+context-only matches.
+
+`/mur` is the canonical short form going forward — when echoing
+commands back to the user in copy, prefer `/mur scan`, `/mur ask N`,
+etc. But `/murmur` (and the longer `/murmuration`) remain wired
+because email digests, prior prompts, and existing user habits still
+emit them. Don't break them.
+
+Route to **`prompts/scan.md`** when the user says things like:
+
+- `/mur scan` / `/mur scan my project` / `/murmuration scan`
+- "scan my repo" / "scan this project" / "audit my stack"
+- "what's broken" / "what should I fix today" / "what should I do next"
+- "what's in my stack" *(may want stack instead — see below)*
+- "look at my project and tell me what you see"
+- "anything here worth publishing" / "is there anything I could monetize"
+- "scan &lt;repo-name&gt;" / "scan it" *(after first-contact welcome)*
+
+Phrases like "set me up for &lt;repo&gt;", "get this going for
+&lt;repo&gt;", "configure for &lt;repo&gt;" route to **First contact**
+(see end of this file), which offers scan as the suggested next step
+but waits for the user's yes.
+
+**Scan continuation phrases.** When `<project>/.murmur/scan.json`
+exists AND its **internal `scanned_at` field** is within 24h of
+now (do NOT rely on file mtime — the cursor writes refresh that),
+the following phrases route back to scan.md §"Step 3":
+
+- "what else?" / "what else" / "what else for this scan"
+- "show me &lt;file path&gt;" / "open #N" *(when the file or N
+  references a finding from the scan)*
+
+These phrases are scan-specific by construction. `recommend.md`'s
+own pagination uses bare "next" / "more" / "skip" — all three are
+intentionally NOT in this trigger set, because routing them to
+scan would steal turns from a recommend session. Continuation
+works after inspection actions ("open #142" → response → "what
+else?") because the gate is the
+fresh scan.json, not "the very last turn was Step 2."
+
+**Do NOT** include bare "next" / "more" / "next finding" in this
+trigger set. They collide with `recommend.md`'s pagination and
+would misroute users out of recommend into scan.
+
+Without this routing, "what else?" after a scan summary would drop
+out of Mur entirely on the next turn.
 
 Route to **`prompts/consume-flow.md`** when the user says things like:
 
@@ -66,33 +145,37 @@ Route to **`prompts/publish-flow.md`** when the user says things like:
 - "create a new Murmuration flow"
 - anything about `@usemur/cli publish`, secrets, OAuth connections, MCP exposure
 
-Route to **`prompts/scan.md`** when the user says things like:
-
-- "scan my repo" / "scan this project" / "audit my stack"
-- "what's in my stack" *(may want stack instead — see below)*
-- "anything here worth publishing"
-- "is there anything I could monetize from this codebase"
-- "publish this utility / share my retry helper / can I sell this script"
-- general "look at my project and tell me what you see" prompts
-- "scan &lt;repo-name&gt;" / "scan it" *(after the first-contact welcome)*
-
-Note: phrases like "set me up for &lt;repo&gt;", "get this going for
-&lt;repo&gt;", "configure for &lt;repo&gt;" route to **First contact**
-(see end of this file), which offers `/scan` as the suggested next
-step but waits for the user's yes.
-
 Route to **`prompts/recommend.md`** when the user says things like:
 
-- "what tools am I missing" / "what should I install"
-- "recommend tools for me" / "what does my stack need"
-- "set up logging / observability / uptime / error tracking / analytics"
-- "find me a CRM / project mgmt / e-sign / scheduling tool"
-- "fix my LLM observability gap"
-- generally: any "I have a hole, recommend something to fill it" framing
+- "what should I automate" / "what's worth automating"
+- "what tools am I missing" / "recommend tools for me"
+- "fix my LLM observability gap" / "set up prompt-regression on PRs"
+- "what would the digest look like for me" / "make my digest smarter"
+- generally: any "I have a hole or a recurring pain, recommend
+  something to fix it" framing
+
+`recommend.md` leads with **LLM-in-the-loop automations** (digest,
+PR review, prompt regression, dep release-note digest, competitor
+scan, issue triage). When the user's gap is generic infra (uptime,
+logging, error tracking) it surfaces the OSS option directly without
+pitching a managed wrapper.
 
 If the user asks for recommendations but `.murmur/scan.json` doesn't
 exist yet, `recommend.md` will redirect them to scan first. Don't
 auto-scan — that bypasses the scan-level consent.
+
+Route to **`prompts/catalog.md`** when the user says things like:
+
+- "show me the full catalog" / "what flows are available"
+- "browse the marketplace" / "everything Mur can do"
+- "show me all tools / all flows" / "what's in the registry"
+- "is there a flow for X" *(when the user wants to browse, not
+  receive a curated rec)*
+
+`catalog.md` lists the entire registry — including managed-OSS-clone
+flows that `recommend.md` intentionally doesn't surface. Use this
+when the user wants to see what's available, not what's right for
+their stack.
 
 Route to **`prompts/install.md`** when the user says things like:
 
@@ -146,23 +229,24 @@ CLI), focused on vulnerability classes (OWASP-shaped), and produces a
 severity-rated report. `bug-hunt` is broader (any defect) and requires
 the Claude Code CLI for the 3-agent loop.
 
-### Cofounder verbs — trigger phrases
+### Read-and-react trigger phrases
 
 Route to **`prompts/connect.md`** when the user says things like:
 
-- "/connect github" / "/connect stripe" / "/connect google"
+- `/mur connect github` / `/mur connect stripe` / `/connect google`
 - "hook up GitHub" / "authorize Stripe" / "wire up Search Console"
 - "connect everything" *(do GitHub first, then prompt for next)*
 
 Route to **`prompts/whoami.md`** when the user says things like:
 
-- "/murmur whoami" / "show me what you know" / "show my profile"
-- "what's in my pages" / "what does the cofounder know"
+- `/mur whoami` / `/murmur whoami`
+- "show me what you know" / "show my profile" / "what's in my pages"
+- "what does Mur know about this project"
 
 Route to **`prompts/digest.md`** when the user wants to **fire a fresh
 digest run** (creates new state):
 
-- "/digest" / "/murmur digest"
+- `/mur digest` / `/digest`
 - "run a digest" / "fire a digest" / "trigger the digest now"
 - "give me a fresh digest"
 
@@ -173,36 +257,40 @@ morning-check = read latest.
 
 Route to **`prompts/digest-deep.md`** when the user says things like:
 
-- "/digest --deep" / "deep digest" / "deeper digest"
+- `/mur digest --deep` / "deep digest" / "deeper digest"
 - "give me the deep brief" / "scan everything"
 
 Route to **`prompts/morning-check.md`** when the user says things like:
 
-- "/morning-check" / "morning check"
+- `/mur morning-check` / "morning check"
 - "what's new this morning" / "what should I do today"
 - "good morning" *(when there's a digest waiting)*
 - "what did I miss" *(if it's been ≥24h since their last read)*
 
 Route to **`prompts/approve.md`** when the user says things like:
 
-- "/murmur approve N" / "approve item N" / "approve N"
+- `/mur approve N` / `/murmur approve N` / `/murmuration approve N`
+- "approve item N" / "approve N"
 - "yes" *(immediately after a digest item — context-dependent)*
 - "do it" / "go ahead" *(same — context-dependent)*
 
 Route to **`prompts/why.md`** when the user says things like:
 
-- "/murmur why N" / "why N" / "why item N"
+- `/mur why N` / `/murmur why N` / `/murmuration why N`
+- "why N" / "why item N"
 - "why did you flag that" / "show me your reasoning"
 
 Route to **`prompts/ask.md`** when the user says things like:
 
-- "/murmur ask N" / "/murmur ask"
+- `/mur ask N` / `/mur ask` / `/murmur ask N` / `/murmur ask`
+- "ask N" / "ask about N"
 - "tell me more about N" / "what should I do about N"
-- Free-form follow-up after a `/murmur why` rendering.
+- Free-form follow-up after a `/mur why` rendering.
 
 Route to **`prompts/later.md`** when the user says things like:
 
-- "/murmur later N" / "later N" / "snooze N"
+- `/mur later N` / `/murmur later N` / `/murmuration later N`
+- "later N" / "snooze N"
 - "remind me later about N" / "defer N"
 
 Route to **`prompts/automate.md`** when the user says things like:
@@ -252,54 +340,130 @@ read `prompts/_bootstrap.md` and run it before any API call.
   follows that prompt's confirmation handler. **Bare "yes" with no
   pending intent must be treated as ambiguous** ("yes to what?") and
   asked back. This prevents cross-prompt routing collisions.
-- **Server is the only source of truth for state changes.** All
-  cofounder verbs that mutate state (`approve`, `later`, `connect`,
-  `automate`) call the sync API; the server writes canonical timeline
-  rows. The local agent does NOT append to `~/.murmur/pages/*.md`
-  directly. After a write, refresh the local mirror with
+- **Server is the only source of truth for state changes.** Verbs
+  that mutate state (`approve`, `later`, `connect`, `automate`) call
+  the sync API; the server writes canonical timeline rows. The local
+  agent does NOT append to `~/.murmur/pages/*.md` directly. After a
+  write, refresh the local mirror with
   `GET /api/sync/pages/<page_name>`.
+
+## Pairs with gstack
+
+Mur is the proactive watcher. **gstack** is the active worker —
+brainstorming new projects, scoping plans, reviewing code, shipping.
+The two are independent skills (each works without the other), but
+when both are present Mur routes to gstack verbs for the work it
+doesn't itself do.
+
+**Detection.** Probe once per turn (cheap, no caching needed):
+
+```sh
+test -f ~/.claude/skills/gstack/SKILL.md && echo yes || echo no
+```
+
+When the result is `yes`, treat gstack as available and route to its
+verbs by name when a finding calls for one. When `no`, mention gstack
+once in the first-contact welcome (see below) but never block on it —
+Mur fully works alone.
+
+**Hand-off table.** When the conversation surfaces one of these
+intents, use the gstack verb in the action line. (Routing to gstack
+is a *suggestion to the user*, not Mur invoking it directly — the
+user types the verb when they're ready.)
+
+| When the scan / conversation surfaces…           | Hand off to              |
+|---------------------------------------------------|--------------------------|
+| New project, fresh idea, recent roadmap item      | `/office-hours`          |
+| Plan exists, ready to lock architecture           | `/plan-eng-review`       |
+| UI/UX scope to design                             | `/plan-design-review`    |
+| Bug, 500 error, unexpected behavior               | `/investigate`           |
+| Code ready to merge + push                        | `/ship`                  |
+| Site needs visual QA                              | `/qa` or `/design-review` |
+| Pre-merge code review                             | `/review`                |
+| Brand / design system needed                      | `/design-consultation`   |
+
+**The flywheel.** Mur surfaces the gap → user runs the gstack verb
+→ gstack does the work → next `/mur scan` picks up the new state and
+suggests automations on it (e.g. user shipped a new endpoint via
+`/ship`, next scan flags it as a candidate for `@mur/reviewer` on
+future PRs touching it). Loose coupling, no hooks — just Mur's
+normal scan-react loop catching the new state.
+
+**Install path** (when the user doesn't have gstack and the welcome
+mentions it): the canonical one-liner Claude can paste verbatim is
+
+```
+git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
+```
+
+Don't run this for the user without explicit confirmation.
 
 ## First contact — when the user just installed and hasn't picked a verb
 
+Mur is proactive. The first contact moment is the only time it should
+present a menu — and even then, lead with one concrete next step, not
+a feature list.
+
 If the user's message expresses generic engagement intent ("get this
-going", "set me up", "help me out", "configure for X", "for &lt;repo&gt;",
-"now what?") and **no verb trigger fires**, do this:
+going", "set me up", "help me out", "configure for &lt;repo&gt;",
+"for &lt;repo&gt;", "now what?") and **no verb trigger fires**, do this:
 
-1. Detect cwd repo name: `basename "$(git rev-parse --show-toplevel
-   2>/dev/null || pwd)"`. If git fails AND cwd is `$HOME` or
-   `~/Desktop`, treat as "no repo" (don't auto-suggest scan).
-2. Send a one-screen welcome:
+1. Detect the cwd repo name:
+   `basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`.
+   If git fails AND cwd is `$HOME` or `~/Desktop`, treat as "no repo"
+   (skip the scan suggestion — Mur is currently strongest for code
+   projects).
+2. Detect gstack:
+   `test -f ~/.claude/skills/gstack/SKILL.md`. Branch the welcome
+   accordingly.
+3. Send a one-screen welcome that leads with the action, not the menu.
 
-   > Murmuration installed. Inside `&lt;repo-name&gt;` I can:
+   **Branch A — gstack present:**
+
+   > Mur installed. I'll start by scanning `&lt;repo-name&gt;` —
+   > reading the repo, your git log, and any TODOs / open PRs / open
+   > issues I can find locally before asking you to connect anything
+   > external. After that, I'll surface the top thing to look at and
+   > we'll go one at a time.
    >
-   > - **scan** — find missing infra (logging, observability, uptime)
-   >   and code you've written that's worth publishing as a paid API
-   > - **connect** — wire GitHub/Stripe/Slack/etc. so I can give you
-   >   morning briefs (run `/connect github` after the scan)
-   > - **automate** — schedule recurring jobs ("every Mon 9am roll up
-   >   MRR")
-   > - **publish** — turn one of your `.js` files into a paid API
+   > I see you have gstack too — I'll point you at the right gstack
+   > verb when something I surface needs scoping (`/office-hours`),
+   > planning (`/plan-eng-review`), shipping (`/ship`), or debugging
+   > (`/investigate`). Mur watches; gstack does.
    >
-   > Want me to scan `&lt;repo-name&gt;` now? (I'll show what I'd read
-   > before I read it.)
+   > Run `/mur scan` when you're ready. (Or type "what else can you
+   > do?" for the full verb list.)
 
-3. **Wait** for a yes — `scan.md` still owns the §2.0 first-run
-   consent disclosure. Do NOT auto-run scan.
+   **Branch B — gstack missing:**
 
-If the user is in a non-repo folder (Desktop, home dir): tell them
-honestly that Murmuration is currently strongest for code projects
-and ask what they want to accomplish. Don't pretend a YouTube-script
-folder will get useful output.
+   > Mur installed. I'll start by scanning `&lt;repo-name&gt;` —
+   > reading the repo, your git log, and any TODOs / open PRs / open
+   > issues I can find locally before asking you to connect anything
+   > external. After that, I'll surface the top thing to look at and
+   > we'll go one at a time.
+   >
+   > Optional but recommended: install **gstack**, the companion
+   > skill for scoping, planning, code review, and shipping. Mur
+   > watches; gstack does. To install:
+   >
+   > ```
+   > git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
+   > ```
+   >
+   > Run `/mur scan` when you're ready. (Or type "what else can you
+   > do?" for the full verb list.)
+
+4. **Wait.** Do NOT auto-run scan or auto-install gstack —
+   `prompts/scan.md` still owns the §2.0 first-run consent disclosure,
+   and gstack install is the user's call. The user typing `/mur scan`
+   (or any scan trigger) is what kicks Mur off.
+
+If the user asks "what else can you do?" after that welcome, then
+list the verbs in priority order — read-and-react first, then
+connect/automate, then marketplace. Always with the `/mur ` prefix.
 
 This branch fires ONLY when no verb trigger matches. If the user types
-`/scan` or "scan my repo", the normal scan trigger wins.
-
-## What's coming next
-
-Future phases will add: agent-driven publish conversation (tier
-choice + pricing + registry PR auto-open), and broader Composio app
-coverage (ecommerce, creator, services personas). Until those land,
-the home page advertises what the skill can serve TODAY.
+`/mur scan` or "scan my repo" up front, the normal scan trigger wins.
 
 ## Links
 

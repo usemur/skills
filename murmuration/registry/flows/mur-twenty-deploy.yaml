@@ -1,6 +1,7 @@
 slug: "@mur/twenty-deploy"
 display_name: Twenty CRM Deploy
 category: crm
+recommended: false  # OSS-deploy isn't a focus right now; we want automation, not installation. Browsable via /mur catalog.
 wraps_tool: tools/twenty.yaml
 
 mcp:
@@ -23,7 +24,7 @@ detection:
 
 reason_template: |
   Deploys Twenty (OSS HubSpot alternative) to your Fly/Railway/Render org
-  in one command. The flow encrypts a deploy token in our enclave, runs the
-  setup, and hands you back a working CRM URL. ~5 minutes start-to-finish.
+  in one command. The flow takes a deploy token, runs the setup, and hands
+  you back a working CRM URL. ~5 minutes start-to-finish.
 
 self_host_alternative: tools/twenty.yaml

@@ -1,6 +1,7 @@
 slug: "@mur/dep-drift"
 display_name: Dependency Drift Report
 category: dependency-health
+recommended: false  # superseded by @mur/dep-release-digest (LLM-summarized release notes, more useful). Browsable via /mur catalog.
 wraps_tool: null
 
 mcp:

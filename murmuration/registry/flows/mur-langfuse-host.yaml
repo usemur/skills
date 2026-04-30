@@ -1,6 +1,7 @@
 slug: "@mur/langfuse-host"
 display_name: Managed Langfuse
 category: llm-observability
+recommended: false  # langfuse self-hosts free; recommend.md points at OSS instead. Browsable via /mur catalog.
 wraps_tool: tools/langfuse.yaml
 
 mcp:
@@ -25,7 +26,7 @@ detection:
 
 reason_template: |
   Same outcome as self-hosting Langfuse, no infra to run. We host the
-  collector + dashboard in our enclave, you keep your traces. Pay only
-  for traces that land — no idle ingest cost, no DB tuning.
+  collector + dashboard, you keep your traces. Pay only for traces that
+  land — no idle ingest cost, no DB tuning.
 
 self_host_alternative: tools/langfuse.yaml
