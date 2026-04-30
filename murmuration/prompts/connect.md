@@ -142,13 +142,31 @@ they happened to push to last.
    ("GitHub connected. +$5 in cofounder credits."). The platform has
    already granted the $5 connection bonus inside the OAuth callback
    (idempotent per provider per developer — repeat connects don't
-   double-grant). Refresh the local mirror with
-   `GET /api/sync/pages/ACCESS_POLICY`. Then offer the next step:
+   double-grant). Refresh BOTH local mirrors before offering the next
+   step (the digest path reads HEARTBEAT to gate
+   `hasMinConnections`, and routing to it without a fresh HEARTBEAT
+   can bounce the user back to /connect with a stale connection
+   count):
+
+   ```
+   GET /api/sync/pages/ACCESS_POLICY
+   GET /api/sync/pages/HEARTBEAT
+   ```
+
+   Then offer the next step:
 
    - First connect (GitHub): "Want your Day-0 backfill digest now?
-     ~90s." → if yes, route to `morning-check.md` with `--backfill`.
-   - Subsequent connects: redirect to `digest.md` with
-     `--refresh-only` or just confirm and stop.
+     ~90s." → if yes, route to `digest.md` with `--backfill`. (Do
+     NOT route through `morning-check.md` — that prompt is read-only
+     and itself redirects to `digest.md --backfill` when no digest
+     exists; routing through it adds an extra hop without changing
+     the result.)
+   - Subsequent connects: if no digest has fired on this project
+     yet, suggest `/mur digest --backfill`. If a digest has already
+     fired, just confirm the new source and close ("Got Stripe
+     wired up too — your next morning digest will pull from it").
+     No `--refresh-only` flag — `digest.md` only supports the
+     default run and `--backfill`.
 
 5. On timeout / cancellation: show the latest `/check` status and tell
    the user to retry `/connect <source>`.
@@ -195,4 +213,7 @@ If this was the founder's first connect, do these in order:
 2. Prompt: "Want your Day-0 backfill digest now? It'll synthesize 30
    days of signals from the sources you've connected. ~90s."
 
-If they say yes, route to `morning-check.md` with the `--backfill` flag.
+If they say yes, route to `digest.md` with the `--backfill` flag.
+(`digest.md --backfill` is the canonical Day-0 verb;
+`morning-check.md` is read-only and redirects there itself, so going
+through it adds a hop.)

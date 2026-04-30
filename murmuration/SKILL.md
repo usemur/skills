@@ -25,6 +25,65 @@ report.
 
 Docs: https://usemur.dev/docs.
 
+## Getting started — the canonical path
+
+When a user has just installed Mur, the path that gets them from
+"installed" to "Mur is watching for me" is **scan → connect → digest**,
+in that order:
+
+1. **Scan** — `/mur scan`. Reads the project locally (repo, git log,
+   TODOs, manifests, gh CLI if present). **Fully local — no network
+   calls during the scan itself** (see `prompts/scan.md` "No network
+   calls in this verb"). Surfaces the top thing to look at, one
+   finding at a time. Free.
+
+2. **Connect** — `/mur connect github` (and any other relevant source
+   that came up in the scan). This is the step that lets Mur watch
+   while the user is offline. Local `gh auth login` is great for
+   foreground reads if/when the user runs a verb that needs them, but
+   the overnight digest runs on Mur's server with Composio-vaulted
+   OAuth tokens — so /mur connect is required, not optional, for the
+   loop to close. The first connect also runs the bootstrap
+   (`POST /api/projects` → registers this repo as a Mur project) and
+   credits the developer's $5 connection bonus.
+
+3. **Digest** — `/mur digest --backfill` once for the Day-0 30-day
+   synthesis, then the morning loop fires automatically each day at
+   the user's configured time. (Bare `/mur digest` runs the standard
+   24h window — that's what runs overnight; the explicit `--backfill`
+   flag is what makes the first run synthesize 30 days, which is what
+   new users want to see.) Surfaces "the 3 things to look at today"
+   with cross-system thread (e.g. PR #142 fixes the bug in issue #98
+   that blocks the customer in Linear MUR-203). The more sources
+   connected, the smarter the digest.
+
+**At the end of every scan**, before going quiet, close the loop with
+the next step. The scan itself doesn't make server calls so it can't
+*detect* whether the user has connected yet — but suggesting `/mur
+connect github` unconditionally is fine; an already-connected user
+will just say "I've already done that" and we move on. The arc never
+closes silently — the user should always know what unlocks next.
+
+**At the end of every /mur connect**, route to the Day-0 digest
+backfill: read `prompts/digest.md` in `--backfill` mode (synthesizes
+30 days of signals, ~90s on demand — same payload the morning loop
+will produce overnight, just immediate). On the **first** GitHub
+connect this is a hard handoff; on subsequent connects skip if a
+digest has already fired and just confirm the new source.
+
+`digest.md --backfill` is the canonical Day-0 verb. (`morning-check.md`
+is read-only and itself redirects to `digest.md --backfill` when no
+digest exists, so routing through morning-check on first connect adds
+an extra hop without changing the result. Go straight to
+`digest.md --backfill`.) After a digest fires once, the morning loop
+is self-sustaining; no more close-the-loop nudges are needed on this
+project.
+
+This is the canonical path. Mur can do other things (catalog browsing,
+publishing flows, automate this-or-that) — but for a new user, the
+proactive read-and-react loop is the product, and scan → connect →
+digest is how it gets activated.
+
 ## How users invoke Mur
 
 The skill's name on disk is `murmuration` (technical identifier; don't
@@ -420,11 +479,14 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch A — gstack present:**
 
-   > Mur installed. I'll start by scanning `&lt;repo-name&gt;` —
-   > reading the repo, your git log, and any TODOs / open PRs / open
-   > issues I can find locally before asking you to connect anything
-   > external. After that, I'll surface the top thing to look at and
-   > we'll go one at a time.
+   > Mur installed. The path is **scan → connect → digest**: I scan
+   > now (free, all local — nothing leaves your machine), then we
+   > connect GitHub so I can watch while you sleep, then a digest
+   > lands in your chat each morning with the 3 things to look at.
+   >
+   > Today: I'll start by scanning `&lt;repo-name&gt;` — reading the
+   > repo, your git log, manifests, and any TODOs locally. We'll go
+   > one finding at a time.
    >
    > I see you have gstack too — I'll point you at the right gstack
    > verb when something I surface needs scoping (`/office-hours`),
@@ -436,11 +498,14 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch B — gstack missing:**
 
-   > Mur installed. I'll start by scanning `&lt;repo-name&gt;` —
-   > reading the repo, your git log, and any TODOs / open PRs / open
-   > issues I can find locally before asking you to connect anything
-   > external. After that, I'll surface the top thing to look at and
-   > we'll go one at a time.
+   > Mur installed. The path is **scan → connect → digest**: I scan
+   > now (free, all local — nothing leaves your machine), then we
+   > connect GitHub so I can watch while you sleep, then a digest
+   > lands in your chat each morning with the 3 things to look at.
+   >
+   > Today: I'll start by scanning `&lt;repo-name&gt;` — reading the
+   > repo, your git log, manifests, and any TODOs locally. We'll go
+   > one finding at a time.
    >
    > Optional but recommended: install **gstack**, the companion
    > skill for scoping, planning, code review, and shipping. Mur

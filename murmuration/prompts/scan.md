@@ -654,9 +654,18 @@ other infra is missing.
 If rules 1–8 ALL produce nothing — no security risk, no waiting PR,
 no labeled issue, no hotspot, no recent in-repo TODO, no LLM gap,
 no infra gap, no outbound candidate — the project is in good shape.
-Say so honestly and offer the connect step ("everything looks clean
-from what I can read locally — `/mur connect github` if you want me
-watching for new issues / PRs going forward").
+Say so honestly and close the loop with the next step in the
+canonical path (SKILL.md "Getting started — the canonical path"):
+"everything looks clean from what I can read locally —
+`/mur connect github` if you want me watching for new issues / PRs
+going forward, then a digest lands in your chat each morning."
+
+The closeout is intentionally unconditional. Scan can't make server
+calls (see "No network calls in this verb" above) so it can't detect
+whether the user has already connected. An already-connected user
+will just say "I've already done that" and we move on; the cost of
+asking once is far smaller than the cost of leaving the canonical
+path uncompleted for a brand-new user.
 
 ### Step 2 — print the summary
 
