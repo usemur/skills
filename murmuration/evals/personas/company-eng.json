@@ -12,8 +12,8 @@
   },
   "accounts_present": ["github", "linear", "sentry"],
   "accounts_likely_to_connect": ["github"],
-  "expected_wow": "The digest surfaces personal-scope items: 'PRs #1421, #1438 still open, you wrote both'. Stale-PR nudger is the personalized wow — they get to look like a 10x by closing their open PRs before standup.",
-  "expected_dropoff_risk": "Org policy on third-party connects (turn 4). They might say 'I can't connect company GitHub' — the GitHub-App per-repo scoping should help here (only watches one repo, not the whole org). Connect step needs to surface that scoping explicitly so the user feels safe.",
-  "wow_score_target": "≥ 2 in heuristic 5 (signal-to-suggestion specificity — they'll dismiss generic suggestions) and at least H6 = 1 (wow is digest, not earlier)",
-  "scoring_notes": "This persona has the most *infra already in place*. Recommend.md output (if reached) will be thin because Sentry+dependabot+CI cover most slots. The wow has to be the digest itself, not gap-filling. If the digest's chief-of-staff briefing names specific PRs by number, scores 3 on H5."
+  "expected_wow": "Plan-of-action menu emphasizes personal-scope options: 'Wire @mur/reviewer — your last 3 PRs took avg 4 days to land, structural concerns caught in 2 hours'; 'Set up the daily digest — tomorrow would surface PRs #1421, #1438 you opened (still open)'. The menu is narrower than indie-stripe (catalog and security-audit don't fire — infra-mature stack already covers those slots).",
+  "expected_dropoff_risk": "Org policy on third-party connects (turn 3). GitHub-App per-repo scoping should help. The 'Detected: gh authed, Sentry SDK, CODEOWNERS' line in scan output reassures that Mur sees their company-mature setup correctly.",
+  "wow_score_target": "≥ 2 in H5 (signal specificity), H8 (chief-of-staff voice), H9 (plan breadth — narrow but adapted to mature stack), H10 (plan grounding — every item names a PR # / file)",
+  "scoring_notes": "Infra-mature persona. H9 score 2 acceptable: only 2-3 plan items will fire (Wire @mur/reviewer, daily digest, maybe Linear-connect prompt). The menu adapts honestly — doesn't pad with security-audit when no risky_patterns exist."
 }

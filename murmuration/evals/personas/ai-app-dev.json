@@ -13,8 +13,8 @@
   },
   "accounts_present": ["github"],
   "accounts_likely_to_connect": ["github"],
-  "expected_wow": "Scan finding (turn 3) flags 'no LLM observability — recommend @mur/langfuse-host or self-host' grounded in the openai+anthropic+langchain imports. Recommend.md surfaces Langfuse as a prompt-regression-on-PRs flow. The digest then surfaces production cost spikes if Stripe / billing is connected later. Wow compounds across turns.",
-  "expected_dropoff_risk": "Install fatigue. They've already added 12 SDKs this month and are wary of adding a 13th. Mur has to push the *managed* path (no infra to run) hard; if it sounds like another self-host they'll bounce.",
-  "wow_score_target": "≥ 3 in heuristic 5 (specific signals — openai + anthropic + langchain imports must be named in the LLM-obs finding) and ≥ 2 in H3 (wow before ask — they need to feel the value before granting OAuth)",
-  "scoring_notes": "Best-fit persona for the 'cite every claim' digest contract. The digest should reference specific files (e.g. 'agent.py:142 OpenAI call could be traced') rather than abstract recommendations. If this persona dogfoods well, the LLM-app GTM story is clear."
+  "expected_wow": "Plan-of-action menu leads with 'Wire @mur/langfuse-host — you import openai + anthropic + langchain, no observability detected. Test trace lands in dashboard in 5 sec'. Other items: 'Wire @mur/prompt-regression — 22 FIXMEs in agent code, eval-on-PR catches drift'; 'Set up the daily digest — would surface LLM cost trends'. The langfuse-host item is the peak — it's a managed path (no infra to run), addressing install fatigue head-on.",
+  "expected_dropoff_risk": "Install fatigue. The plan menu's framing 'we host Langfuse for you, no infra' has to be loud. If item copy says 'recommend @mur/langfuse-host' without the managed framing, this persona bounces.",
+  "wow_score_target": "≥ 3 in H5 (specific signals — openai + anthropic + langchain imports must be named), H8 (chief-of-staff voice — 'I see your LLM stack'), H9 (menu surfaces 3+ paths), H10 (every item grounded in actual imports)",
+  "scoring_notes": "Best-fit persona for grounded plan items. Watch for the @mur/langfuse-host item naming the specific files (agent.py, eval.py). If items reference imports abstractly ('your AI stack'), H10 drops to 1."
 }

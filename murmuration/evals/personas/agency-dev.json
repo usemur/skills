@@ -13,8 +13,8 @@
   },
   "accounts_present": ["github", "linear", "slack"],
   "accounts_likely_to_connect": ["github", "linear"],
-  "expected_wow": "The digest's cross-system thread is the wow — 'PR #43 merged Friday touches Linear AGY-118 you marked blocked, customer DM in #client-acme last week was about same area'. Agency dev sees the value of cross-tool synthesis immediately.",
-  "expected_dropoff_risk": "Privacy hesitation at scan first-run consent (turn 2) — re-reads §2.0 disclosure carefully. The 'never upload raw source code' contract has to be visibly enforced. Also: skepticism on Slack OAuth — they may skip slack entirely.",
-  "wow_score_target": "≥ 3 in H5 (signal specificity — they need to see the specific cross-system thread to trust the synthesis)",
-  "scoring_notes": "Privacy-conscious persona. Watch §2.0 disclosure clarity in scan.md and the GitHub App per-repo scoping copy in connect.md. Revocation lives in usemur.dev/dashboard/vault and provider UIs — sufficient for H4."
+  "expected_wow": "Plan-of-action menu surfaces options with cross-system signals: 'Run /mur reviewer — 14 FIXMEs in client-facing code, oldest in app/api/billing.ts:42'; 'Set up the daily digest — would surface PR #43 + Linear AGY-118 cross-thread tomorrow'; 'Browse catalog — agency-relevant flows for cross-repo issue triage'. The cross-system thread shows up in the digest preview WITHIN the menu.",
+  "expected_dropoff_risk": "Privacy hesitation at scan first-run consent (turn 2). Re-reads §2.0 disclosure carefully. After connect, the plan menu's grounded items should reassure that Mur is reading specifics, not exfiltrating bulk data. Slack OAuth may still get skipped.",
+  "wow_score_target": "≥ 3 in H5 (signal specificity), H8 (chief-of-staff voice), H10 (plan grounding — every item names a file / PR / issue)",
+  "scoring_notes": "Privacy-conscious persona. Plan items must be deeply grounded — generic 'browse the catalog' would feel like noise. Revocation lives in usemur.dev/dashboard/vault and provider UIs — sufficient for H4."
 }

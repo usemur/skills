@@ -81,7 +81,21 @@ the staleness window indefinitely.) In this mode:
     shape: `{"shown": [], "next": 1}`).
 
 **First-run mode** — `consents.json` doesn't exist OR the `scan`
-key is missing. Do the §2.0 disclosure before scanning.
+key is missing. Two paths:
+
+- **Welcomed-invocation path.** If the user invoked scan via
+  `/mur scan` or `/mur scan --no-gh` (the explicit verbs the
+  first-contact welcome documents in SKILL.md), treat the verb
+  itself as full consent. The welcome already disclosed what scan
+  reads and where data goes. Skip the §2.0 disclosure block;
+  write `.murmur/consents.json` directly:
+  - `/mur scan` → `{"scan": "yes@<ISO>", "gh_probe_last": "yes@<ISO>"}`
+  - `/mur scan --no-gh` → `{"scan": "yes@<ISO>", "gh_probe_last": "no@<ISO>"}`
+  Then proceed straight to "Run the scan" below.
+- **Freeform path.** If the user typed something like "scan my
+  repo" or "audit my stack" without using the explicit `/mur scan`
+  verb, fall back to the §2.0 disclosure (next section) — they
+  may not have seen the welcome. Same 3-option consent applies.
 
 ### Cursor — tracking which findings have been shown
 
@@ -249,11 +263,62 @@ For each manager detected, grep its config for the cooldown setting and
 record `configured: true|false` plus `value` (if set). Don't read full
 contents of node_modules / .venv — manifests + small config files only.
 
-**Product understanding (single LLM call — but it's *you*):** read the
-README + the `description` field of any package manifest. Summarize the
-product in one sentence and three keywords. This makes downstream
-recommendations specific instead of generic. Do this in your own
-context — do not call any external API.
+**Product + business understanding (single LLM call — but it's *you*):**
+read the README + the `description` field of any package manifest, then
+compose a short business profile by synthesizing across signals you've
+already collected this scan. The output is what makes scan feel like
+a chief-of-staff who *gets* what the user is building, not just a code
+parser.
+
+Produce two strings, both written in your own context — no external
+API call:
+
+1. **`product_summary`** — one sentence. What the project IS, in
+   plain-English, customer-facing terms when possible. Engineering
+   terms are fine when that's genuinely what it is (a CLI tool, a
+   library), but for products with users, lead with the user-facing
+   framing. Examples:
+   - "Notion-clone for engineering teams collaborating on docs."
+   - "B2B SaaS that automates SOC 2 evidence collection."
+   - "CLI for testing webhook handlers locally."
+   - "A handful of Node utilities I use across personal projects."
+
+2. **`business_profile`** — one sentence inferring the business
+   shape. Compose from these signals (each present/absent/unknown):
+   - **Stage signal:** `signals.payments` (Stripe → "monetizing"),
+     `signals.deploy[].kind` non-empty + `signals.public_url`
+     present → "live", lockfile recency + commit cadence →
+     "actively developed" / "maintenance mode"
+   - **Customer signal:** `signals.auth` present → "has user
+     accounts", `local_resources.github.open_issues` with bug/
+     blocker labels → "real users hitting issues"
+   - **Stack-maturity signal:** count of populated stack slots
+     (logging / error / uptime / observability) → "infra-mature"
+     vs "thin"
+   - **Business shape:** if README mentions "B2B" / "B2C" /
+     "marketplace" / "tool" / "library" / specific verticals
+     (healthtech, fintech, devtools) — surface it
+   Examples:
+   - "B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — looks
+     like you're past PMF and shipping fast."
+   - "Side project / pre-revenue, no public URL, recent commits in
+     `lib/` — feels like utility scripts you're polishing."
+   - "Live consumer product, OpenAI in the stack, no LLM
+     observability yet — that's the obvious gap."
+   - "Internal tool, no Stripe / no public URL — looks like a
+     team-internal CLI or service."
+
+Be honest about absence — if a signal isn't there, don't infer.
+"Pre-revenue" is fine when there's no payments wiring; "unknown
+stage" is fine when there's no deploy config and the README is
+sparse. Don't fabricate a business profile to fill the slot — the
+user will smell it.
+
+`product_summary` and `business_profile` are stored in scan.json and
+re-read by:
+- Step 2 (the summary the user sees)
+- digest.md output template (header context)
+- recommend.md (anchors recommendations to the actual business shape)
 
 ### Outbound candidates to flag
 
@@ -655,7 +720,20 @@ If rules 1–8 ALL produce nothing — no security risk, no waiting PR,
 no labeled issue, no hotspot, no recent in-repo TODO, no LLM gap,
 no infra gap, no outbound candidate — the project is in good shape.
 Say so honestly and close the loop with the next step in the
-canonical path (SKILL.md "Getting started — the canonical path"):
+canonical path (SKILL.md "Getting started — the canonical path").
+
+**Close-the-loop routing depends on connection state** (see also
+`prompts/plan.md`):
+
+- **No connections yet** (`~/.murmur/state.json` shows zero connections
+  on this project): suggest `/mur connect github`.
+- **At least one connection AND no plan has fired yet** (no
+  `.murmur/plan-history.jsonl` OR it's empty): suggest `/mur plan` —
+  the user is past first-connect and ready to see the menu.
+- **Plan has fired before**: suggest `/mur plan` again (it composes a
+  "since last plan" delta on re-invocation).
+
+Default copy when no connections:
 "everything looks clean from what I can read locally —
 `/mur connect github` if you want me watching for new issues / PRs
 going forward, then a digest lands in your chat each morning."
@@ -675,12 +753,14 @@ that rank 1 has been shown:** `cursor.shown = [1]`, `cursor.next = 2`.
 Write `scan.json` to disk with the updated cursor. Without this,
 the first "what else?" would re-surface the same rank 1 finding.
 
-Format. Total length: ~5–9 lines. Resist any urge to add more.
+Format. Total length: ~7–11 lines. The business framing IS the
+chief-of-staff voice landing — don't truncate it to save lines.
 
 ```
-✓ scanned <project name> — <product summary>
+✓ scanned <project name> — <product_summary from scan.json>
+  Looks like: <business_profile from scan.json>
+  Detected: <comma-separated accounts/tools observed locally>
   <N> stack slots populated, <M> empty • <K> publishable candidates
-  cached: .murmur/scan.json
 
 Top of mind:
   <ONE specific finding from the priority sort, plain English,
@@ -692,14 +772,36 @@ I found <total other things> too — say "what else?" when you want
 the next one.
 ```
 
-Two examples to anchor the voice:
+**The "Looks like:" line** is the moment Mur acknowledges the
+business shape. Drop it ONLY when `business_profile` is genuinely
+empty (`signals.payments` absent + no public URL + README sparse) —
+inserting a vapid "Looks like: a project with some files" is worse
+than nothing.
 
-**Example A — open PR is top:**
+**The "Detected:" line** lists specific accounts/tools Mur observed
+on the user's local machine — a tight, factual list distinct from
+the inferred `business_profile`. Sources: gh CLI auth status,
+Stripe CLI presence, `~/.aws/credentials` presence, `~/.config/gcloud/`
+presence, Sentry SDK in deps, etc. Format: comma-separated,
+plain-English. Example:
 
 ```
-✓ scanned cadence — Notion-clone with realtime collab
+  Detected: gh authed, Stripe CLI, ~/.aws creds, Sentry SDK
+```
+
+Drop the "Detected:" line if zero tools/accounts observed (rare —
+most repos surface at least gh or a CLI auth file).
+
+Three examples to anchor the voice:
+
+**Example A — open PR is top, B2B SaaS:**
+
+```
+✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
+  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
+  PMF and shipping fast.
+  Detected: gh authed, Stripe CLI, Sentry SDK
   9 stack slots populated, 4 empty • 2 publishable candidates
-  cached: .murmur/scan.json
 
 Top of mind:
   PR #142 ("fix: heartbeat reconnect race") has been waiting on your
@@ -711,12 +813,14 @@ I'll show the next thing.
 I found 6 other things — say "what else?" when ready.
 ```
 
-**Example B — security risk is top:**
+**Example B — security risk is top, payment-touching product:**
 
 ```
-✓ scanned cadence — Notion-clone with realtime collab
+✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
+  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
+  PMF and shipping fast.
+  Detected: gh authed, Stripe CLI, Sentry SDK
   9 stack slots populated, 4 empty • 2 publishable candidates
-  cached: .murmur/scan.json
 
 Top of mind:
   src/api/users.ts has 2 raw-SQL template strings (`SELECT ... ${id}`
@@ -732,9 +836,11 @@ I found 5 other things — say "what else?" when ready.
 **Example C — recent roadmap item, gstack present:**
 
 ```
-✓ scanned cadence — Notion-clone with realtime collab
+✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
+  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
+  PMF and shipping fast.
+  Detected: gh authed, Stripe CLI, Sentry SDK
   9 stack slots populated, 4 empty • 2 publishable candidates
-  cached: .murmur/scan.json
 
 Top of mind:
   TODOS.md says "build the export feature" (you touched it 2 days
@@ -752,6 +858,117 @@ returns false — drop the gstack verbs from the action line. Suggest
 instead: "Want to think this through together? Or install gstack for
 a deeper planning flow — see SKILL.md's 'Pairs with gstack' section
 for the one-line install.")
+
+**Example D — pre-product / utility scripts shape:**
+
+```
+✓ scanned utility-scripts — A handful of Node utilities I use across personal projects.
+  Looks like: side project, no Stripe / no public URL, recent commits in
+  `lib/` — feels like utility scripts you're polishing.
+  Detected: gh authed, OpenAI SDK
+  3 stack slots populated, 6 empty • 4 publishable candidates
+
+Top of mind:
+  lib/summarize.js looks publishable — 80 lines, takes text + returns
+  a 3-bullet summary. Self-contained, your commits.
+
+Run `/mur publish lib/summarize.js` when ready, or say "what else?"
+for the next candidate.
+
+I found 3 other things — say "what else?" when ready.
+```
+
+**Example E — empty/unknown business profile (drop the "Looks like:" line):**
+
+```
+✓ scanned my-experiment — Early-stage repo, README is one line.
+  4 stack slots populated, 5 empty • 1 publishable candidate
+
+Top of mind:
+  README.md is "hello world" with one TODO. Not enough signal yet —
+  scan back when there's more here.
+
+Say "what else?" if you want me to keep digging anyway.
+```
+
+### Step 2.5 — predictive digest preview (first-run only, conditional)
+
+After the Step 2 summary, on the **first scan of this project AND
+when `local_resources.github.authed` is true**, append a small
+preview of what the daily digest will surface once GitHub is
+connected. This is the wow that pulls the digest forward — instead
+of describing the digest abstractly, show the *shape* of it before
+the user commits to OAuth.
+
+**When to render:** ALL of these must hold.
+- Fresh first-run scan (cursor was just initialized, no prior
+  `cursor.shown` entries beyond the just-surfaced rank 1).
+- `local_resources.github.authed: true` (otherwise the preview
+  has no real data to ground in — better to skip than fake).
+- The user is on the canonical onboarding path (no
+  `~/.murmur/state.json` existed before this session — i.e. they
+  haven't connected anything yet on this project).
+
+**When to skip silently:**
+- Continuation mode ("what else?" calls).
+- User has already connected (`/mur connect github` ran).
+- Top finding from Step 2 is itself a publishable outbound
+  candidate (rule 8 winning) — the user's wow is publish; don't
+  dilute it with a digest preview.
+
+**When `gh` is NOT authed (separate handling).** Don't render the
+full preview (no real data to ground in), but DO surface a
+one-line nudge so the user knows the upgrade path:
+
+```
+(With `gh auth login` set up, I could preview your daily digest
+right now. Otherwise it'll land tomorrow morning after you
+`/mur connect github`.)
+```
+
+This is a single italicized line, after the Step 2 summary's tail
+"I found N other things — say 'what else?' when ready." Don't try
+to fake a preview from non-gh signals — the value of Step 2.5 is
+real grounded data, not a vapor approximation.
+
+**Format.** 5–7 lines, after a single blank line below the Step 2
+summary. Each bullet must cite a concrete signal — file, PR, issue,
+or commit. Mirror the cite-every-claim contract from `digest.md`.
+
+```
+What your daily digest would surface tomorrow morning:
+  · <item 1 — open PR you wrote / waiting on you, with #N>
+  · <item 2 — labeled-blocker issue or stale PR you opened>
+  · <item 3 — TODO/ROADMAP item touched recently, with file path>
+   (if signals support fewer than 3 items, surface 1–2 honestly)
+
+Connect GitHub when ready: `/mur connect github`
+```
+
+**Grounding rules.** Every bullet draws from data already in
+`scan.json`:
+- `local_resources.github.open_prs[]` — pick PRs where the user is
+  the author (own PRs that are stale) OR where the user is in
+  `requested_reviewers` (waiting on them).
+- `local_resources.github.open_issues[]` — pick labeled `blocker`
+  / `bug` / `priority:high` first.
+- `local_resources.in_repo_files` — TODOS.md / ROADMAP.md recent
+  edits.
+
+If after applying these rules zero items can be honestly grounded,
+**skip Step 2.5 entirely** — fall through to Step 3 with no
+preview. Don't fabricate items to fill the section. The
+unconditional `/mur connect github` closeout in Step 2's summary
+still nudges toward the path.
+
+**Why this is honest, not vapor.** The chief-of-staff briefing
+template in `digest.md` synthesizes across pillars (Bugs, Ops,
+Product, Growth, News). The preview here is a subset — only what
+local + gh data reveals. The framing "what your digest would
+surface tomorrow morning" is true: tomorrow's digest will include
+these items plus whatever Stripe/Linear/etc. surface once
+connected. Showing the GitHub-only subset is a fair preview, not
+a fake.
 
 ### Step 3 — handle the user's response
 

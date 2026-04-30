@@ -12,8 +12,8 @@
   },
   "accounts_present": ["github", "stripe", "sentry"],
   "accounts_likely_to_connect": ["github", "stripe"],
-  "expected_wow": "The Day-0 backfill digest is the peak — chief-of-staff briefing surfaces 'PR #142 fixes the bug in issue #98 affecting your top Stripe customer'. The intermediate wow is the first scan finding (specific TODO or open issue grounded in the persona's actual repo).",
-  "expected_dropoff_risk": "OAuth fatigue at /mur connect github (turn 4). Solo founder is busy and has done OAuth dances 100 times. The GitHub-App per-repo scoping might raise fewer hackles than full Composio OAuth, but the 90s digest backfill wait is another friction point.",
-  "wow_score_target": "≥ 3 in heuristic 3 (wow before ask) — multiple free wows precede the first paid digest",
-  "scoring_notes": "Watch H6 (wow latency). Digest backfill takes ~6 turns from welcome. If user gets impatient between connect (turn 5) and backfill landing (turn 6), the experience dies. Scan findings carry engagement through that gap."
+  "expected_wow": "Plan-of-action menu after first connect. Mur surfaces 4-5 grounded options: 'Wire automation — @mur/reviewer would have caught structural issue X'; 'Set up the daily digest — tomorrow would surface PR #142 + 3 stale PRs'; 'Browse catalog — Stripe-flavored flows for MRR rollup'. User picks based on what they need TODAY. Intermediate wow at turn 2 (first scan finding).",
+  "expected_dropoff_risk": "OAuth fatigue at /mur connect github (turn 3). Solo founder is busy. After connect, plan menu fires immediately (no 90s wait) — meaningful improvement over the prior auto-fire-digest flow.",
+  "wow_score_target": "≥ 3 in H3 (wow before ask), H6 (plan menu within 4 turns), H8 (chief-of-staff voice), H9 (menu surfaces ≥4 paths), H10 (every item grounded)",
+  "scoring_notes": "Richest signals (Stripe + GH + Sentry + OpenAI). Plan menu should fire 4-5 grounded options. Watch H10: 'Run security audit' must cite specific risky_patterns or be dropped, not generic."
 }

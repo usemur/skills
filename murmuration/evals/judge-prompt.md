@@ -33,11 +33,12 @@ Score the transcript against each of the 7 heuristics. Output JSON:
     { "id": 4, "score": "yes", "evidence": "scan.md writes .murmur/consents.json (editable). OAuth revocable via usemur.dev/dashboard/vault and GitHub App settings. Inline revoke prose in connect.md not required." },
     { "id": 5, "score": 3, "evidence": "Turn 3 finding cites `app/api/checkout/route.ts:42`. Turn 6 digest item references Linear MUR-203." },
     { "id": 6, "score": 1, "evidence": "Turn 6 fires the digest — 6 turns from welcome." },
-    { "id": 7, "score": "yes", "evidence": "scan.json carries cursor; consents.json caches consents; killing the session and re-running /mur scan picks up at the right finding." }
+    { "id": 7, "score": "yes", "evidence": "scan.json carries cursor; consents.json caches consents; killing the session and re-running /mur scan picks up at the right finding." },
+    { "id": 8, "score": 3, "evidence": "scan output's 'Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past PMF and shipping fast' is explicit business-shape recognition. Connect surface line 'I can watch your Notion-clone for engineering teams now…' echoes product summary. Digest header includes product summary parenthetical." }
   ],
-  "average": 2.71,
+  "average": 2.88,
   "ship_ready": true,
-  "summary": "Ships. Only soft spot is H6 (digest wow takes 6 turns) which is structural to scan→connect→90s-backfill pacing. Intermediate scan-finding wow at turn 3 carries it."
+  "summary": "Ships. Soft spot is H6 (digest wow at turn 4) which is structural to scan→connect→backfill pacing. H8 lands strongly thanks to the business profile composed in scan + echoed in connect + digest."
 }
 ```
 

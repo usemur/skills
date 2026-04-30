@@ -28,8 +28,8 @@ Docs: https://usemur.dev/docs.
 ## Getting started — the canonical path
 
 When a user has just installed Mur, the path that gets them from
-"installed" to "Mur is watching for me" is **scan → connect → digest**,
-in that order:
+"installed" to "Mur is helping me ship" is **scan → connect → plan
+→ pick**, in that order:
 
 1. **Scan** — `/mur scan`. Reads the project locally (repo, git log,
    TODOs, manifests, gh CLI if present). **Fully local — no network
@@ -42,47 +42,60 @@ in that order:
    while the user is offline. Local `gh auth login` is great for
    foreground reads if/when the user runs a verb that needs them, but
    the overnight digest runs on Mur's server with Composio-vaulted
-   OAuth tokens — so /mur connect is required, not optional, for the
-   loop to close. The first connect also runs the bootstrap
+   OAuth tokens — so /mur connect is required for the watching loop
+   to close. The first connect also runs the bootstrap
    (`POST /api/projects` → registers this repo as a Mur project) and
    credits the developer's $5 connection bonus.
 
-3. **Digest** — `/mur digest --backfill` once for the Day-0 30-day
-   synthesis, then the morning loop fires automatically each day at
-   the user's configured time. (Bare `/mur digest` runs the standard
-   24h window — that's what runs overnight; the explicit `--backfill`
-   flag is what makes the first run synthesize 30 days, which is what
-   new users want to see.) Surfaces "the 3 things to look at today"
-   with cross-system thread (e.g. PR #142 fixes the bug in issue #98
-   that blocks the customer in Linear MUR-203). The more sources
-   connected, the smarter the digest.
+3. **Plan of action** — `/mur plan` (auto-routes from connect's
+   After-connect; also re-invokable anytime). Surfaces a curated 3–5
+   item menu of things the user can do next, each grounded in scan
+   signals + connection data:
+   - Run a security audit (when scan finds payment + risky patterns)
+   - Wire an LLM-in-the-loop automation (when recommend.md matches)
+   - Browse the paid catalog (when stack opens up paid-flow categories)
+   - **Set up the daily digest** (one option among many — overnight
+     chief-of-staff briefing, fires once user picks it)
+   - Hand off to gstack (when scan flagged scoping / planning /
+     investigate opportunities AND gstack is installed)
+   - Publish a utility (when outbound_candidates fire)
+
+   The user picks ONE based on what they need TODAY. The digest is
+   no longer auto-fired — it's a menu option the user opts into. This
+   keeps user agency while making every sub-product (security audit,
+   automate, catalog, publish, gstack hand-off) discoverable through
+   one surface.
+
+4. **The morning loop** — once the user picks "Set up the daily
+   digest" from the plan menu, `digest.md --backfill` fires and the
+   recurring morning briefing self-sustains thereafter. If the user
+   picks something else first (security audit, etc.), they can come
+   back to `/mur plan` anytime — re-invocations include a "since
+   last plan" delta showing what changed.
 
 **At the end of every scan**, before going quiet, close the loop with
-the next step. The scan itself doesn't make server calls so it can't
-*detect* whether the user has connected yet — but suggesting `/mur
-connect github` unconditionally is fine; an already-connected user
-will just say "I've already done that" and we move on. The arc never
-closes silently — the user should always know what unlocks next.
+the next step:
+- No connections yet (`~/.murmur/state.json` shows zero connections):
+  suggest `/mur connect github`.
+- ≥1 connection AND no plan has fired yet on this project: suggest
+  `/mur plan`.
+- Plan has fired before: suggest `/mur plan` again — the re-invocation
+  delta shows what's changed since last time.
 
-**At the end of every /mur connect**, route to the Day-0 digest
-backfill: read `prompts/digest.md` in `--backfill` mode (synthesizes
-30 days of signals, ~90s on demand — same payload the morning loop
-will produce overnight, just immediate). On the **first** GitHub
-connect this is a hard handoff; on subsequent connects skip if a
-digest has already fired and just confirm the new source.
+The scan itself doesn't make server calls so it can't *detect*
+connection state perfectly, but reading `~/.murmur/state.json` is
+local + cheap.
 
-`digest.md --backfill` is the canonical Day-0 verb. (`morning-check.md`
-is read-only and itself redirects to `digest.md --backfill` when no
-digest exists, so routing through morning-check on first connect adds
-an extra hop without changing the result. Go straight to
-`digest.md --backfill`.) After a digest fires once, the morning loop
-is self-sustaining; no more close-the-loop nudges are needed on this
-project.
+**At the end of every /mur connect**, route to `prompts/plan.md` with
+`mode: post-connect`. The plan composes the menu and the user picks
+from there. (Do NOT auto-fire `digest.md --backfill` — that's the
+old flow, replaced by user-choice in the plan menu.)
 
-This is the canonical path. Mur can do other things (catalog browsing,
-publishing flows, automate this-or-that) — but for a new user, the
-proactive read-and-react loop is the product, and scan → connect →
-digest is how it gets activated.
+This is the canonical path. Mur can do other things (catalog browsing
+standalone, publishing flows, automate this-or-that as a recurring
+job) — but for a new user, the proactive read-and-react-then-plan
+loop is the product, and scan → connect → plan → pick is how it
+gets activated.
 
 ## How users invoke Mur
 
@@ -103,9 +116,10 @@ contains the detailed instructions, examples, and edge cases.
 | If the user wants to…                                                      | Read this prompt              |
 |----------------------------------------------------------------------------|-------------------------------|
 | Scan the active project: read everything locally first (repo, git log, TODOs, gh CLI), then surface findings | `prompts/scan.md`             |
+| See the plan-of-action menu: post-connect curated 3–5 item menu (security audit, automations, catalog, digest, gstack, publish), grounded in scan + connections | `prompts/plan.md`             |
 | See what Mur already knows about the project (pages, business cat, connections) | `prompts/whoami.md`           |
 | Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
-| Trigger a fresh daily digest now (free, once/day)                          | `prompts/digest.md`           |
+| Trigger a fresh daily digest now (free, once/day) — also surfaced as a menu option in `/mur plan` | `prompts/digest.md`           |
 | Trigger a deep digest with more sources + reasoning (billed)               | `prompts/digest-deep.md`      |
 | Open the morning loop / read the most recent fired digest                  | `prompts/morning-check.md`    |
 | Approve / fire the action for a digest item                                | `prompts/approve.md`          |
@@ -296,6 +310,20 @@ Route to **`prompts/connect.md`** when the user says things like:
 - "hook up GitHub" / "authorize Stripe" / "wire up Search Console"
 - "connect everything" *(do GitHub first, then prompt for next)*
 
+Route to **`prompts/plan.md`** when the user says things like:
+
+- `/mur plan` / `/mur menu` / `/mur options`
+- "what should I do next" / "what's the plan" *(when scan.json exists
+  and ≥1 connection exists; otherwise route to scan or connect first)*
+- After a successful `/mur connect <source>` (programmatic hand-off
+  from connect.md After-connect — `mode: post-connect`).
+
+`plan.md` is the post-connect surface that replaces the old "auto-fire
+the Day-0 digest" behavior. It composes a 3–5 item menu (security
+audit, automations, catalog, daily digest, publish, gstack hand-offs)
+grounded in scan + connection signals. The user picks ONE option. The
+digest is one of those options, not the only outcome.
+
 Route to **`prompts/whoami.md`** when the user says things like:
 
 - `/mur whoami` / `/murmur whoami`
@@ -479,49 +507,76 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch A — gstack present:**
 
-   > Mur installed. The path is **scan → connect → digest**: I scan
-   > now (free, all local — nothing leaves your machine), then we
-   > connect GitHub so I can watch while you sleep, then a digest
-   > lands in your chat each morning with the 3 things to look at.
+   > Mur installed. The path is **scan → connect → plan → pick**:
+   > scan reads your project locally (free, nothing leaves your
+   > machine), you connect GitHub so I can watch while you sleep,
+   > then I show you a plan of action — a curated menu of things to
+   > do next (security audit, automations, catalog browsing, the
+   > daily digest, publish a utility, hand off to gstack). You pick
+   > ONE based on what you need today.
    >
-   > Today: I'll start by scanning `&lt;repo-name&gt;` — reading the
-   > repo, your git log, manifests, and any TODOs locally. We'll go
-   > one finding at a time.
+   > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
+   > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
+   > (read-only, scoped to this repo, doesn't share data with Mur's
+   > servers). Nothing reaches `usemur.dev` until you choose to
+   > `/mur connect`.
    >
    > I see you have gstack too — I'll point you at the right gstack
    > verb when something I surface needs scoping (`/office-hours`),
    > planning (`/plan-eng-review`), shipping (`/ship`), or debugging
    > (`/investigate`). Mur watches; gstack does.
    >
-   > Run `/mur scan` when you're ready. (Or type "what else can you
-   > do?" for the full verb list.)
+   > Run **`/mur scan`** to start (or `/mur scan --no-gh` to skip
+   > the GitHub API calls). Or type "what else can you do?" for the
+   > full verb list.
+   >
+   > *Not on GitHub?* Scan still works on any git project (or no git
+   > host at all), and `/mur publish` works for any code — but the
+   > morning digest currently needs GitHub for the watching loop.
+   > GitLab / Bitbucket / self-hosted git are on the roadmap, not
+   > shipped.
 
    **Branch B — gstack missing:**
 
-   > Mur installed. The path is **scan → connect → digest**: I scan
-   > now (free, all local — nothing leaves your machine), then we
-   > connect GitHub so I can watch while you sleep, then a digest
-   > lands in your chat each morning with the 3 things to look at.
+   > Mur installed. The path is **scan → connect → plan → pick**:
+   > scan reads your project locally (free, nothing leaves your
+   > machine), you connect GitHub so I can watch while you sleep,
+   > then I show you a plan of action — a curated menu of things to
+   > do next (security audit, automations, catalog browsing, the
+   > daily digest, publish a utility, hand off to gstack). You pick
+   > ONE based on what you need today.
    >
-   > Today: I'll start by scanning `&lt;repo-name&gt;` — reading the
-   > repo, your git log, manifests, and any TODOs locally. We'll go
-   > one finding at a time.
+   > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
+   > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
+   > (read-only, scoped to this repo, doesn't share data with Mur's
+   > servers). Nothing reaches `usemur.dev` until you choose to
+   > `/mur connect`.
    >
    > Optional but recommended: install **gstack**, the companion
    > skill for scoping, planning, code review, and shipping. Mur
    > watches; gstack does. To install:
    >
    > ```
-   > git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
+   > git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && ./setup
    > ```
    >
-   > Run `/mur scan` when you're ready. (Or type "what else can you
-   > do?" for the full verb list.)
+   > Run **`/mur scan`** to start (or `/mur scan --no-gh` to skip
+   > the GitHub API calls). Or type "what else can you do?" for the
+   > full verb list.
+   >
+   > *Not on GitHub?* Scan still works on any git project (or no git
+   > host at all), and `/mur publish` works for any code — but the
+   > morning digest currently needs GitHub for the watching loop.
+   > GitLab / Bitbucket / self-hosted git are on the roadmap, not
+   > shipped.
 
-4. **Wait.** Do NOT auto-run scan or auto-install gstack —
-   `prompts/scan.md` still owns the §2.0 first-run consent disclosure,
-   and gstack install is the user's call. The user typing `/mur scan`
-   (or any scan trigger) is what kicks Mur off.
+4. **Wait.** Do NOT auto-run scan or auto-install gstack. Typing
+   `/mur scan` (or `/mur scan --no-gh`) is the user's consent —
+   `prompts/scan.md` reads the chosen flag and proceeds without a
+   second consent prompt. The welcome above is the disclosure;
+   the user's verb invocation is the consent. (Direct freeform
+   triggers like "scan my repo" still fall back to scan.md's full
+   §2.0 disclosure since the user may not have seen this welcome.)
 
 If the user asks "what else can you do?" after that welcome, then
 list the verbs in priority order — read-and-react first, then

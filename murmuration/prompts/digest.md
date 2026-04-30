@@ -22,6 +22,21 @@ chat. Same content as the daily email; the on-demand fire is free
   triggers a 30-day synthesis (Day-0 backfill). Without `--backfill`,
   the digest covers since-last-fire (or the last 24h if first-ever).
 
+## Positioning relative to /mur plan
+
+As of the plan-of-action restructure: the digest is **one option in
+`/mur plan`'s menu**, not auto-fired after first connect. The
+canonical path is now `scan → connect → plan → user picks "Set up
+the daily digest"` (or another menu item). When the user picks the
+digest option from plan.md, this prompt fires with `--backfill` for
+the Day-0 synthesis.
+
+Direct invocation of `/mur digest` still works for power users and
+for re-firing after the morning loop is established. The morning
+loop (recurring fire at user-configured time) is unchanged — once
+the user has fired the Day-0 backfill once, the server-side daemon
+takes over and digests land in chat each morning automatically.
+
 ## Walk-through
 
 Run `prompts/_bootstrap.md` before any of the API calls below so the
@@ -80,12 +95,16 @@ ingestion lands.
 
 ## Output template (chief-of-staff)
 
-Lead the briefing with the active project's name (from the bootstrap
-cache) so a 2-repo founder sees at a glance which project they're
-reading.
+Lead the briefing with the active project's name AND its
+`product_summary` if available locally — a 2-repo founder sees at
+a glance which project they're reading, and the product summary
+lands the chief-of-staff voice from line one. Read `product_summary`
+from `<project>/.murmur/scan.json` if it exists; if not, omit the
+parenthetical gracefully.
 
 ```
-Your {project name} briefing for {Day, Mon DD}. {N} items. {leading-pillar} leading.
+Your {project name} briefing for {Day, Mon DD}.{ ({product_summary})}
+{N} items. {leading-pillar} leading.
 
 {PILLAR} · {n}
   {id} ▸ {headline} — {evidence one-liner}
@@ -99,6 +118,17 @@ Your {project name} briefing for {Day, Mon DD}. {N} items. {leading-pillar} lead
 {N}/5 pillars green · {S} signals scanned · {A} actions taken
 manage: usemur.dev/installed
 ```
+
+Examples of the leading line:
+
+- With scan.json + product_summary:
+  `Your cadence briefing for Mon Apr 30 (Notion-clone for engineering teams collaborating on docs). 3 items. Bugs leading.`
+- Without (fallback):
+  `Your cadence briefing for Mon Apr 30. 3 items. Bugs leading.`
+
+Don't fabricate a product summary if scan.json is missing — drop
+the parenthetical entirely. The header should never sound like Mur
+is inventing context it doesn't have.
 
 ## Trigger phrases — narrow to "create a new digest run"
 

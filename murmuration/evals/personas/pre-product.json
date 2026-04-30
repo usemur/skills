@@ -11,8 +11,8 @@
   },
   "accounts_present": ["github"],
   "accounts_likely_to_connect": ["github"],
-  "expected_wow": "Scan's outbound_candidates surface (turn 3) — Mur points at `lib/summarize.js` specifically and asks 'want to publish this as a paid API later? `/mur publish summarize.js`'. The digest is dim for this persona (no PRs, no issues, no incidents) but the publish path lights up.",
-  "expected_dropoff_risk": "Bounces at digest — there's nothing to digest. If the connect step proceeds and the digest backfill returns 'Quiet on all four pillars. 0 signals.' the persona will feel they wasted 90s. Honest empty digests are upstream's stated contract, but this persona will need that messaging to be encouraging rather than flat.",
-  "wow_score_target": "H6 = 1 acceptable (digest wow is dim for this persona); H5 ≥ 3 required (outbound candidates must name files specifically, not 'a utility you wrote')",
-  "scoring_notes": "This persona is the test case for whether the publish soft-pitch lands. Upstream's flow doesn't formally include publish in onboarding — but the scan step's outbound_candidates pass should surface them. Ship-readiness for this persona depends on whether the scan summary names specific publish candidates with file paths."
+  "expected_wow": "Plan-of-action menu leads with 'Publish lib/summarize.js — 80 lines, takes text + returns 3-bullet summary, your commits, looks publishable as a paid API'. Other items: 'Hand off to /office-hours — TODOS.md says \"build the export feature\"'; 'Set up the daily digest — won't surface much given empty repo, but the morning loop is here when you ship'. The publish item is THE wow — fits the persona's actual interest. The empty digest gets honest framing, not pretended-to-be-rich.",
+  "expected_dropoff_risk": "Bounces if menu pads with security-audit / catalog items that don't apply. Plan must adapt — narrow but grounded. If the menu shows 5 items where 3 are generic, this persona feels misread.",
+  "wow_score_target": "H6 ≥ 2 (plan menu fires within 5 turns), H5 ≥ 3 (outbound candidates name specific files), H8 ≥ 3 ('side project' framing in business_profile honest), H9 = 2 (narrow menu acceptable for thin signal), H10 ≥ 3 (every item grounded)",
+  "scoring_notes": "Tests whether the plan menu adapts honestly to thin signal. A pre-product persona should see 2-3 options (publish, gstack scope, digest setup), NOT 5 items padded with security-audit. The 'narrow menu = honest menu' principle."
 }

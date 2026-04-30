@@ -113,31 +113,93 @@ heuristics:
       hard contract.)
 
   - id: 6
-    short: "Wow latency"
+    short: "Wow latency (turns to plan-of-action menu)"
     grading: 0-3
     description: |
-      Number of turns from the first-contact welcome (Turn 1) to the
-      *peak* wow moment (Day-0 digest briefing displays). Lower is
-      better. Mid-arc wows (first scan finding, connect bonus) help
-      but don't substitute for the peak.
+      Number of turns from first-contact welcome to the
+      plan-of-action menu being presented. Lower is better.
+      Reframed (was: turns to digest fire) per the plan-of-action
+      restructure — the menu IS the wow moment for connected users,
+      not the digest. The digest is one option *inside* the menu.
     score_3_when: |
-      Digest wow lands within 4 turns. Requires unusual pacing —
-      basically only achievable with a no-friction OAuth + same-turn
-      digest fire.
+      Plan menu lands within 4 turns of the welcome. Welcome →
+      scan-with-preview → connect → plan-fires = 4 turns. This is
+      the post-restructure target.
     score_2_when: |
-      5 turns to digest wow.
+      5 turns to plan menu.
     score_1_when: |
-      6 turns to digest wow. **Upstream's expected pacing.** Welcome →
-      scan-consent → scan-output → connect-suggest → connect-success →
-      digest-fire = 6 turns.
+      6 turns to plan menu (consent prompts not absorbed into
+      welcome, or extra confirmations).
     score_0_when: |
-      Digest wow doesn't fire (user dropped) or takes 7+ turns.
+      Plan menu doesn't fire (user dropped) or takes 7+ turns.
     note: |
-      H6 is the heuristic where upstream is most exposed. The
-      counterweight is the *intermediate* wow moments — first scan
-      finding fires by turn 3, which keeps engagement up while the
-      digest path completes. If H3 (wow before ask) scores 3 the
-      compounding effect generally compensates for H6 = 1.
+      Pre-restructure: this heuristic measured turns to digest
+      fire (H6=1 was the floor because digest required OAuth +
+      90s backfill). Post-restructure: digest is one menu option,
+      and the menu itself fires immediately after connect. New
+      floor is H6=3 for the canonical arc.
+
+  - id: 9
+    short: "Plan-of-action breadth"
+    grading: 0-3
+    description: |
+      When the plan menu fires, does it surface the major paths
+      (security audit, automate, catalog, daily digest, gstack
+      hand-off, publish) when their trigger conditions are met?
+      A menu that only ever offers "Set up the daily digest" is
+      worse than one that adapts to the user's stack.
+    score_3_when: |
+      All applicable paths surface — security-audit when scan
+      finds payment + risky patterns, automate when recommend
+      matches, catalog when stack opens up paid categories,
+      digest always (for connected users), publish when
+      outbound_candidates exist, gstack when hand-offs flagged.
+    score_2_when: |
+      Most applicable paths surface. 1–2 missing options that
+      should have appeared.
+    score_1_when: |
+      Only digest + 1 other option surfaces. Menu feels narrow.
+    score_0_when: |
+      Only one option surfaces (typically the digest). Menu
+      isn't earning its existence — could just auto-fire digest
+      and skip the menu turn.
+    note: |
+      H9 measures whether the menu adapts to the user's actual
+      stack vs. always presenting the same surface. A pre-product
+      persona with no Stripe + no risky patterns should see
+      "Publish a utility" + "Set up the daily digest" + "Run
+      /office-hours" — NOT a menu padded with security-audit
+      and automate items that don't apply.
+
+  - id: 10
+    short: "Plan-of-action grounding"
+    grading: 0-3
+    description: |
+      Is each menu item cited with a specific signal that
+      justifies it for THIS user? Generic recommendations
+      ("you might want to set up monitoring") fail this; signal-
+      grounded items ("Run security audit — you have Stripe
+      wired AND 2 raw-SQL patterns in src/api/users.ts") pass.
+      Mirrors H5 (per-item finding specificity) but applied at
+      the plan level.
+    score_3_when: |
+      Every menu item names a file / PR / SDK / signal. The user
+      can verify why the item appeared without leaving the menu.
+    score_2_when: |
+      Most items cite a signal. 1–2 items are generic
+      ("Browse the catalog — useful for any stack").
+    score_1_when: |
+      Half the items are generic.
+    score_0_when: |
+      Most items are generic recommendations. Menu reads like
+      a static feature list, not a curated plan.
+    note: |
+      H10 protects against the "plan menu becomes a static
+      product menu" failure mode. The whole point of plan.md
+      is that it's MORE specific than scan.md's priority sort
+      (one finding) — it surfaces multiple findings, each
+      grounded. If items are generic, the menu adds confusion
+      without adding signal.
 
   - id: 7
     short: "Drop-off recoverability"
@@ -157,11 +219,54 @@ heuristics:
       the wrong step. (In upstream's flow this would only happen if
       `.murmur/` got deleted between sessions.)
 
+  - id: 8
+    short: "Business recognition / chief-of-staff voice"
+    grading: 0-3
+    description: |
+      Does Mur sound like a chief-of-staff who *gets* the user's
+      business, or like a code parser? A chief-of-staff names the
+      business shape (B2B SaaS / consumer / dev tool / utility
+      script), references the stack signals (Stripe live, no LLM
+      observability, Sentry deployed), and echoes that recognition
+      across multiple turns. A code parser just lists what was
+      detected.
+    score_3_when: |
+      Business shape named explicitly in scan output ("Looks like:
+      B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
+      PMF and shipping fast"). Product summary echoed in connect's
+      auto-fire surface line ("I can watch your Notion-clone for
+      engineering teams now…"). Digest header includes product
+      summary parenthetical. The user feels Mur synthesized
+      something rather than parroting fields.
+    score_2_when: |
+      Business shape named once (e.g. in scan output) but not
+      echoed in connect or digest. Or product summary echoed but
+      no broader business profile composed.
+    score_1_when: |
+      Product summary only (one-line description), no business
+      shape inferred. The user sees "Notion-clone with realtime
+      collab" but no read on whether it's a side project or live
+      product.
+    score_0_when: |
+      No business or product framing at all — just stack slot
+      counts and findings. Mur sounds like a linter, not a
+      cofounder.
+    note: |
+      H8 catches a failure mode H1–H7 miss: a flow can score well
+      on per-turn discipline (one decision per turn, wow before ask)
+      and per-item specificity (every finding grounded) while still
+      feeling impersonal. H8 measures whether Mur sounds like a
+      cofounder at the *flow* level, not just the item level.
+
+      H5 is per-item ("does each finding cite a signal?"); H8 is
+      per-flow ("does Mur sound like it gets the user's business?").
+      A flow can score H5=3 and H8=1 — that's the gap H8 catches.
+
 # Acceptance criteria
 acceptance:
   ship_when: |
     For every canonical persona in evals/personas/:
-    - Average score across all 7 heuristics ≥ 2.5
+    - Average score across all 10 heuristics ≥ 2.5
     - No heuristic scores 0
-    - All binary heuristics (1, 2, 7) score "yes"
+    - All binary heuristics (1, 2, 4, 7) score "yes"
     - Binary "yes" normalized as 3 for averaging

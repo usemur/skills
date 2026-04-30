@@ -152,20 +152,44 @@ they happened to push to last.
    GET /api/sync/pages/HEARTBEAT
    ```
 
-   Then offer the next step:
+   Then route to the next step:
 
-   - First connect (GitHub): "Want your Day-0 backfill digest now?
-     ~90s." → if yes, route to `digest.md` with `--backfill`. (Do
-     NOT route through `morning-check.md` — that prompt is read-only
-     and itself redirects to `digest.md --backfill` when no digest
-     exists; routing through it adds an extra hop without changing
-     the result.)
-   - Subsequent connects: if no digest has fired on this project
-     yet, suggest `/mur digest --backfill`. If a digest has already
-     fired, just confirm the new source and close ("Got Stripe
-     wired up too — your next morning digest will pull from it").
-     No `--refresh-only` flag — `digest.md` only supports the
-     default run and `--backfill`.
+   - **First connect on this project (no plan has fired yet):**
+     **route to `prompts/plan.md`** with `mode: post-connect`. Do
+     NOT auto-fire `digest.md --backfill` — the digest is one
+     option among many in the plan-of-action menu, not THE outcome.
+     The user picks from the menu what fits their need today.
+
+     Surface the hand-off in chief-of-staff voice — pull
+     `product_summary` from `.murmur/scan.json` (composed during
+     scan per scan.md "Product + business understanding"):
+     > "Connected. I can watch <product_summary, lowercased and
+     > naturally embedded> for you now — pulling together what
+     > I'd do next…"
+
+     Example with `product_summary: "Notion-clone for engineering
+     teams collaborating on docs."`:
+     > "Connected. I can watch your notion-clone for engineering
+     > teams now — pulling together what I'd do next…"
+
+     If `scan.json` is missing or `product_summary` is empty (rare —
+     user invoked /mur connect without scanning first), fall back
+     to:
+     > "Connected. Pulling together what I'd do next…"
+
+     Then hand off to `prompts/plan.md`. Plan reads scan.json +
+     state.json + plan-history.jsonl, composes a 3–5 item menu, and
+     presents it. The user picks. The digest is one of those items
+     ("Set up the daily digest — `/mur digest --backfill`"), not
+     auto-fired.
+
+   - **Subsequent connects** (a plan has fired before on this
+     project, user is now connecting an additional source like
+     Stripe or Linear): confirm the new source and suggest
+     re-invoking plan to see the updated menu:
+     > "Got Stripe wired up too — `/mur plan` for the updated menu
+     > (your next morning digest will pull from it either way once
+     > you've set up the digest)."
 
 5. On timeout / cancellation: show the latest `/check` status and tell
    the user to retry `/connect <source>`.
@@ -209,10 +233,24 @@ If this was the founder's first connect, do these in order:
    > See the full list anytime in `/murmur whoami`."
    Skip silently on non-darwin platforms — the V1 sweeper is macOS-only.
 
-2. Prompt: "Want your Day-0 backfill digest now? It'll synthesize 30
-   days of signals from the sources you've connected. ~90s."
+2. **Route to `prompts/plan.md`** (`mode: post-connect`). Do NOT
+   auto-fire the Day-0 backfill digest. The digest is one option in
+   the plan-of-action menu — the user picks it (or doesn't) from
+   the menu plan.md presents.
 
-If they say yes, route to `digest.md` with the `--backfill` flag.
-(`digest.md --backfill` is the canonical Day-0 verb;
-`morning-check.md` is read-only and redirects there itself, so going
-through it adds a hop.)
+   Surface the hand-off with a chief-of-staff acknowledgement that
+   pulls `product_summary` from `.murmur/scan.json` (see scan.md
+   "Product + business understanding"):
+   > "Connected. I can watch <product_summary, lowercased and
+   > naturally embedded> for you now — pulling together what I'd
+   > do next…"
+
+   Fall back to the bland version when `scan.json` /
+   `product_summary` is missing:
+   > "Connected. Pulling together what I'd do next…"
+
+   Then hand off to `prompts/plan.md` with `mode: post-connect`.
+   Plan composes a 3–5 item menu including "Set up the daily
+   digest" as one option — the user can pick it from the menu to
+   fire `digest.md --backfill`, or pick a different option, or
+   skip and come back to `/mur plan` later.
