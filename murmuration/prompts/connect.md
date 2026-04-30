@@ -75,10 +75,8 @@ while in repo B.
 
 ### Special case: `app === 'github'`
 
-GitHub uses the **Murmur Cofounder GitHub App** (per-repo install scope)
-instead of Composio user-OAuth. This avoids the "founder gets digest
-items about their unrelated personal repos" problem the V1 user-OAuth
-path had. **Always pin the install to the founder's current working
+GitHub uses the **Murmur Cofounder GitHub App** (per-repo install scope).
+**Always pin the install to the founder's current working
 directory** so the cofounder skill watches THIS project, not whatever
 they happened to push to last.
 
@@ -114,10 +112,11 @@ they happened to push to last.
 
 4. **Poll `GET /api/integrations/github-app/list`** every 3s, up to
    60s. When `installs[]` contains an entry whose
-   `scopedRepoFullName === "owner/name"` (or `installationId` is
-   freshly populated for the active developer), confirm to the user:
+   `scopedRepoFullNames` includes `"owner/name"` (or `installationId`
+   is freshly populated for the active developer), confirm to the user:
    > "GitHub App installed and pinned to `owner/name`. Pillars will
-   > scan only this repo. +$5 in cofounder credits."
+   > scan only this repo. You can add more repos later from the
+   > dashboard's vault page. +$5 in cofounder credits."
 
 5. Skip the rest of the Composio walk-through. Jump to the "After
    connect" section below for the Day-0 backfill prompt.
