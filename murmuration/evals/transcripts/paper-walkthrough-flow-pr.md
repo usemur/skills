@@ -1,5 +1,10 @@
 # Paper Walkthrough — Mur Onboarding Flow Improvements
 
+> **SUPERSEDED** by `paper-walkthrough-plan-of-action.md` (PR #161
+> reframed digest as one option in a curated menu, replacing the
+> auto-fire-digest behavior this walkthrough scored). Kept as
+> historical record of the post-#156 flow.
+
 Re-walk after applying the flow changes in PR
 `davidlsneider/onboarding-flow-improvements`. Scores compare
 upstream HEAD (paper-walkthrough-2026-04-30.md) against the

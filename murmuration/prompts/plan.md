@@ -29,12 +29,15 @@ duplicating their logic.
   Renders the welcome line ("Connected — here's what I'd do
   next…") and the menu.
 - **Standalone `/mur plan`** — user-invoked at any later state.
-  Detects `~/.murmur/state.json` connections + reads
-  `.murmur/plan-history.jsonl` to render a "Since last plan: …"
-  delta header before the menu (see "Re-invocation" below).
-- **From scan.md tail** when state.json shows ≥1 connection AND no
-  plan has fired yet on this project — scan's close-the-loop
-  suggests `/mur plan` instead of `/mur connect github`.
+  Reads `~/.murmur/pages/HEARTBEAT.md` for `hasMinConnections`
+  (canonical connection-state surface; see digest.md, connect.md)
+  + reads `.murmur/plan-history.jsonl` to render a "Since last
+  plan: …" delta header before the menu (see "Re-invocation"
+  below).
+- **From scan.md tail** when HEARTBEAT.md shows
+  `hasMinConnections: true` AND no plan has fired yet on this
+  project — scan's close-the-loop suggests `/mur plan` instead
+  of `/mur connect github`.
 
 ## Preconditions
 
@@ -45,9 +48,15 @@ duplicating their logic.
   > "I haven't scanned `<repo>` yet. Run `/mur scan` first
   > (~5s, all local), then `/mur plan` to see the menu."
   Stop.
-- `~/.murmur/state.json` shows ≥1 connection on this project. If
-  zero, fall back to scan-based suggestions only (rare path; user
-  invoked `/mur plan` without ever connecting).
+- `~/.murmur/pages/HEARTBEAT.md` frontmatter shows
+  `hasMinConnections: true` (the canonical "user has connected at
+  least one source" signal — written by the server, mirrored
+  locally after `/mur connect` succeeds; see `connect.md` step 5
+  which refreshes `GET /api/sync/pages/HEARTBEAT`). If false /
+  missing / file absent, fall back to scan-based suggestions only
+  (rare path; user invoked `/mur plan` without ever connecting).
+  If HEARTBEAT.md is older than 24h, re-sync via
+  `GET /api/sync/pages/HEARTBEAT` before reading.
 
 ## Hard contracts
 
@@ -62,9 +71,10 @@ duplicating their logic.
 - **Don't auto-fire the digest.** Even if "Set up the daily digest"
   is one of the menu items, it does NOT fire until the user picks
   it. This is the structural change from the prior flow.
-- **No silent state mutations.** Plan reads scan.json + state.json
-  + plan-history.jsonl. Plan WRITES only plan-history.jsonl
-  (append-only, see schema below).
+- **No silent state mutations.** Plan reads `.murmur/scan.json` +
+  `~/.murmur/pages/HEARTBEAT.md` + `.murmur/plan-history.jsonl`.
+  Plan WRITES only `.murmur/plan-history.jsonl` (append-only, see
+  schema below).
 
 ## Interface contracts (couplings to other prompts)
 
@@ -77,8 +87,11 @@ shapes owned by other prompts. If those shapes change,
   `signals.outbound_candidates`, `local_resources.github.open_prs`,
   `local_resources.github.open_issues`, `local_resources.in_repo_files`,
   `risky_patterns.*`, `business_profile`, `product_summary`.
-- **`_bootstrap.md`** owns `~/.murmur/state.json`. Plan reads:
-  `projects.<root>.connections` array.
+- **`connect.md` + server sync** own `~/.murmur/pages/HEARTBEAT.md`.
+  Plan reads frontmatter `hasMinConnections` (boolean). Server
+  writes; connect.md refreshes after a successful OAuth grant
+  (`GET /api/sync/pages/HEARTBEAT`). digest.md, morning-check.md,
+  whoami.md, ask.md all share this contract.
 - **recommend.md** is queried for "wire automation" item — match
   scan signals against `registry/flows/*.yaml`, top-1 match.
 - **security-audit.md** is queried for "run security audit" item —
@@ -102,10 +115,16 @@ section in sync.
 
 ```
 test -f .murmur/scan.json && cat .murmur/scan.json
-test -f ~/.murmur/state.json && cat ~/.murmur/state.json
+test -f ~/.murmur/pages/HEARTBEAT.md && cat ~/.murmur/pages/HEARTBEAT.md
 test -f .murmur/plan-history.jsonl && tail -10 .murmur/plan-history.jsonl
 test -f ~/.claude/skills/gstack/SKILL.md && echo "GSTACK_PRESENT"
 ```
+
+Parse `hasMinConnections` from HEARTBEAT.md's frontmatter (YAML
+between leading `---` markers). If HEARTBEAT.md is missing OR
+`hasMinConnections` is false, treat as zero connections. If
+HEARTBEAT.md's `lastSyncedAt` is older than 24h, refresh via
+`GET /api/sync/pages/HEARTBEAT` before parsing.
 
 If `scan.json` is missing, redirect (see preconditions).
 
@@ -284,7 +303,7 @@ machine — that's the trade-off for keeping it simple).
 
 - **scan.json missing or corrupt** → redirect to `/mur scan`.
   Don't crash.
-- **state.json shows zero connections on this project** → fall
+- **HEARTBEAT.md missing OR `hasMinConnections` is false** → fall
   back to scan-only items (security, publish, gstack). The post-
   connect framing doesn't apply, but plan can still be useful.
 - **recommend.md errors when queried for menu items** → drop the
@@ -304,8 +323,8 @@ Route to `prompts/plan.md` when the user says things like:
 - `/mur plan` / `/mur what should I do next`
 - `/mur menu` / `/mur options`
 - "what's the plan" / "what should I do today" — context-dependent;
-  if `scan.json` exists AND state.json shows connections, route
-  here. Otherwise route to `/mur scan` first.
+  if `scan.json` exists AND HEARTBEAT.md shows `hasMinConnections:
+  true`, route here. Otherwise route to `/mur scan` first.
 - After a successful `/mur connect <source>` (programmatic
   hand-off from `connect.md` After-connect — `mode: post-connect`).
 

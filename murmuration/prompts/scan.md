@@ -725,23 +725,33 @@ canonical path (SKILL.md "Getting started — the canonical path").
 **Close-the-loop routing depends on connection state** (see also
 `prompts/plan.md`):
 
-- **No connections yet** (`~/.murmur/state.json` shows zero connections
-  on this project): suggest `/mur connect github`.
-- **At least one connection AND no plan has fired yet** (no
-  `.murmur/plan-history.jsonl` OR it's empty): suggest `/mur plan` —
-  the user is past first-connect and ready to see the menu.
-- **Plan has fired before**: suggest `/mur plan` again (it composes a
-  "since last plan" delta on re-invocation).
+- **No connections yet** (`~/.murmur/pages/HEARTBEAT.md` is missing
+  OR its frontmatter `hasMinConnections` is false): suggest
+  `/mur connect github`.
+- **At least one connection AND no plan has fired yet** (HEARTBEAT
+  has `hasMinConnections: true` AND `.murmur/plan-history.jsonl`
+  is missing or empty): suggest `/mur plan` — the user is past
+  first-connect and ready to see the menu.
+- **Plan has fired before** (`plan-history.jsonl` has ≥1 entry):
+  suggest `/mur plan` again (it composes a "since last plan" delta
+  on re-invocation).
+
+Reading HEARTBEAT.md is a local-mirror file read, not a network
+call (it lives at `~/.murmur/pages/`, server-synced when /mur
+connect runs). Scan does not refresh it — it reads what's there
+and routes accordingly. If HEARTBEAT is stale (>24h), the
+fallback is the unconditional "no connections" branch — safe.
 
 Default copy when no connections:
 "everything looks clean from what I can read locally —
 `/mur connect github` if you want me watching for new issues / PRs
 going forward, then a digest lands in your chat each morning."
 
-The closeout is intentionally unconditional. Scan can't make server
-calls (see "No network calls in this verb" above) so it can't detect
-whether the user has already connected. An already-connected user
-will just say "I've already done that" and we move on; the cost of
+The closeout is intentionally unconditional when HEARTBEAT is
+missing. Scan can't make server calls (see "No network calls in
+this verb" above) so it can't refresh HEARTBEAT itself. An
+already-connected user with stale HEARTBEAT will just say "I've
+already done that" and we move on; the cost of
 asking once is far smaller than the cost of leaving the canonical
 path uncompleted for a brand-new user.
 
@@ -905,9 +915,11 @@ the user commits to OAuth.
   `cursor.shown` entries beyond the just-surfaced rank 1).
 - `local_resources.github.authed: true` (otherwise the preview
   has no real data to ground in — better to skip than fake).
-- The user is on the canonical onboarding path (no
-  `~/.murmur/state.json` existed before this session — i.e. they
-  haven't connected anything yet on this project).
+- The user is on the canonical onboarding path
+  (`~/.murmur/pages/HEARTBEAT.md` is missing OR its frontmatter
+  `hasMinConnections` is not true — i.e. they haven't connected
+  anything yet on this project; same signal scan.md tail uses for
+  close-the-loop routing).
 
 **When to skip silently:**
 - Continuation mode ("what else?" calls).

@@ -1,5 +1,11 @@
 # Paper Walkthrough — Mur Onboarding (2026-04-30)
 
+> **SUPERSEDED** by `paper-walkthrough-plan-of-action.md`. The arc
+> scored here (`scan → connect → digest`) was reframed in PR #161 to
+> `scan → connect → plan → pick`, with digest as one option in the
+> menu. Kept as historical record of upstream HEAD before any
+> onboarding restructure.
+
 Hand-traced each canonical persona through SKILL.md "Getting started"
 (scan → connect → digest). Scored against `evals/heuristics.yaml`.
 This is a *design* check on upstream HEAD — does the flow score on

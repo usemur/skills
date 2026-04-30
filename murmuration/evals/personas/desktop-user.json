@@ -11,5 +11,5 @@
   "expected_wow": "There IS no wow for this persona inside the repo arc. The right outcome is the first-contact welcome detecting no-git-repo (per SKILL.md §First contact step 1) and skipping the scan suggestion. The honest message is 'Mur is currently strongest for code projects' + 'what are you trying to accomplish?'",
   "expected_dropoff_risk": "95% drop. That's expected and OK — onboarding shouldn't pretend a Desktop folder is a project. Failing honestly here protects all the other personas' trust.",
   "wow_score_target": "Heuristics 1, 2, 7 must score 'yes'; remaining heuristics N/A because the user exits welcome cleanly",
-  "scoring_notes": "Canary for the no-repo path. If Mur tries to scan `~/Desktop`, EVERYTHING is broken. Verify the welcome detects no git repo and exits gracefully without writing scan.json or onboarding.json. Upstream's SKILL.md §First contact handles this correctly today — score 'yes' on H1/H2/H7 and document any regression."
+  "scoring_notes": "Canary for the no-repo path. If Mur tries to scan `~/Desktop`, EVERYTHING is broken. Verify the welcome detects no git repo and exits gracefully without writing scan.json or plan-history.jsonl. Upstream's SKILL.md §First contact handles this correctly today — score 'yes' on H1/H2/H7 and document any regression."
 }

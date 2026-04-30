@@ -77,8 +77,8 @@ while in repo B.
 
 GitHub uses the **Murmur Cofounder GitHub App** (per-repo install scope).
 **Always pin the install to the founder's current working
-directory** so the cofounder skill watches THIS project, not whatever
-they happened to push to last.
+directory** so Mur watches THIS project, not whatever they happened
+to push to last.
 
 1. Resolve the working-directory's GitHub repo:
    ```bash
@@ -93,7 +93,7 @@ they happened to push to last.
    **No git remote / not a github.com remote:** tell the user
    transparently:
    > "I can't see a GitHub remote in this directory, so I can't pin
-   > the cofounder skill to a specific repo. Run `/connect github`
+   > Mur to a specific repo. Run `/connect github`
    > from inside a `git clone`'d project, or install via the
    > dashboard at usemur.dev/dashboard/vault to pick repos in the
    > GitHub UI." Then stop — do not fall back to the unscoped path.
@@ -178,10 +178,10 @@ they happened to push to last.
      > "Connected. Pulling together what I'd do next…"
 
      Then hand off to `prompts/plan.md`. Plan reads scan.json +
-     state.json + plan-history.jsonl, composes a 3–5 item menu, and
-     presents it. The user picks. The digest is one of those items
-     ("Set up the daily digest — `/mur digest --backfill`"), not
-     auto-fired.
+     `~/.murmur/pages/HEARTBEAT.md` (for `hasMinConnections`) +
+     plan-history.jsonl, composes a 3–5 item menu, and presents
+     it. The user picks. The digest is one of those items ("Set up
+     the daily digest — `/mur digest --backfill`"), not auto-fired.
 
    - **Subsequent connects** (a plan has fired before on this
      project, user is now connecting an additional source like
