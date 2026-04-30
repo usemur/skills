@@ -73,6 +73,57 @@ Without the header, the server falls back to primary — fine for
 single-project users, wrong for a 2-repo founder connecting Gmail
 while in repo B.
 
+### Special case: `app === 'github'`
+
+GitHub uses the **Murmur Cofounder GitHub App** (per-repo install scope)
+instead of Composio user-OAuth. This avoids the "founder gets digest
+items about their unrelated personal repos" problem the V1 user-OAuth
+path had. **Always pin the install to the founder's current working
+directory** so the cofounder skill watches THIS project, not whatever
+they happened to push to last.
+
+1. Resolve the working-directory's GitHub repo:
+   ```bash
+   git -C "$PWD" remote get-url origin 2>/dev/null
+   ```
+   Parse to `owner/name`. Both forms are common — strip them down to
+   the canonical slug:
+   - `git@github.com:owner/name.git` → `owner/name`
+   - `https://github.com/owner/name.git` → `owner/name`
+   - `https://github.com/owner/name` → `owner/name`
+
+   **No git remote / not a github.com remote:** tell the user
+   transparently:
+   > "I can't see a GitHub remote in this directory, so I can't pin
+   > the cofounder skill to a specific repo. Run `/connect github`
+   > from inside a `git clone`'d project, or install via the
+   > dashboard at usemur.dev/dashboard/vault to pick repos in the
+   > GitHub UI." Then stop — do not fall back to the unscoped path.
+
+2. **POST `/api/integrations/github-app/start`** with body
+   `{ "scopedRepoFullName": "owner/name" }` and the same auth +
+   project-id headers. Response: `{ installUrl, scopedRepoFullName }`.
+
+3. Print the `installUrl` and open it in the browser. The user picks
+   "Only select repositories" + their project on github.com. After
+   they confirm, GitHub redirects them back to
+   `/api/integrations/github-app/installed`. The server validates the
+   signed `state` token (which carries `scopedRepoFullName`), and
+   pins the row to `owner/name` even if they accidentally selected
+   more repos in the GitHub UI.
+
+4. **Poll `GET /api/integrations/github-app/list`** every 3s, up to
+   60s. When `installs[]` contains an entry whose
+   `scopedRepoFullName === "owner/name"` (or `installationId` is
+   freshly populated for the active developer), confirm to the user:
+   > "GitHub App installed and pinned to `owner/name`. Pillars will
+   > scan only this repo. +$5 in cofounder credits."
+
+5. Skip the rest of the Composio walk-through. Jump to the "After
+   connect" section below for the Day-0 backfill prompt.
+
+### General path (every app slug other than `github`)
+
 1. **GET `/api/connections/apps`** to confirm the app slug is supported
    on this server. If `apps` is empty, Composio is not configured —
    tell the user to retry once the operator has added
