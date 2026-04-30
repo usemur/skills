@@ -135,18 +135,15 @@ read it back exactly as written, in 1–2 short paragraphs):
 >   reads credentials, never opens those files.
 >
 > What touches the network:
-> - **A small handshake with Mur's server** (`usemur.dev`) to
->   register this repo as a project and sync the digest pages:
->   `POST /api/projects` (registers the project once per repo),
->   `POST /api/sync/pages` (uploads `BUSINESS` and `STACK` pages
->   derived from the scan — never raw source code). Authenticated
->   by your account key.
+> - **Nothing goes to Mur's servers during scanning.** Scan is
+>   local-only. The first time anything reaches `usemur.dev` is
+>   when you sign up and run `/mur connect github` — that's where
+>   we register the project and start the digest loop.
 > - If you're already authenticated to GitHub via `gh auth login`,
 >   I'll run `gh issue list` / `gh pr list` / `gh repo view` for
 >   *this* repo. That hits GitHub's API as you, using your
 >   existing auth — it doesn't share data with Mur's servers.
 >   (You can opt out below; I'll skip those calls.)
-> - Nothing else leaves this machine during scanning.
 >
 > Output is cached at `.murmur/scan.json` (you may want to
 > `.gitignore` `.murmur/`).
@@ -184,20 +181,19 @@ time you said no — same again?") but re-ask, don't hard-skip.
 Also: if there's no `.gitignore` entry for `.murmur/`, offer once (after
 the scan completes) to add it. Don't add it without asking.
 
-## Bootstrap project context
+## No network calls in this verb
 
-Run `prompts/_bootstrap.md` once before scanning. It detects the active
-repo via `git rev-parse --show-toplevel`, registers it via `POST
-/api/projects` if first sight, and caches `projectId` to
-`~/.murmur/state.json`. The `projectId` then threads as
-`X-Mur-Project-Id` on every subsequent API call this verb makes.
+Scan is fully local. Do **not** run `prompts/_bootstrap.md` and do
+**not** `POST` anything during scan. Bootstrap (and the first
+`/api/projects` registration) runs lazily inside `connect.md` once the
+user has signed up and chosen to connect a source. Keeping scan
+network-free is what makes the §2.0 disclosure (\"nothing leaves this
+machine during scanning\") true.
 
-The scan itself is local-only (no API calls during file reads), but the
-final `POST /api/sync/pages` to upload `BUSINESS` / `STACK` to the
-server needs the header to land in the right project.
-
-Bootstrap output also gives you the project's display **name** for the
-copy touches at the end.
+For the project **name** in the summary, derive it locally:
+- If a git remote exists: basename of the normalized remote path
+  (e.g. `github.com/usemur/vincent` → `vincent`).
+- Otherwise: `basename "$(git rev-parse --show-toplevel)"`.
 
 ## Run the scan
 
@@ -635,6 +631,12 @@ wins:
    (uptime-kuma, sentry-oss, openobserve) directly. Don't pitch
    a managed Mur wrapper here — the user can self-host these for
    free or use a vendor's free tier.
+   **Don't surface a logging gap if a managed-logs PaaS is
+   detected** — any `signals.deploy[].kind` in {`railway`,
+   `render`, `fly`, `vercel`, `heroku`, `cloudflare-workers`,
+   `cloudflare-pages`} captures stdout into a searchable logs UI
+   by default, so a separate logging library is noise. `docker`
+   alone does NOT count.
 8. **Publishable outbound candidate.** Lowest priority — this is
    nice-to-have monetization, not a "you should do this today"
    item. Still surface it as the top finding *only* when rules 1–7
@@ -764,38 +766,6 @@ for the one-line install.")
 - **Don't list automations.** Automations are a follow-up, not a first-scan output. The user came here to find what's broken, not to set up cron jobs. Once they've worked through findings, then we can ask "want this watched while you sleep?" — that's a separate conversation.
 - **Don't ask about `.gitignore` in the same turn as the summary.** Save it for after the user's response, only if they didn't already gitignore `.murmur/`.
 
-### Package-manager cooldown offer (conditional)
-
-Independent of the offers above. Trigger when any entry in
-`signals.pkg_cooldown` has `supported: true` AND `configured: false`.
-This is a small change with a big payoff — a release-age floor neuters
-most zero-day supply-chain attacks (malicious version published, gets
-caught, yanked — all before your CI ever sees it).
-
-Format (name only the unconfigured supported managers; mention the
-unsupported ones as a footnote only if they're the *only* manager
-detected):
-
-```
-also: your <manager(s)> support a release-age cooldown but it's not set.
-a 7-day floor (`minimum-release-age=10080` for npm/pnpm, `[install] minimumReleaseAge = 10080` in bunfig.toml for bun, `exclude-newer` for uv) blocks most zero-day supply-chain attacks at near-zero cost.
-say "set up cooldown" and I'll add the config and explain the tradeoff.
-```
-
-If every detected manager is `supported: false` (e.g. pip-only, cargo-only,
-yarn-only), surface a softer one-liner instead:
-
-```
-heads-up: <manager> doesn't support a native release-age cooldown.
-worth knowing — a 0-day malicious version would hit your install with no buffer. socket.dev or a migration to <uv|pnpm|bun> would close it.
-```
-
-Do not auto-apply. The user has to ask. When they do, write the
-appropriate config snippet (`.npmrc`, `bunfig.toml`, or
-`[tool.uv]` in `pyproject.toml`), default value `10080` minutes (7 days),
-and explain that lockfile updates will be delayed by that window — that's
-the tradeoff.
-
 ## Hand-off to other prompts
 
 - User says "what else?" / "what else" — keep going through the
@@ -845,5 +815,8 @@ the tradeoff.
 
 - `<project>/.murmur/consents.json` (always, on first run)
 - `<project>/.murmur/scan.json` (always, on successful scan)
-- `~/.murmur/state.json` (via bootstrap, on first sight of this repo)
 - Optionally `.gitignore` (only if user said yes)
+
+Scan does **not** write `~/.murmur/state.json` or call any usemur.dev
+endpoint — that's deferred to `connect.md` per the §"No network calls
+in this verb" rule above.
