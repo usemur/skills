@@ -125,8 +125,20 @@ Decode the response:
 
 ## Step 4 — wire the flow's MCP endpoint into the user's agent
 
-The user's agent needs to know how to reach the new flow. For Claude
-Code, that means `claude mcp add`:
+**Native cofounder flows skip this step.** The install endpoint
+returns `flow.flowType: "cofounder"` (or `flow.mcpRequired: false`
+explicitly) for handlers that fire on platform-side
+webhooks/cron — `@mur/issue-triage`, `@mur/reviewer`,
+`@mur/dep-release-digest`, etc. There's no MCP server to wire;
+the flow runs server-side once enabled. Skip directly to step 5
+when either flag indicates a cofounder flow. Tell the user:
+`<flow.name> is now active for this project. The handler fires
+automatically on the trigger described in the registry; no MCP
+wiring needed.`
+
+For TEE-hosted flows (the default — `flow.flowType` other than
+`cofounder`), the user's agent needs to know how to reach the
+new flow. For Claude Code, that means `claude mcp add`:
 
 ```
 claude mcp add <flow.slug> --transport http <flow.mcpUrl> \
