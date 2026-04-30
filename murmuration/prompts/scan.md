@@ -85,6 +85,21 @@ until they say yes (or any clear affirmative).
 Also: if there's no `.gitignore` entry for `.murmur/`, offer once (after
 the scan completes) to add it. Don't add it without asking.
 
+## Bootstrap project context
+
+Run `prompts/_bootstrap.md` once before scanning. It detects the active
+repo via `git rev-parse --show-toplevel`, registers it via `POST
+/api/projects` if first sight, and caches `projectId` to
+`~/.murmur/state.json`. The `projectId` then threads as
+`X-Mur-Project-Id` on every subsequent API call this verb makes.
+
+The scan itself is local-only (no API calls during file reads), but the
+final `POST /api/sync/pages` to upload `BUSINESS` / `STACK` to the
+server needs the header to land in the right project.
+
+Bootstrap output also gives you the project's display **name** for the
+copy touches at the end.
+
 ## Run the scan
 
 Stream short progress lines to the user as you go ("reading
@@ -143,6 +158,29 @@ file contents beyond what's needed to confirm the signal type.
 
 Apply the privacy filters from the top of this prompt before flagging.
 
+### Risky-pattern detection (powers the bug-hunt offer)
+
+In the same Grep pass, count occurrences of the following patterns. The
+goal is *signal*, not analysis — a non-zero count tells us the
+adversarial bug-hunter would have something to chew on. Don't read the
+matched lines; just count and record file paths.
+
+| Pattern                                | Why it's risky                                  |
+|----------------------------------------|--------------------------------------------------|
+| `eval(`, `new Function(`               | Arbitrary code execution                         |
+| `child_process.exec`, `shell=True`     | Command injection if input flows in              |
+| Raw SQL via template strings           | SQL injection (grep `\`SELECT.*\${`, `f"SELECT`) |
+| `dangerouslySetInnerHTML`              | XSS surface                                      |
+| `Math.random()` near auth/token paths  | Predictable secrets                              |
+| `// TODO`, `// FIXME`, `// XXX`        | Acknowledged unfinished work                     |
+| Empty `catch {}` blocks                | Swallowed errors                                 |
+| `any` cast in TS, `# type: ignore`     | Type-safety escape hatches                       |
+
+Record as `risky_patterns` in scan.json (see schema below). Apply the
+same privacy filters — skip `node_modules/`, vendored code, etc. This
+is presence-counting only; never quote the matched line back to the
+user.
+
 ## Write `.murmur/scan.json`
 
 Schema (keep field names stable — downstream prompts depend on them):
@@ -196,7 +234,21 @@ Schema (keep field names stable — downstream prompts depend on them):
       "git_weight": {"commits": 4, "contributors": 2, "last_touched_days_ago": 7},
       "default_publish_tier": "source-visible"
     }
-  ]
+  ],
+  "risky_patterns": {
+    "total_hits": 12,
+    "by_pattern": {
+      "eval_or_new_function": {"count": 0, "files": []},
+      "shell_exec": {"count": 1, "files": ["scripts/deploy.sh"]},
+      "raw_sql_template": {"count": 2, "files": ["src/db/users.ts"]},
+      "dangerously_set_inner_html": {"count": 0, "files": []},
+      "math_random_in_auth": {"count": 0, "files": []},
+      "todo_fixme_xxx": {"count": 7, "files": ["..."]},
+      "empty_catch": {"count": 1, "files": ["src/api/foo.ts"]},
+      "type_escape_hatch": {"count": 1, "files": ["src/types/legacy.ts"]}
+    },
+    "hotspot_paths": ["src/db/users.ts", "src/api/foo.ts"]
+  }
 }
 ```
 
@@ -218,10 +270,13 @@ data or default to midnight.
 ## Print the markdown summary
 
 After writing scan.json, print a 4–6 line summary so the user sees what
-landed without opening the JSON. Format:
+landed without opening the JSON. Use the project **name** from the
+bootstrap (the server-registered one — same string that'll show up in
+the dashboard) so the user immediately recognizes what got registered.
+Format:
 
 ```
-✓ scanned <repo basename> — <product summary>
+✓ scanned <project name> — <product summary>
   inbound:  <N> stack slots populated, <M> empty
   outbound: <K> publishable candidates flagged
   cached:   .murmur/scan.json
@@ -236,6 +291,60 @@ this is the §1.5 magic moment. Example:
 heads-up: I noticed lib/retry.ts is a clean utility (3 call sites, 4 commits).
 say "publish lib/retry.ts" if you want to wrap it as a paid flow later.
 ```
+
+### Bug-hunt offer (conditional)
+
+If `risky_patterns.total_hits` >= 3 AND at least one of the following
+"high-signal" patterns has a non-zero count — `eval_or_new_function`,
+`shell_exec`, `raw_sql_template`, `dangerously_set_inner_html`,
+`math_random_in_auth`, `empty_catch` — append one extra line to the
+summary offering the bug-hunt verb. Skip the offer for the long-tail
+patterns alone (`todo_fixme_xxx`, `type_escape_hatch`) — those are
+noise, not vulnerabilities.
+
+Format (mention the hotspot as context but offer the repo-wide hunt —
+the script handles big repos fine and finds bugs the pattern grep
+can't see):
+
+```
+also: found <N> risky patterns (hotspot: <hotspot_path>).
+say "bug hunt" to run a 3-agent adversarial review on the whole repo.
+```
+
+Requires the user to have the Claude Code CLI — the bug-hunt script
+preflights for it. Don't add the offer if `command -v claude` fails;
+mention only that risky patterns were found, no bug-hunt suggestion.
+
+Do not auto-run bug-hunt. The verb still requires the user's say-so.
+
+### Security-audit offer (conditional)
+
+Independent of the bug-hunt offer. Trigger when ANY of the following
+are true — security findings warrant a lower bar than general bugs:
+
+- `risky_patterns.by_pattern.shell_exec.count > 0`
+- `risky_patterns.by_pattern.raw_sql_template.count > 0`
+- `risky_patterns.by_pattern.eval_or_new_function.count > 0`
+- `risky_patterns.by_pattern.dangerously_set_inner_html.count > 0`
+- `risky_patterns.by_pattern.math_random_in_auth.count > 0`
+- `signals.payments` is non-empty (Stripe et al. — money flows
+  warrant an audit even at low pattern count)
+- `signals.auth` is non-empty AND no auth-library entry is detected
+  (custom auth deserves a look)
+
+Format:
+
+```
+also: I can run a static security audit on this repo (OWASP-shaped,
+severity-rated). say "security audit" to kick it off.
+```
+
+If both bug-hunt and security-audit offers fire, print bug-hunt first
+and security-audit second. Don't merge them — they're different verbs
+with different output shapes.
+
+Works in any CLI (no Claude Code dependency), so no preflight needed.
+Do not auto-run.
 
 ## Hand-off to other prompts
 
@@ -253,5 +362,5 @@ say "publish lib/retry.ts" if you want to wrap it as a paid flow later.
 
 - `<project>/.murmur/consents.json` (always, on first run)
 - `<project>/.murmur/scan.json` (always, on successful scan)
+- `~/.murmur/state.json` (via bootstrap, on first sight of this repo)
 - Optionally `.gitignore` (only if user said yes)
-- Never `~/.murmur/*` — that's the install/publish prompts' job.

@@ -1,5 +1,6 @@
 name: Uptime-Kuma
 category: uptime-monitoring
+action_slot: uptime
 homepage: https://uptime.kuma.pet
 source: https://github.com/louislam/uptime-kuma
 license: MIT

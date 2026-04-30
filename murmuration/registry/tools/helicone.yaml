@@ -1,5 +1,6 @@
 name: Helicone
 category: llm-observability
+action_slot: observability
 homepage: https://helicone.ai
 source: https://github.com/Helicone/helicone
 license: Apache-2.0

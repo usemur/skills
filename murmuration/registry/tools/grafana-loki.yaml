@@ -1,5 +1,6 @@
 name: Grafana Loki
 category: logging
+action_slot: logging
 homepage: https://grafana.com/oss/loki
 source: https://github.com/grafana/loki
 license: AGPL-3.0

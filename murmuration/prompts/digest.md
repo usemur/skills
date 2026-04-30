@@ -1,0 +1,113 @@
+# Trigger a fresh cofounder digest
+
+> Sub-prompt of the unified `murmuration` skill. The user said something
+> like "/digest," "/murmur digest," "show me today's digest," or "give
+> me the morning brief now." Triggers an on-demand digest run on the
+> server (instead of waiting for the 7am-local schedule) and prints the
+> result.
+
+## What this prompt produces
+
+The chief-of-staff briefing email body, rendered inline in the agent
+chat. Same content as the daily email; the on-demand fire is free
+(one /digest per day per founder; subsequent on-demand fires require
+`/digest --deep` and are billed).
+
+## Preconditions
+
+- `~/.murmur/account.json` exists.
+- At least 1 connection exists (the daemon precondition from §11.1).
+  If zero connections, redirect to `connect.md`.
+- For the **first** /digest after install, the `--backfill` flag
+  triggers a 30-day synthesis (Day-0 backfill). Without `--backfill`,
+  the digest covers since-last-fire (or the last 24h if first-ever).
+
+## Walk-through
+
+Run `prompts/_bootstrap.md` before any of the API calls below so the
+`X-Mur-Project-Id: <projectId>` header threads through every sync
+read and write the digest path triggers. Multi-repo founders see
+this repo's pages, not primary's, after the digest completes.
+
+Honest scope today: the on-demand digest endpoint (`/api/digest/run`)
+isn't yet wired up server-side, so the digest you'll get today is the
+last one written by the daemon. The daemon itself still fires
+per-developer (plan §6 Q3 — daemon-per-project iteration is V1.5),
+but the page reads (`/api/sync/pages/*`) are project-scoped, so the
+briefing content reflects this repo's pages once project-scoped
+ingestion lands.
+
+1. Read `~/.murmur/pages/HEARTBEAT.md` (synced) to confirm the founder
+   has connections: `hasMinConnections: true`. Otherwise redirect.
+2. **POST `/api/digest/run`** with the account key + an optional flag:
+   - `--backfill` → 30-day window
+   - (default) → since-last-digest, or last 24h if no prior fire
+3. The server returns either an immediate result (synchronous for
+   on-demand) or a `digest_job_id` to poll. For V1, expect synchronous.
+4. Render the response body using the **chief-of-staff** template
+   from cofounder-skill.md §6.1: date + count opening, items grouped
+   by pillar, evidence linked, agent commands listed per item.
+5. The server has already written the canonical timeline row to
+   HISTORY.md (kind: `digest_fired`). Don't append locally — the
+   sync API is the only source of truth for state changes; the
+   local mirror is read-through cache. Run a sync after to refresh
+   the mirror: `GET /api/sync/pages/HISTORY`.
+
+## Hard contracts
+
+- **One free /digest per day.** The server enforces this via
+  `usage_events`. The N+1th attempt returns a billable preview
+  (`{ estimated_tokens, estimated_cents, freeRemaining: 0 }`); ask
+  the founder to confirm a paid normal-depth digest, OR offer
+  `digest-deep.md` for the upgraded version. Don't auto-route to
+  deep — they're orthogonal (depth vs freshness).
+- **Empty digests are honest.** If all 5 pillars + news return zero
+  candidate items, the digest is "Quiet on all four pillars today.
+  17 signals scanned. Nothing actionable." Don't fabricate.
+- **`--backfill` only on first digest.** After the first one, the
+  flag becomes a no-op (server returns the regular since-last
+  window).
+- **Cite every claim.** Each item must reference a file/commit/URL.
+  Never present a pillar item without an evidence link.
+
+## Output template (chief-of-staff)
+
+Lead the briefing with the active project's name (from the bootstrap
+cache) so a 2-repo founder sees at a glance which project they're
+reading.
+
+```
+Your {project name} briefing for {Day, Mon DD}. {N} items. {leading-pillar} leading.
+
+{PILLAR} · {n}
+  {id} ▸ {headline} — {evidence one-liner}
+        {action commands: /murmur approve N | /murmur why N | /murmur ask N}
+
+(repeat per pillar that has items)
+
+{Quiet on <pillars>.}
+
+—
+{N}/5 pillars green · {S} signals scanned · {A} actions taken
+manage: usemur.dev/installed
+```
+
+## Trigger phrases — narrow to "create a new digest run"
+
+This verb is for **firing a fresh digest run**. Don't route phrases
+that mean "show me the existing one" — those go to
+`prompts/morning-check.md`.
+
+- "/digest" / "/murmur digest"
+- "run a digest" / "fire a digest" / "trigger the digest now"
+- "give me a fresh digest"
+
+Phrases like "show me today's digest", "what's in the digest", "what
+should I know" → route to `morning-check.md` (read existing) unless
+the user explicitly wants a re-run.
+
+## After
+
+If the founder hasn't connected Stripe and Search Console yet, end
+with a one-liner offering the next connect (only on the **first** of
+the day; don't nag every digest).

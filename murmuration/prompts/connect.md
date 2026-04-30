@@ -1,0 +1,147 @@
+# Connect a third-party source via Composio OAuth
+
+> Sub-prompt of the unified `murmuration` skill. The user said something
+> like "connect github," "/connect stripe," "hook up Search Console," or
+> any phrasing about authorizing a third-party data source. This prompt
+> walks the agent through the Composio OAuth handoff and recording the
+> result in `~/.murmur/account.json`.
+
+## What this prompt produces
+
+A successful OAuth connection (or a clear failure with the next step
+the user can take). After connecting GitHub, the cofounder's Day-0
+backfill becomes possible; after connecting Stripe and Search Console,
+the digest gets richer. See cofounder-skill.md §10.1 for the V1
+install funnel.
+
+## Preconditions
+
+1. **Account key.** `~/.murmur/account.json` must exist (the user has
+   signed in at `usemur.dev` at least once and pasted their account
+   key). If it's missing, redirect:
+
+   > You don't have a Murmuration account key yet. Sign in at
+   > https://usemur.dev → click your avatar → Account → copy the key
+   > → paste here. I'll save it to `~/.murmur/account.json` and we'll
+   > come back to /connect.
+
+2. **App slug.** **The canonical list of supported apps lives on the
+   server.** Always start by calling `GET /api/connections/apps`
+   (with `Authorization: Bearer <account key>`). Compare what the
+   user said against the `slug` and `label` fields — match on slug
+   exact, label exact, then case-insensitive substring of either.
+
+   The hint table below is illustrative for common phrasings — it
+   is NOT exhaustive and will lag the server. The server's response
+   is the source of truth:
+
+   | User said | Likely slug |
+   |---|---|
+   | github / "my repo" / "repos" | `github` |
+   | stripe / revenue / billing | `stripe` |
+   | search console / SEO / search | `searchconsole` |
+   | sheets / google sheets | `googlesheets` |
+   | gmail / email | `gmail` |
+   | slack / notion / linear / vercel / posthog | (same slug, lowercase) |
+   | intercom / crisp / front | (same slug, lowercase) |
+
+   **Ambiguity (`/connect google`):** list every app whose label
+   starts with "Google" from the server response and ask which.
+
+   **App not in the server response:** tell the user honestly —
+   "Composio supports it, but Murmuration's server hasn't exposed it
+   yet. I'll log `<app>` as a request so we prioritize landing it."
+   Do NOT pretend to connect.
+
+   **Connection bonus economics.** First-connect grants $5 in
+   platform credits, capped at the developer's first 3 connections
+   (max $15 per founder). Connections 4+ wire up cleanly but earn
+   no further bonus. This caps onboarding cost per founder so we can
+   keep widening the `SUPPORTED_APPS` allowlist (`composio.service.ts`)
+   without exposure scaling with provider count. Surface the cap to
+   the user when relevant: after their 3rd successful connect, swap
+   the "+$5" line for "Connection 3/3 — bonuses end here. Future
+   connects still work, just no bonus."
+
+## Walk-through
+
+Run `prompts/_bootstrap.md` before any of the steps below so
+`X-Mur-Project-Id: <projectId>` is available on every request. The
+`/start` call records the project on the pending OAuth flow; the
+async callback then tags the resulting `UserSecret` to that project.
+Without the header, the server falls back to primary — fine for
+single-project users, wrong for a 2-repo founder connecting Gmail
+while in repo B.
+
+1. **GET `/api/connections/apps`** to confirm the app slug is supported
+   on this server. If `apps` is empty, Composio is not configured —
+   tell the user to retry once the operator has added
+   `COMPOSIO_API_KEY` to the server env.
+2. **POST `/api/connections/start`** with `{ "app": "<slug>", "returnTo":
+   "<optional dashboard URL>" }` and headers `Authorization: Bearer
+   <account key>` + `X-Mur-Project-Id: <projectId>`. The response is
+   `{ redirectUrl, connectedAccountId }`.
+3. Print the `redirectUrl` clearly; tell the user it'll open in their
+   browser. On localhost the agent can also `open <url>` directly.
+4. **Poll `GET /api/connections/check?apps=<slug>`** every 3s, up to
+   60s. The Composio server-side flow completes when the user
+   approves; the row in `connections[<slug>].status` flips to
+   `connected` (from `missing`).
+5. On connected: confirm to the user with a one-line summary
+   ("GitHub connected. +$5 in cofounder credits."). The platform has
+   already granted the $5 connection bonus inside the OAuth callback
+   (idempotent per provider per developer — repeat connects don't
+   double-grant). Refresh the local mirror with
+   `GET /api/sync/pages/ACCESS_POLICY`. Then offer the next step:
+
+   - First connect (GitHub): "Want your Day-0 backfill digest now?
+     ~90s." → if yes, route to `morning-check.md` with `--backfill`.
+   - Subsequent connects: redirect to `digest.md` with
+     `--refresh-only` or just confirm and stop.
+
+5. On timeout / cancellation: show the latest `/check` status and tell
+   the user to retry `/connect <source>`.
+
+## Hard contracts
+
+- **One source per invocation.** If the user says "connect everything,"
+  do GitHub first, then prompt for the next.
+- **Never store the OAuth token locally.** It lives in the platform's
+  Composio-managed vault; the local agent only sees the connection
+  status. The platform extracts the token at TEE-execution time.
+- **Surface the description before sending.** `GET /api/connections/apps`
+  returns each app's `label` and `description`. Print them so the user
+  knows what they're authorizing.
+- **All canonical timeline writes are server-side.** The server
+  upserts the `UserSecret` row and grants connection credits; the
+  local agent re-syncs and reads — it does NOT append timeline rows
+  directly.
+
+## Errors the user might see
+
+- `account_key_missing` → redirect (see preconditions).
+- `Unsupported app` → V1.5 connector message; offer to add the
+  slug to the waitlist.
+- `Composio not configured` → server side missing `COMPOSIO_API_KEY`.
+- `oauth_failed` → "OAuth handoff failed. Common causes: cancelled in
+  browser, popup blocked, third-party cookies disabled. Try again."
+
+## After connect
+
+If this was the founder's first connect, do these in order:
+
+1. **App sweep (presence-only, never reads contents).** Run
+   `node <skill-dir>/scripts/app-sweeper.mjs` to detect which V1
+   desktop apps the founder has installed. The script prints JSON to
+   stdout: `{ platform, tools: [{ name, category, detectedAt }] }`.
+   Read that, set it as `frontmatter.toolsDetected` on the local
+   `~/.murmur/pages/USER.md`, then `POST /api/sync/pages` to sync up.
+   Tell the founder transparently:
+   > "I noticed you have <names>. Nothing read beyond the bundle name.
+   > See the full list anytime in `/murmur whoami`."
+   Skip silently on non-darwin platforms — the V1 sweeper is macOS-only.
+
+2. Prompt: "Want your Day-0 backfill digest now? It'll synthesize 30
+   days of signals from the sources you've connected. ~90s."
+
+If they say yes, route to `morning-check.md` with the `--backfill` flag.

@@ -1,5 +1,6 @@
 name: OpenObserve
 category: logging
+action_slot: logging
 homepage: https://openobserve.ai
 source: https://github.com/openobserve/openobserve
 license: AGPL-3.0

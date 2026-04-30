@@ -1,5 +1,6 @@
 name: Sentry (self-hosted)
 category: error-tracking
+action_slot: observability
 homepage: https://sentry.io
 source: https://github.com/getsentry/self-hosted
 license: BSL-1.1

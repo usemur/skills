@@ -1,5 +1,6 @@
 name: PostHog
 category: product-analytics
+action_slot: product-analytics
 homepage: https://posthog.com
 source: https://github.com/PostHog/posthog
 license: MIT

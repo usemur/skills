@@ -1,5 +1,6 @@
 name: Langfuse
 category: llm-observability
+action_slot: observability
 homepage: https://langfuse.com
 source: https://github.com/langfuse/langfuse
 license: MIT

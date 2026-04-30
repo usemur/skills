@@ -158,20 +158,24 @@ category. This is conversational — one decision per round, not a menu.
 
 ## Handling user replies
 
-- **"Yes" to a self-host option:** Phase 3 (automated install) isn't
-  shipped yet. Tell the user honestly:
+- **"Yes" to a `@mur/*` managed flow:** read `prompts/install.md` and
+  follow it. Pass `slug` from the registry entry's `mur_flow.slug` (or
+  the entry's own `slug` for `flows/*` entries) and `actingAgent:
+  "claude-code"` (or the appropriate agent name — Claude Code is the
+  default since that's where this pack runs). On success, the install
+  prompt prints a confirmation. Then loop back here to propose the
+  next category.
 
-  > Phase 3 (automated installs) isn't shipped yet — for now, here's
-  > the self-host link: <deploy.link from the YAML>. Once that's
-  > running, I can help you wire it into your project.
+- **"Yes" to a self-host option:** the registry entry's `deploy.link`
+  field points at the tool's self-hosting docs. Tell the user we
+  don't yet automate self-host deployments — paste the link and a
+  one-line summary of what they'll need (Docker, Fly account, etc.).
+  Move to the next recommendation. (`@mur/*` deploy flows are the
+  way to automate self-host; that's already covered above.)
 
-  Then move to the next recommendation.
-
-- **"Yes" to a `@mur/*` flow:** same honest answer. For now point the
-  user at `https://usemur.dev/explore/<flow-slug>` (the explore page
-  has the manual MCP / HTTP / x402 install snippets) or — if a real
-  flow exists yet — invoke it via `prompts/consume-flow.md`. Mention
-  Phase 3 will automate this.
+- **"Yes" to a tool entry that has both a self-host and managed
+  variant:** ambiguous. Ask once: "self-host or managed?" (1 follow-up
+  only — don't loop). Route to the appropriate branch above.
 
 - **"No" / "skip":** drop the entry, move to the next category.
 
@@ -213,11 +217,12 @@ ephemeral — re-running the matcher next time is cheap.
 
 ## Hand-off to other prompts
 
+- **User says "yes" to a managed `@mur/*` flow** → read
+  `prompts/install.md` (Phase 3 is shipped). The install prompt does
+  the account check, calls `POST /api/flows/install`, and wires the
+  flow's MCP endpoint into the user's agent.
 - User asks to scan again → read `prompts/scan.md`.
 - User asks to see the slot view → read `prompts/stack.md`.
 - User wants to publish their own utility (after seeing outbound
   candidates) → read `prompts/publish-flow.md` for the manual path.
   Agent-driven publish (`prompts/publish.md`) ships in Phase 4.
-- Phase 3 (`prompts/install.md`) hasn't shipped — until it does, every
-  "yes" routes to the manual install path (self-host link or explore
-  page) instead of an automated install.
