@@ -128,9 +128,31 @@ Detect each row's signal by the source listed. Record what's present
 | DB + schema tooling             | `prisma/schema.prisma`, `alembic/`, `migrations/`, `drizzle.config.*`, `sqlx`, `mongoose`          |
 | Repo shape                      | file count, LOC, monorepo detection (pnpm workspaces, nx, turbo, cargo workspaces)                 |
 | Git activity                    | `git log --since=1.day`, `--since=7.days`, `--since=30.days`; bucket changed files                |
+| **Pkg-manager cooldown**        | `.npmrc`, `package.json`, `pnpm-workspace.yaml`, `bunfig.toml`, `pyproject.toml`, `uv.toml` — see "cooldown detection" below |
 
 Use Glob to find manifest files. Use Grep with glob filters to count
 SDK imports and env var prefixes. Use Bash for `git log` queries.
+
+**Package-manager cooldown detection.** Zero-day supply-chain attacks
+(malicious package versions published and yanked within hours) are
+blunted hard by a release-age floor: refuse to install anything
+published in the last N days. This is a one-line config change with a
+huge blast-radius reduction. Detect the user's package managers and
+whether each has a cooldown configured:
+
+| Manager | Detect by                                  | Cooldown setting                                                                  |
+|---------|--------------------------------------------|-----------------------------------------------------------------------------------|
+| npm     | `package-lock.json` or `npm` in scripts    | `.npmrc`: `minimum-release-age=<minutes>` (npm 11.5+)                              |
+| pnpm    | `pnpm-lock.yaml` / `pnpm-workspace.yaml`   | `package.json` `pnpm.minimumReleaseAge` or `.npmrc` `minimum-release-age` (pnpm 10.16+) |
+| bun     | `bun.lockb` / `bunfig.toml`                | `bunfig.toml`: `[install] minimumReleaseAge = <minutes>` (bun 1.2+)                |
+| yarn    | `yarn.lock`                                | no native cooldown — recommend socket.dev or migrating off                         |
+| uv      | `uv.lock` / `[tool.uv]` in `pyproject.toml`| `pyproject.toml` `[tool.uv] exclude-newer = "<date>"` or `--exclude-newer` flag    |
+| pip     | `requirements.txt` only, no other manager  | no native cooldown — note as gap, suggest pip-audit + uv migration                 |
+| cargo   | `Cargo.lock`                               | no native cooldown — note as gap                                                   |
+
+For each manager detected, grep its config for the cooldown setting and
+record `configured: true|false` plus `value` (if set). Don't read full
+contents of node_modules / .venv — manifests + small config files only.
 
 **Product understanding (single LLM call — but it's *you*):** read the
 README + the `description` field of any package manifest. Summarize the
@@ -218,7 +240,11 @@ Schema (keep field names stable — downstream prompts depend on them):
     "uptime": [],
     "db": [{"kind": "postgres", "tooling": "prisma"}],
     "auth": [{"name": "clerk", "via": "package_import:@clerk/nextjs"}],
-    "payments": [{"name": "stripe", "via": "package_import:stripe"}]
+    "payments": [{"name": "stripe", "via": "package_import:stripe"}],
+    "pkg_cooldown": [
+      {"manager": "npm", "supported": true, "configured": false, "value": null, "config_file": ".npmrc"},
+      {"manager": "uv", "supported": true, "configured": true, "value": "2025-10-01", "config_file": "pyproject.toml"}
+    ]
   },
   "git_activity": {
     "today": ["src/foo.ts"],
@@ -345,6 +371,38 @@ with different output shapes.
 
 Works in any CLI (no Claude Code dependency), so no preflight needed.
 Do not auto-run.
+
+### Package-manager cooldown offer (conditional)
+
+Independent of the offers above. Trigger when any entry in
+`signals.pkg_cooldown` has `supported: true` AND `configured: false`.
+This is a small change with a big payoff — a release-age floor neuters
+most zero-day supply-chain attacks (malicious version published, gets
+caught, yanked — all before your CI ever sees it).
+
+Format (name only the unconfigured supported managers; mention the
+unsupported ones as a footnote only if they're the *only* manager
+detected):
+
+```
+also: your <manager(s)> support a release-age cooldown but it's not set.
+a 7-day floor (`minimum-release-age=10080` for npm/pnpm, `[install] minimumReleaseAge = 10080` in bunfig.toml for bun, `exclude-newer` for uv) blocks most zero-day supply-chain attacks at near-zero cost.
+say "set up cooldown" and I'll add the config and explain the tradeoff.
+```
+
+If every detected manager is `supported: false` (e.g. pip-only, cargo-only,
+yarn-only), surface a softer one-liner instead:
+
+```
+heads-up: <manager> doesn't support a native release-age cooldown.
+worth knowing — a 0-day malicious version would hit your install with no buffer. socket.dev or a migration to <uv|pnpm|bun> would close it.
+```
+
+Do not auto-apply. The user has to ask. When they do, write the
+appropriate config snippet (`.npmrc`, `bunfig.toml`, or
+`[tool.uv]` in `pyproject.toml`), default value `10080` minutes (7 days),
+and explain that lockfile updates will be delayed by that window — that's
+the tradeoff.
 
 ## Hand-off to other prompts
 
