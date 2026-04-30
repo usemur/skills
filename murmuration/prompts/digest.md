@@ -42,6 +42,14 @@ ingestion lands.
 2. **POST `/api/digest/run`** with the account key + an optional flag:
    - `--backfill` → 30-day window
    - (default) → since-last-digest, or last 24h if no prior fire
+
+   **Endpoint not yet wired (V1 scope caveat).** `POST
+   /api/digest/run` returns 404 today. When that happens, fall back
+   to the most recent server-fired digest by reading
+   `GET /api/sync/pages/HISTORY` and surfacing the latest
+   `digest_fired` row's content — same shape `morning-check.md`
+   uses. Tell the user honestly: "On-demand digests aren't wired
+   yet; here's the most recent daemon-fired one." Don't fabricate.
 3. The server returns either an immediate result (synchronous for
    on-demand) or a `digest_job_id` to poll. For V1, expect synchronous.
 4. Render the response body using the **chief-of-staff** template

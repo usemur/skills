@@ -40,6 +40,12 @@ digest matches where they're working.
 3. **GET `/api/digest/:digest_id`** to fetch the rendered email
    body (server stores the canonical version + the why-traces).
 
+   **Endpoint not yet wired (V1 scope caveat).** This route returns
+   404 today (only `/api/digests/.../items/.../approve` is mounted).
+   Fall back to the digest body the daemon already wrote into the
+   local `HISTORY.md` row — that's the canonical surface for V1.
+   Tell the user honestly if the body is unavailable.
+
 4. **Print the digest using the chief-of-staff template** (same
    as `digest.md`).
 

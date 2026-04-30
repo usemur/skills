@@ -26,11 +26,11 @@ A populated `CONTACTS.md` page synced to the server, with:
 ## Preconditions
 
 - `~/.murmur/account.json` exists.
-- At least one comm channel is connected (`/api/connections/list`
-  returns one of: `gmail`, `slack`, `linear`, `github`). If none,
-  redirect to `connect.md` with: "Connect at least one of Gmail /
-  Slack / Linear / GitHub first; the contact-grapher needs a
-  source."
+- At least one comm channel is connected (`GET /api/connections`
+  returns a `connections` array containing one of: `gmail`, `slack`,
+  `linear`, `github`). If none, redirect to `connect.md` with:
+  "Connect at least one of Gmail / Slack / Linear / GitHub first;
+  the contact-grapher needs a source."
 
 ## Privacy contract (READ FIRST)
 
@@ -49,9 +49,11 @@ A populated `CONTACTS.md` page synced to the server, with:
 
 ## Walk-through
 
-1. **Read connected comm channels** via `GET /api/connections/list`.
-   Filter to `gmail | slack | linear | github` (other Composio
-   apps don't surface contacts).
+1. **Read connected comm channels** via `GET /api/connections`.
+   The response is `{ connections: [{ app, status, ... }] }`; filter
+   to entries whose `app` is one of `gmail | slack | linear | github`
+   and `status === 'ACTIVE'` (other Composio apps don't surface
+   contacts).
 
 2. **Read existing `CONTACTS.md`** via `GET /api/sync/pages/CONTACTS`
    so we can preserve founder-supplied tags across rebuilds. If

@@ -34,6 +34,13 @@ aren't fully wired server-side yet.)
    `POST /api/digest/quote --deep`. Server returns
    `{ estimated_tokens, estimated_cents, currency }`. Print clearly:
 
+   **Endpoint not yet wired (V1 scope caveat).** `POST
+   /api/digest/quote` returns 404 today. Until it lands, fall back
+   to the published estimate ($0.04 baseline, 2× LLM token markup)
+   and tell the user honestly: "deep-digest pricing is fixed at
+   $0.04 today; live token-based quotes ship soon." Then ask for
+   the same explicit yes/no before doing anything billed.
+
    > Deep digest will pull ~90d of context across all pillars and run
    > deeper reasoning. Estimated cost: $0.04 (2× LLM token markup).
    > Continue? (yes/no)
