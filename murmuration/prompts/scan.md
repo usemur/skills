@@ -719,22 +719,25 @@ other infra is missing.
 If rules 1–8 ALL produce nothing — no security risk, no waiting PR,
 no labeled issue, no hotspot, no recent in-repo TODO, no LLM gap,
 no infra gap, no outbound candidate — the project is in good shape.
-Say so honestly and close the loop with the next step in the
-canonical path (SKILL.md "Getting started — the canonical path").
+The "What we noticed" pillar in Step 2 below renders honestly empty
+("Nothing screaming for attention from what I can read locally").
+The connect-deeper ask still fires — that's the primary CTA
+regardless of how many findings we surface.
 
-**Close-the-loop routing depends on connection state** (see also
-`prompts/plan.md`):
+**Connection-state routing** (consumed by Step 2's connect-deeper
+line):
 
 - **No connections yet** (`~/.murmur/pages/HEARTBEAT.md` is missing
-  OR its frontmatter `hasMinConnections` is false): suggest
-  `/mur connect github`.
+  OR its frontmatter `hasMinConnections` is false): Step 2 closes
+  with the connect-deeper ask (default — "I need server-side read
+  access on the tools above").
 - **At least one connection AND no plan has fired yet** (HEARTBEAT
   has `hasMinConnections: true` AND `.murmur/plan-history.jsonl`
-  is missing or empty): suggest `/mur plan` — the user is past
-  first-connect and ready to see the menu.
+  is missing or empty): Step 2 closes with `/mur plan` instead —
+  the user is past first-connect and ready to see the menu.
 - **Plan has fired before** (`plan-history.jsonl` has ≥1 entry):
-  suggest `/mur plan` again (it composes a "since last plan" delta
-  on re-invocation).
+  Step 2 closes with `/mur plan` again (composes a "since last
+  plan" delta on re-invocation).
 
 Reading HEARTBEAT.md is a local-mirror file read, not a network
 call (it lives at `~/.murmur/pages/`, server-synced when /mur
@@ -742,245 +745,262 @@ connect runs). Scan does not refresh it — it reads what's there
 and routes accordingly. If HEARTBEAT is stale (>24h), the
 fallback is the unconditional "no connections" branch — safe.
 
-Default copy when no connections:
-"everything looks clean from what I can read locally —
-`/mur connect github` if you want me watching for new issues / PRs
-going forward, then a digest lands in your chat each morning."
+The connect-deeper ask is intentionally unconditional when
+HEARTBEAT is missing. Scan can't make server calls (see "No
+network calls in this verb" above) so it can't refresh HEARTBEAT
+itself. An already-connected user with stale HEARTBEAT will just
+say "I've already done that" and we move on; the cost of asking
+once is far smaller than the cost of leaving the canonical path
+uncompleted for a brand-new user.
 
-The closeout is intentionally unconditional when HEARTBEAT is
-missing. Scan can't make server calls (see "No network calls in
-this verb" above) so it can't refresh HEARTBEAT itself. An
-already-connected user with stale HEARTBEAT will just say "I've
-already done that" and we move on; the cost of
-asking once is far smaller than the cost of leaving the canonical
-path uncompleted for a brand-new user.
+### Step 2 — print the four-pillar initial sweep
 
-### Step 2 — print the summary
+This is the chief-of-staff hand-off after a local scan. The user
+hasn't connected anything yet; this is what local-only data can
+surface, framed as a structured read with one primary CTA
+(connect deeper) and many secondary sub-CTAs (act on findings).
 
-Pick the top finding (priority rank 1) and surface it. **Before
-returning to the user, update the cursor in `scan.json` to record
-that rank 1 has been shown:** `cursor.shown = [1]`, `cursor.next = 2`.
-Write `scan.json` to disk with the updated cursor. Without this,
-the first "what else?" would re-surface the same rank 1 finding.
+Render four pillars in order: **What you're building**, **Who's
+working on it with you**, **What we noticed**, **What I can
+connect to**. Then a separator, then the connect-deeper ask.
 
-Format. Total length: ~7–11 lines. The business framing IS the
-chief-of-staff voice landing — don't truncate it to save lines.
+**Update the cursor before printing.** `cursor.shown` = the
+priority-ranked indices of every finding included in the "What we
+noticed" section (typically [1..5]). `cursor.next` = the next rank
+not yet shown. Write scan.json to disk. Without this, "what else?"
+would re-surface what we already rendered.
 
-```
-✓ scanned <project name> — <product_summary from scan.json>
-  Looks like: <business_profile from scan.json>
-  Detected: <comma-separated accounts/tools observed locally>
-  <N> stack slots populated, <M> empty • <K> publishable candidates
+**Cap "What we noticed" at 5 items.** Show the priority-sort
+top-5; "what else?" reveals the next batch on continuation.
 
-Top of mind:
-  <ONE specific finding from the priority sort, plain English,
-   point at file/PR/issue with concrete details>
-
-<ONE action for the top finding — verb the user can run NOW>
-
-I found <total other things> too — say "what else?" when you want
-the next one.
-```
-
-**The "Looks like:" line** is the moment Mur acknowledges the
-business shape. Drop it ONLY when `business_profile` is genuinely
-empty (`signals.payments` absent + no public URL + README sparse) —
-inserting a vapid "Looks like: a project with some files" is worse
-than nothing.
-
-**The "Detected:" line** lists specific accounts/tools Mur observed
-on the user's local machine — a tight, factual list distinct from
-the inferred `business_profile`. Sources: gh CLI auth status,
-Stripe CLI presence, `~/.aws/credentials` presence, `~/.config/gcloud/`
-presence, Sentry SDK in deps, etc. Format: comma-separated,
-plain-English. Example:
+Format. Length is whatever the data warrants — typically 20-30
+lines for a feature-rich repo, shorter for thin ones. Don't
+compress to save lines; this output IS the wow moment.
 
 ```
-  Detected: gh authed, Stripe CLI, ~/.aws creds, Sentry SDK
+✓ scanned <project name>
+
+I just reviewed what you've been working on here on your computer.
+Nothing left your machine.
+
+What you're building
+  <product_summary from scan.json — one or two sentences in
+   customer-facing terms, drawn from README + manifest
+   description.>
+  <business_profile from scan.json — composed line: stack
+   maturity + stage signal (Stripe presence, public URL,
+   commit cadence) + observability deployment, e.g. "B2B SaaS,
+   Stripe live, ~12 PRs/week, Sentry deployed — past PMF and
+   shipping fast.">
+
+Who's working on it with you
+  <Internal collaborators only at this stage: from
+   `git log --since=30.days --format='%aN'` deduped, count
+   distinct authors, name 1-3 (excluding the user), framed
+   as "you + <N> others (alice, bob, carol active in the last
+   30 days)".>
+  <If gh is authed, optionally augment with PR-author breakdown:
+   "<N> of the open PRs are yours; the rest are alice's and
+   carol's."]
+  <One-line forward-looking note: "After you connect, this
+   expands — your customers across Stripe, your team across
+   Linear, your error-reporting surface across Sentry, etc.">
+
+What we noticed (worth a look)
+  · <Finding #1 from the priority sort — concrete with file
+     path, line range, PR number, or issue number. Plain
+     English. End with a verb command the user can run.>
+     Try: `<verb command>`
+  · <Finding #2 — same shape>
+     Try: `<verb command>`
+  · <Finding #3 — same shape>
+     Try: `<verb command>`
+  (Cap at 5; say "what else?" for the rest if N > 5.)
+
+What I can connect to
+  <comma-separated list from local_resources.* probes — gh
+   authed, Stripe CLI, Sentry SDK, Langfuse SDK, AWS creds, etc.
+   Plain-English, factual, no inference. Drop this pillar
+   entirely if zero tools observed.>
+
+────
+
+To go deeper — watch these while you sleep, find the cross-tool
+patterns (the PR + the Sentry error + the Stripe customer all
+touching the same surface), propose automations, expand "who
+you work with" to your customers and teams across all of them
+— I need server-side read access on the tools above.
+
+Easiest start: `/mur connect github`. Each first connect adds
+$5 bonus credit (max $15 across three).
+
+Or pick one of the items above first. Either path is fine.
 ```
 
-Drop the "Detected:" line if zero tools/accounts observed (rare —
-most repos surface at least gh or a CLI auth file).
+**Pillar contracts**:
 
-Three examples to anchor the voice:
+- **What you're building.** Drop the `business_profile` line if
+  it would be vapid (no payments + no public URL + sparse README).
+  Better to print only `product_summary` than to fabricate.
+- **Who's working on it with you.** If `git log` shows only the
+  user and no other authors in 30 days, render: "Just you so far
+  on this repo. After connect this expands to your customers +
+  teams." Keep the forward-looking note even when the local team
+  is solo — the connect pitch is the same.
+- **What we noticed.** Honest absence: if rules 1-8 produce
+  nothing, render "Nothing screaming for attention from what I
+  can read locally — repo's in good shape." Don't pad with
+  lower-tier findings.
+- **What I can connect to.** Drop the pillar if zero local tools
+  detected. Don't render "Detected: nothing" — silence is more
+  honest.
 
-**Example A — open PR is top, B2B SaaS:**
+**Closing connect-deeper line.** This is the primary CTA. The
+mechanism-honest framing names exactly what unlocks: server-side
+read, cross-tool pattern detection, automations, expanded
+"who you work with." Don't soften to "want to connect?" — name
+the value prop.
+
+If the user has zero tools detected locally (rare but possible
+for new projects), the connect-deeper line still fires but
+re-frames: "I don't see any tools wired locally. When you do —
+GitHub at minimum, Stripe / Linear / Sentry as relevant — `/mur
+connect github` and I'll re-scan with that."
+
+Three examples to anchor the voice (generic — substitute the
+user's real data when scanning):
+
+**Example A — feature-rich B2B SaaS:**
 
 ```
-✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
-  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
+✓ scanned acme-saas
+
+I just reviewed what you've been working on here on your computer.
+Nothing left your machine.
+
+What you're building
+  Notion-clone for engineering teams collaborating on docs.
+  B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
   PMF and shipping fast.
-  Detected: gh authed, Stripe CLI, Sentry SDK
-  9 stack slots populated, 4 empty • 2 publishable candidates
 
-Top of mind:
-  PR #142 ("fix: heartbeat reconnect race") has been waiting on your
-  review for 3 days. It's not a draft.
+Who's working on it with you
+  You + 3 others on this repo (alice, bob, carol active in the
+  last 30 days). Of the 4 open PRs, 1 is yours; the others are
+  alice's and carol's.
+  After you connect, this expands — your customers across
+  Stripe, your team across Linear, your error-reporting surface
+  across Sentry.
 
-Say "open #142" and I'll pull the diff. Or say "what else?" and
-I'll show the next thing.
+What we noticed (worth a look)
+  · src/api/users.ts:42-58 — raw SQL via $queryRawUnsafe with
+    template-string interpolation. Stripe is wired in this
+    project, so SQL injection on user lookups is a money-loss
+    path.
+    Try: `/mur security-audit`
+  · PR #142 ("fix: heartbeat reconnect race") — your own, no
+    reviews requested, sitting since yesterday. Self-merge or
+    assign reviewer.
+    Try: `show me PR #142`
+  · Issue #98 ("Test authority model end-to-end") — open since
+    March 25, not labeled, easy to lose.
+    Try: `show me issue #98`
+  · TODOS.md updated 2 days ago: "build the export feature."
+    Sounds like the next project.
+    Try: `/office-hours` (gstack present — scope the surface)
 
-I found 6 other things — say "what else?" when ready.
+What I can connect to
+  gh authed, Stripe CLI, Sentry SDK, OpenAI SDK
+
+────
+
+To go deeper — watch these while you sleep, find the cross-tool
+patterns (the PR + the Sentry error + the Stripe customer all
+touching the same surface), propose automations, expand "who
+you work with" to your customers and teams across all of them
+— I need server-side read access on the tools above.
+
+Easiest start: `/mur connect github`. Each first connect adds
+$5 bonus credit (max $15 across three).
+
+Or pick one of the items above first. Either path is fine.
 ```
 
-**Example B — security risk is top, payment-touching product:**
+**Example B — pre-product / utility scripts shape:**
 
 ```
-✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
-  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
-  PMF and shipping fast.
-  Detected: gh authed, Stripe CLI, Sentry SDK
-  9 stack slots populated, 4 empty • 2 publishable candidates
+✓ scanned utility-scripts
 
-Top of mind:
-  src/api/users.ts has 2 raw-SQL template strings (`SELECT ... ${id}`
-  patterns). Stripe is wired in this project, so SQL injection on
-  user lookups is a money-loss path.
+I just reviewed what you've been working on here on your computer.
+Nothing left your machine.
 
-Say "security audit" for the OWASP-shaped report on the whole repo,
-or "show me src/api/users.ts" if you want to look at the file.
+What you're building
+  A handful of Node utilities — text summarization, PDF
+  chunking, RSS dedup. Side project, no Stripe / no public URL,
+  recent commits in `lib/` — feels like utility scripts you're
+  polishing.
 
-I found 5 other things — say "what else?" when ready.
+Who's working on it with you
+  Just you so far on this repo. After connect this expands to
+  your customers + teams (when you have them).
+
+What we noticed (worth a look)
+  · lib/summarize.js looks publishable — 80 lines, takes text
+    + returns a 3-bullet summary. Self-contained, your commits.
+    Try: `/mur publish lib/summarize.js`
+  · lib/chunk-pdf.js similar shape — also publishable.
+    Try: `show me lib/chunk-pdf.js`
+  · No LLM observability detected despite the OpenAI SDK in
+    deps. Worth knowing if/when you ship.
+    Try: `/mur recommend` (managed Langfuse-host options)
+
+What I can connect to
+  gh authed, OpenAI SDK
+
+────
+
+To go deeper — watch these while you sleep, find the cross-tool
+patterns, propose automations, expand "who you work with" once
+you have customers — I need server-side read access on the tools
+above.
+
+Easiest start: `/mur connect github`. Each first connect adds
+$5 bonus credit (max $15 across three).
+
+Or pick one of the items above first — `/mur publish` is the
+fastest wow for a repo this shape.
 ```
 
-**Example C — recent roadmap item, gstack present:**
+**Example C — empty / unknown / sparse:**
 
 ```
-✓ scanned cadence — Notion-clone for engineering teams collaborating on docs.
-  Looks like: B2B SaaS, Stripe live, ~12 PRs/week, Sentry deployed — past
-  PMF and shipping fast.
-  Detected: gh authed, Stripe CLI, Sentry SDK
-  9 stack slots populated, 4 empty • 2 publishable candidates
+✓ scanned my-experiment
 
-Top of mind:
-  TODOS.md says "build the export feature" (you touched it 2 days
-  ago, no PR yet). Sounds like the next project.
+I just reviewed what you've been working on here on your computer.
+Nothing left your machine.
 
-Want to scope it? Run `/office-hours` and gstack will brainstorm
-the surface area, then `/plan-eng-review` to lock the architecture.
-I'll watch for the PR on the next scan.
+What you're building
+  Early-stage repo, README is one line. Not enough signal yet
+  to say more.
 
-I found 4 other things — say "what else?" when ready.
+What we noticed (worth a look)
+  Nothing screaming for attention from what I can read locally
+  — there's not much here yet. Scan back once you've shipped
+  some structure.
+
+What I can connect to
+  gh authed
+
+────
+
+When there's more here, I can do more. For now: ship something,
+then `/mur scan` again.
 ```
 
-(If gstack isn't present — `test -f ~/.claude/skills/gstack/SKILL.md`
-returns false — drop the gstack verbs from the action line. Suggest
-instead: "Want to think this through together? Or install gstack for
-a deeper planning flow — see SKILL.md's 'Pairs with gstack' section
-for the one-line install.")
-
-**Example D — pre-product / utility scripts shape:**
-
-```
-✓ scanned utility-scripts — A handful of Node utilities I use across personal projects.
-  Looks like: side project, no Stripe / no public URL, recent commits in
-  `lib/` — feels like utility scripts you're polishing.
-  Detected: gh authed, OpenAI SDK
-  3 stack slots populated, 6 empty • 4 publishable candidates
-
-Top of mind:
-  lib/summarize.js looks publishable — 80 lines, takes text + returns
-  a 3-bullet summary. Self-contained, your commits.
-
-Run `/mur publish lib/summarize.js` when ready, or say "what else?"
-for the next candidate.
-
-I found 3 other things — say "what else?" when ready.
-```
-
-**Example E — empty/unknown business profile (drop the "Looks like:" line):**
-
-```
-✓ scanned my-experiment — Early-stage repo, README is one line.
-  4 stack slots populated, 5 empty • 1 publishable candidate
-
-Top of mind:
-  README.md is "hello world" with one TODO. Not enough signal yet —
-  scan back when there's more here.
-
-Say "what else?" if you want me to keep digging anyway.
-```
-
-### Step 2.5 — predictive digest preview (first-run only, conditional)
-
-After the Step 2 summary, on the **first scan of this project AND
-when `local_resources.github.authed` is true**, append a small
-preview of what the daily digest will surface once GitHub is
-connected. This is the wow that pulls the digest forward — instead
-of describing the digest abstractly, show the *shape* of it before
-the user commits to OAuth.
-
-**When to render:** ALL of these must hold.
-- Fresh first-run scan (cursor was just initialized, no prior
-  `cursor.shown` entries beyond the just-surfaced rank 1).
-- `local_resources.github.authed: true` (otherwise the preview
-  has no real data to ground in — better to skip than fake).
-- The user is on the canonical onboarding path
-  (`~/.murmur/pages/HEARTBEAT.md` is missing OR its frontmatter
-  `hasMinConnections` is not true — i.e. they haven't connected
-  anything yet on this project; same signal scan.md tail uses for
-  close-the-loop routing).
-
-**When to skip silently:**
-- Continuation mode ("what else?" calls).
-- User has already connected (`/mur connect github` ran).
-- Top finding from Step 2 is itself a publishable outbound
-  candidate (rule 8 winning) — the user's wow is publish; don't
-  dilute it with a digest preview.
-
-**When `gh` is NOT authed (separate handling).** Don't render the
-full preview (no real data to ground in), but DO surface a
-one-line nudge so the user knows the upgrade path:
-
-```
-(With `gh auth login` set up, I could preview your daily digest
-right now. Otherwise it'll land tomorrow morning after you
-`/mur connect github`.)
-```
-
-This is a single italicized line, after the Step 2 summary's tail
-"I found N other things — say 'what else?' when ready." Don't try
-to fake a preview from non-gh signals — the value of Step 2.5 is
-real grounded data, not a vapor approximation.
-
-**Format.** 5–7 lines, after a single blank line below the Step 2
-summary. Each bullet must cite a concrete signal — file, PR, issue,
-or commit. Mirror the cite-every-claim contract from `digest.md`.
-
-```
-What your daily digest would surface tomorrow morning:
-  · <item 1 — open PR you wrote / waiting on you, with #N>
-  · <item 2 — labeled-blocker issue or stale PR you opened>
-  · <item 3 — TODO/ROADMAP item touched recently, with file path>
-   (if signals support fewer than 3 items, surface 1–2 honestly)
-
-Connect GitHub when ready: `/mur connect github`
-```
-
-**Grounding rules.** Every bullet draws from data already in
-`scan.json`:
-- `local_resources.github.open_prs[]` — pick PRs where the user is
-  the author (own PRs that are stale) OR where the user is in
-  `requested_reviewers` (waiting on them).
-- `local_resources.github.open_issues[]` — pick labeled `blocker`
-  / `bug` / `priority:high` first.
-- `local_resources.in_repo_files` — TODOS.md / ROADMAP.md recent
-  edits.
-
-If after applying these rules zero items can be honestly grounded,
-**skip Step 2.5 entirely** — fall through to Step 3 with no
-preview. Don't fabricate items to fill the section. The
-unconditional `/mur connect github` closeout in Step 2's summary
-still nudges toward the path.
-
-**Why this is honest, not vapor.** The chief-of-staff briefing
-template in `digest.md` synthesizes across pillars (Bugs, Ops,
-Product, Growth, News). The preview here is a subset — only what
-local + gh data reveals. The framing "what your digest would
-surface tomorrow morning" is true: tomorrow's digest will include
-these items plus whatever Stripe/Linear/etc. surface once
-connected. Showing the GitHub-only subset is a fair preview, not
-a fake.
+(Note in Example C: "Who's working on it with you" pillar
+dropped because it would render as "Just you so far" with no
+team and no customers — the connect-deeper pitch alone carries
+the forward-looking framing. Keep pillars only when they have
+something to say.)
 
 ### Step 3 — handle the user's response
 

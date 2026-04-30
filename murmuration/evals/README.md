@@ -10,16 +10,25 @@ flow iterations).
 ## What's being evaluated
 
 The arc: SKILL.md "Getting started" path —
-**scan → connect → digest** — measured from the first-contact
-welcome to the Day-0 backfill digest landing.
+**scan → connect → plan → pick** — measured from the first-contact
+welcome through the four-pillar initial sweep, the connect step,
+the deeper rescan, and the post-connect plan-of-action menu.
+
+The wow has two stages:
+1. **Four-pillar initial sweep** at turn 2 (scan output) — what
+   you're building, who's working on it with you, what we
+   noticed, what we can connect to.
+2. **Plan-of-action menu** at turn 4 (post-connect) — 3-5
+   grounded options including the digest as one of them.
 
 ## Files
 
 ```
-heuristics.yaml          7 rubric items: 4 binary, 3 graded (0-3)
+heuristics.yaml          13 rubric items: 6 binary, 7 graded (0-3)
 personas/*.json          6 canonical personas with signals + expected wow
 judge-prompt.md          Instructions for an LLM judge (stub for later)
-transcripts/             Recorded runs (filled by dogfood + judge passes)
+transcripts/             Recorded walkthroughs (latest:
+                         paper-walkthrough-four-pillar.md)
 ```
 
 ## Personas (current set)
@@ -46,11 +55,12 @@ transcripts/             Recorded runs (filled by dogfood + judge passes)
 5. Compute the average. Ship-ready iff:
    - average ≥ 2.5 (binary "yes" normalized as 3 for averaging)
    - no heuristic scores 0
-   - heuristics 1, 2, 7 all "yes"
+   - all binary heuristics (1, 2, 4, 7, 12, 13) score "yes"
 
 Capture the score sheet inline in `transcripts/paper-<persona>-<date>.md`
-or in a single combined doc per walkthrough session (see
-`transcripts/paper-walkthrough-2026-04-30.md` for the format).
+or in a single combined doc per walkthrough session (latest:
+`transcripts/paper-walkthrough-four-pillar.md` — superseded older
+walkthroughs are kept as historical record with SUPERSEDED banners).
 
 ## How to run an automated judge pass (when ready)
 
@@ -78,14 +88,26 @@ risk we haven't tested for) — don't add personas for variation alone.
 ## Modifying the heuristics
 
 If you find a property of the flow that the rubric doesn't cover,
-add a new heuristic rather than reinterpreting an existing one. Each
-addition to the rubric forces a re-walk of all personas, so add
-sparingly and with strong justification (e.g. a real regression
-slipped through the existing 7).
+add a new heuristic rather than reinterpreting an existing one.
+Each addition forces a re-walk of all personas, so add sparingly
+and with strong justification (e.g. a real regression slipped
+through the existing rubric).
+
+History of additions:
+- H1–H7: original framework (#155).
+- H8 added in #158: caught the failure mode where Mur sounded
+  like a linter, not a chief-of-staff.
+- H9, H10 added in #163: post-connect plan-of-action breadth +
+  grounding.
+- H6 redefined twice (#161, #170): tracking what the wow
+  actually is as the flow evolved.
+- H11, H12, H13 added in #170: caught the structural failure
+  mode the user surfaced ("two things smashed into one") that
+  individual-line scoring missed.
 
 ## Acceptance bar
 
 > For every canonical persona:
-> - Average score across all 7 heuristics ≥ 2.5
+> - Average score across all 13 heuristics ≥ 2.5
 > - No heuristic scores 0
-> - All binary heuristics (1, 2, 7) score "yes"
+> - All binary heuristics (1, 2, 4, 7, 12, 13) score "yes"

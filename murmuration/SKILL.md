@@ -34,18 +34,26 @@ When a user has just installed Mur, the path that gets them from
 1. **Scan** — `/mur scan`. Reads the project locally (repo, git log,
    TODOs, manifests, gh CLI if present). **Fully local — no network
    calls during the scan itself** (see `prompts/scan.md` "No network
-   calls in this verb"). Surfaces the top thing to look at, one
-   finding at a time. Free.
+   calls in this verb"). Surfaces a four-pillar initial sweep:
+   *what you're building*, *who's working on it with you* (commit
+   collaborators), *what we noticed* (top findings as sub-CTAs),
+   and *what we can connect to* (tools detected locally). One
+   primary CTA at the bottom: connect deeper. Free.
 
 2. **Connect** — `/mur connect github` (and any other relevant source
-   that came up in the scan). This is the step that lets Mur watch
-   while the user is offline. Local `gh auth login` is great for
-   foreground reads if/when the user runs a verb that needs them, but
-   the overnight digest runs on Mur's server with Composio-vaulted
-   OAuth tokens — so /mur connect is required for the watching loop
-   to close. The first connect also runs the bootstrap
-   (`POST /api/projects` → registers this repo as a Mur project) and
-   credits the developer's $5 connection bonus.
+   that came up in the scan's "what we can connect to" pillar). This
+   grants server-side OAuth so Mur can watch overnight, find cross-
+   tool patterns, propose automations, AND expand "who you work
+   with" to include external entities (your customers across Stripe,
+   your team across Linear, etc.). Local `gh auth login` is great
+   for foreground reads, but the overnight digest runs on Mur's
+   server with Composio-vaulted OAuth tokens — so `/mur connect` is
+   required for the watching loop to close. The first connect also
+   runs the bootstrap (`POST /api/projects` → registers this repo as
+   a Mur project), credits the developer's $5 connection bonus, and
+   triggers a deeper rescan that pulls server-side data (customer
+   counts, team rosters, recent issues) into `.murmur/scan.json`
+   under `external.*`.
 
 3. **Plan of action** — `/mur plan` (auto-routes from connect's
    After-connect; also re-invokable anytime). Surfaces a curated 3–5
@@ -73,18 +81,19 @@ When a user has just installed Mur, the path that gets them from
    back to `/mur plan` anytime — re-invocations include a "since
    last plan" delta showing what changed.
 
-**At the end of every scan**, before going quiet, close the loop with
-the next step:
-- No connections yet (`~/.murmur/state.json` shows zero connections):
-  suggest `/mur connect github`.
-- ≥1 connection AND no plan has fired yet on this project: suggest
-  `/mur plan`.
-- Plan has fired before: suggest `/mur plan` again — the re-invocation
-  delta shows what's changed since last time.
+**The scan output's primary CTA depends on connection state** —
+scan.md's Step 2 conditionally renders the closing line:
+- **No connections yet** (`~/.murmur/pages/HEARTBEAT.md` is missing
+  OR `hasMinConnections` is false): scan closes with the connect-
+  deeper ask ("I need server-side read access on the tools above").
+- **≥1 connection AND no plan has fired yet** (HEARTBEAT shows
+  `hasMinConnections: true` AND `.murmur/plan-history.jsonl` is
+  empty): scan closes with `/mur plan`.
+- **Plan has fired before**: same — `/mur plan` again, with a
+  "since last plan" delta on re-invocation.
 
-The scan itself doesn't make server calls so it can't *detect*
-connection state perfectly, but reading `~/.murmur/state.json` is
-local + cheap.
+Reading HEARTBEAT.md is a local-mirror file read, not a network
+call — scan stays in its no-network contract.
 
 **At the end of every /mur connect**, route to `prompts/plan.md` with
 `mode: post-connect`. The plan composes the menu and the user picks

@@ -233,24 +233,56 @@ If this was the founder's first connect, do these in order:
    > See the full list anytime in `/murmur whoami`."
    Skip silently on non-darwin platforms — the V1 sweeper is macOS-only.
 
-2. **Route to `prompts/plan.md`** (`mode: post-connect`). Do NOT
-   auto-fire the Day-0 backfill digest. The digest is one option in
-   the plan-of-action menu — the user picks it (or doesn't) from
-   the menu plan.md presents.
+2. **Deeper rescan with the connected source's data.** Now that
+   we have server-side read access, augment `.murmur/scan.json`
+   with the data the connection unlocks — this is what the
+   pre-connect four-pillar sweep promised ("after you connect,
+   'who you work with' expands to your customers + teams"). Pull:
 
-   Surface the hand-off with a chief-of-staff acknowledgement that
-   pulls `product_summary` from `.murmur/scan.json` (see scan.md
-   "Product + business understanding"):
-   > "Connected. I can watch <product_summary, lowercased and
-   > naturally embedded> for you now — pulling together what I'd
-   > do next…"
+   - **For `github`**: `GET /api/sync/pages/USER` (already-mirrored
+     by sync) + a fresh `GET /api/sync/pages/HEARTBEAT` (already
+     done in step 5 above). For richer data, the local `gh` CLI
+     can pull broader org context now that the user has explicitly
+     opted in via OAuth — but if `gh` was already authed before
+     /mur connect, this adds nothing new. Skip if no delta.
+   - **For `stripe`**: pull customer count, MRR signal, recent
+     subscription churn from Stripe API via the platform's
+     server-side read (no local Stripe API calls — the platform
+     handles this). Surface as `external.stripe.{customer_count,
+     mrr_estimate_usd, churn_30d}` in `scan.json`.
+   - **For `linear`**: pull team list, open-issue count by
+     assignee, recent issue activity. Surface as
+     `external.linear.{teams, open_issues_by_assignee}`.
+   - **For other connected sources**: similar shallow pull —
+     enough data to populate "Who you work with" with external
+     entities (customers, teammates, etc.).
 
-   Fall back to the bland version when `scan.json` /
-   `product_summary` is missing:
+   Augment scan.json's `external.*` namespace with these fields.
+   Don't re-run the local probes (gh CLI, file reads) — those
+   ran in the original scan and are still valid.
+
+   This deeper rescan typically takes 2–5 seconds (server-side
+   reads, parallelizable). Stream a progress line ("pulling Stripe
+   customer summary…") so the user sees it's working.
+
+3. **Surface what changed, then route to `prompts/plan.md`.**
+   After the deeper rescan completes, render a brief delta — a
+   "now I can also see" line — so the user feels what unlocked.
+   Then hand off to plan.md.
+
+   Surface line:
+   > "Connected. I can watch <product_summary, lowercased>
+   > for you now. Now I can also see <delta — e.g., '47 customers
+   > on Stripe, 3 churned this month'>. Pulling together what
+   > I'd do next…"
+
+   Fall back to the bland version when `scan.json` is missing or
+   external data couldn't be pulled:
    > "Connected. Pulling together what I'd do next…"
 
    Then hand off to `prompts/plan.md` with `mode: post-connect`.
    Plan composes a 3–5 item menu including "Set up the daily
    digest" as one option — the user can pick it from the menu to
    fire `digest.md --backfill`, or pick a different option, or
-   skip and come back to `/mur plan` later.
+   skip and come back to `/mur plan` later. Do NOT auto-fire the
+   digest — the digest is one option in the menu, not THE outcome.

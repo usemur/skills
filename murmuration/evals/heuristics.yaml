@@ -113,31 +113,33 @@ heuristics:
       hard contract.)
 
   - id: 6
-    short: "Wow latency (turns to plan-of-action menu)"
+    short: "Wow latency (turns to four-pillar sweep)"
     grading: 0-3
     description: |
-      Number of turns from first-contact welcome to the
-      plan-of-action menu being presented. Lower is better.
-      Reframed (was: turns to digest fire) per the plan-of-action
-      restructure — the menu IS the wow moment for connected users,
-      not the digest. The digest is one option *inside* the menu.
+      Number of turns from the first-contact welcome to the
+      four-pillar initial sweep landing. The sweep is the first
+      wow — the user feels what happened, sees their product
+      reflected, sees collaborators acknowledged, sees grounded
+      findings, and sees what unlocks next. Lower is better.
     score_3_when: |
-      Plan menu lands within 4 turns of the welcome. Welcome →
-      scan-with-preview → connect → plan-fires = 4 turns. This is
-      the post-restructure target.
+      Sweep lands at turn 2: welcome → /mur scan → sweep. The
+      post-four-pillar target.
     score_2_when: |
-      5 turns to plan menu.
+      3 turns to sweep (an intermediate consent or confirmation
+      step didn't get absorbed into the welcome).
     score_1_when: |
-      6 turns to plan menu (consent prompts not absorbed into
-      welcome, or extra confirmations).
+      4 turns to sweep.
     score_0_when: |
-      Plan menu doesn't fire (user dropped) or takes 7+ turns.
+      Sweep doesn't fire or takes 5+ turns.
     note: |
-      Pre-restructure: this heuristic measured turns to digest
-      fire (H6=1 was the floor because digest required OAuth +
-      90s backfill). Post-restructure: digest is one menu option,
-      and the menu itself fires immediately after connect. New
-      floor is H6=3 for the canonical arc.
+      Reframed twice — originally turns-to-digest-fire (H6=1 floor
+      due to OAuth + 90s backfill), then turns-to-plan-menu (H6=3
+      floor at 4 turns), now turns-to-four-pillar-sweep (H6=3 floor
+      at 2 turns). Each reframe pulls the wow earlier.
+
+      The plan-of-action menu (post-connect) and the digest are
+      separate wow moments downstream; H6 specifically measures
+      the FIRST wow (the local-only sweep).
 
   - id: 9
     short: "Plan-of-action breadth"
@@ -262,11 +264,98 @@ heuristics:
       per-flow ("does Mur sound like it gets the user's business?").
       A flow can score H5=3 and H8=1 — that's the gap H8 catches.
 
+  - id: 11
+    short: "Four-pillar structure"
+    grading: 0-3
+    description: |
+      Does scan.md's initial sweep (Step 2) produce all four
+      pillars in order: *what you're building*, *who's working on
+      it with you*, *what we noticed*, *what we can connect to*?
+      Each pillar should be honestly populated or honestly omitted
+      (never padded, never silently missing). The four-pillar
+      shape is the chief-of-staff briefing the user expects on
+      first scan — anything less is a regression to the prior
+      single-finding lead.
+    score_3_when: |
+      All four pillars render honestly. Empty pillars are dropped
+      cleanly (e.g. "Who's working on it with you" omitted when
+      the user is solo and there's nothing meaningful to say
+      beyond "just you"). The forward-looking note ("after you
+      connect, this expands to your customers + teams") fires in
+      the "Who" pillar where present.
+    score_2_when: |
+      Three of four pillars render. The missing one is dropped
+      sensibly (not by accident).
+    score_1_when: |
+      Two pillars render. Output regresses toward the old single-
+      finding lead.
+    score_0_when: |
+      One pillar or fewer. Output is a flat list of findings, not
+      a structured chief-of-staff briefing.
+    note: |
+      H11 catches the failure mode the original eval missed:
+      individual lines could pass H5 (signal specificity) and H8
+      (chief-of-staff voice) while the OUTPUT STRUCTURE was a
+      single-finding lead with a digest preview tacked on. The
+      four-pillar shape forces the structural change.
+
+  - id: 12
+    short: "Primary-CTA isolation"
+    grading: binary
+    description: |
+      Does the scan output have exactly one primary CTA (the
+      connect-deeper ask) with all other actions clearly framed
+      as secondary sub-CTAs ("Try: `/mur security-audit`",
+      "show me <file>", etc.)?
+    score_yes_when: |
+      The connect-deeper ask sits below a separator line and uses
+      mechanism-honest framing ("I need server-side read access on
+      the tools above"). Sub-CTAs in the "What we noticed" pillar
+      use "Try:" prefix and a single verb command. No competing
+      pitch (digest preview, automation upsell) crowds the primary
+      CTA.
+    score_no_when: |
+      Multiple CTAs presented at parity (e.g. the old screenshot
+      where a predictive digest preview and a connect ask
+      competed for attention in the same screen). Or the connect
+      ask uses generic "Want to connect?" copy that doesn't name
+      what unlocks.
+
+  - id: 13
+    short: "Pre-connect / post-connect separation"
+    grading: binary
+    description: |
+      Pre-connect output (first scan, no `hasMinConnections: true`
+      in HEARTBEAT) shows local-only data + the connect-deeper
+      ask. Post-connect output (after `/mur connect github`) shows
+      a deeper rescan with external data + routes to plan.md.
+      These are two distinct moments — bundling them creates the
+      "two things smashed into one" failure.
+    score_yes_when: |
+      Pre-connect: scan output is local-only diagnostic +
+      connect-deeper ask. No predictive digest preview, no plan-
+      menu, no automation pitch crammed in. Post-connect: scan
+      re-fires with external data populated under
+      `scan.json.external.*`, and connect.md routes to plan.md
+      after a brief "now I can also see X" delta line.
+    score_no_when: |
+      Pre-connect output includes content that belongs post-
+      connect (e.g. predictive digest preview pretending to show
+      tomorrow's briefing, or an automation pitch). Or post-
+      connect ignores the new external data and just routes to
+      plan.md without a delta.
+    note: |
+      H13 was added after the actual user flagged the screenshot
+      as "two things smashed into one." The eval's previous
+      heuristics (H1 with too-loose ask-counting, H8 measuring
+      voice not structure) didn't catch this. H13 makes
+      separation explicit.
+
 # Acceptance criteria
 acceptance:
   ship_when: |
     For every canonical persona in evals/personas/:
-    - Average score across all 10 heuristics ≥ 2.5
+    - Average score across all 13 heuristics ≥ 2.5
     - No heuristic scores 0
-    - All binary heuristics (1, 2, 4, 7) score "yes"
+    - All binary heuristics (1, 2, 4, 7, 12, 13) score "yes"
     - Binary "yes" normalized as 3 for averaging

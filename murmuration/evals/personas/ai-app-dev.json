@@ -13,8 +13,8 @@
   },
   "accounts_present": ["github"],
   "accounts_likely_to_connect": ["github"],
-  "expected_wow": "Plan-of-action menu leads with 'Wire @mur/langfuse-host — you import openai + anthropic + langchain, no observability detected. Test trace lands in dashboard in 5 sec'. Other items: 'Wire @mur/prompt-regression — 22 FIXMEs in agent code, eval-on-PR catches drift'; 'Set up the daily digest — would surface LLM cost trends'. The langfuse-host item is the peak — it's a managed path (no infra to run), addressing install fatigue head-on.",
-  "expected_dropoff_risk": "Install fatigue. The plan menu's framing 'we host Langfuse for you, no infra' has to be loud. If item copy says 'recommend @mur/langfuse-host' without the managed framing, this persona bounces.",
-  "wow_score_target": "≥ 3 in H5 (specific signals — openai + anthropic + langchain imports must be named), H8 (chief-of-staff voice — 'I see your LLM stack'), H9 (menu surfaces 3+ paths), H10 (every item grounded in actual imports)",
-  "scoring_notes": "Best-fit persona for grounded plan items. Watch for the @mur/langfuse-host item naming the specific files (agent.py, eval.py). If items reference imports abstractly ('your AI stack'), H10 drops to 1."
+  "expected_wow": "Two-stage. (1) Four-pillar sweep at turn 2: 'What you're building' surfaces AI product + LLM stack; 'Who's working on it with you' likely solo + forward-looking note; 'What we noticed' leads with the LLM observability gap as a sub-CTA ('Try: /mur recommend' for the langfuse-host suggestion); 'What we can connect to' surfaces gh + OpenAI SDK + Anthropic SDK + LangChain. (2) Post-connect plan menu leads with @mur/langfuse-host — the managed path that addresses install fatigue head-on.",
+  "expected_dropoff_risk": "Install fatigue. The four-pillar sweep's 'What we noticed' pillar should NAME the imports (openai + anthropic + langchain) so the LLM-obs gap feels grounded, not generic. Post-connect, the plan menu's @mur/langfuse-host pitch must lead with 'managed, no infra to run.'",
+  "wow_score_target": "≥ 3 in H5 (specific imports named), H8 (chief-of-staff voice), H10 (menu grounding), H11 (all four pillars), H12 (single primary CTA — no preview cramming), H13 (LLM-cost data only post-connect)",
+  "scoring_notes": "Best-fit persona for grounded findings. Watch the LLM-obs gap finding in 'What we noticed' — must name openai + anthropic + langchain explicitly, not 'your AI stack'. Post-connect plan menu's langfuse-host item must reference specific files (agent.py, eval.py)."
 }

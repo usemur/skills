@@ -12,8 +12,8 @@
   },
   "accounts_present": ["github", "stripe", "sentry"],
   "accounts_likely_to_connect": ["github", "stripe"],
-  "expected_wow": "Plan-of-action menu after first connect. Mur surfaces 4-5 grounded options: 'Wire automation — @mur/reviewer would have caught structural issue X'; 'Set up the daily digest — tomorrow would surface PR #142 + 3 stale PRs'; 'Browse catalog — Stripe-flavored flows for MRR rollup'. User picks based on what they need TODAY. Intermediate wow at turn 2 (first scan finding).",
-  "expected_dropoff_risk": "OAuth fatigue at /mur connect github (turn 3). Solo founder is busy. After connect, plan menu fires immediately (no 90s wait) — meaningful improvement over the prior auto-fire-digest flow.",
-  "wow_score_target": "≥ 3 in H3 (wow before ask), H6 (plan menu within 4 turns), H8 (chief-of-staff voice), H9 (menu surfaces ≥4 paths), H10 (every item grounded)",
-  "scoring_notes": "Richest signals (Stripe + GH + Sentry + OpenAI). Plan menu should fire 4-5 grounded options. Watch H10: 'Run security audit' must cite specific risky_patterns or be dropped, not generic."
+  "expected_wow": "Two-stage wow. (1) Four-pillar initial sweep at turn 2: 'What you're building' surfaces B2B SaaS framing; 'Who's working on it with you' surfaces solo + forward-looking note about Stripe customers + Linear team post-connect; 'What we noticed' surfaces 3-5 grounded sub-CTAs (security risk on payment surface, stale PR, TODO); 'What we can connect to' surfaces gh + Stripe CLI + Sentry SDK; primary CTA = connect-deeper. (2) Plan menu post-connect at turn 4 with deeper rescan data ('47 customers on Stripe, 3 churned this month'). User picks based on what they need TODAY.",
+  "expected_dropoff_risk": "OAuth fatigue at /mur connect github (turn 3). Solo founder is busy. The four-pillar sweep should land hard enough at turn 2 that the connect-deeper ask feels earned, not asked-too-soon.",
+  "wow_score_target": "≥ 3 in H3 (wow before ask), H6 (sweep at turn 2), H8 (chief-of-staff voice), H9 (post-connect menu breadth), H10 (menu items grounded), H11 (all four pillars render), H12 (single primary CTA), H13 (pre/post-connect separation)",
+  "scoring_notes": "Richest signals (Stripe + GH + Sentry + OpenAI). Four-pillar sweep should populate all four pillars; post-connect menu should fire 4-5 grounded options. Watch H12: scan output must NOT include a predictive digest preview — that's gone. Watch H13: external data ('customers across Stripe') only appears post-connect."
 }
