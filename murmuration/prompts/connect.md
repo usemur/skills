@@ -259,9 +259,47 @@ If this was the founder's first connect, do these in order:
      enough data to populate "Who you work with" with external
      entities (customers, teammates, etc.).
 
-   Augment scan.json's `external.*` namespace with these fields.
-   Don't re-run the local probes (gh CLI, file reads) — those
-   ran in the original scan and are still valid.
+   **scan.json existence handling:**
+
+   - **scan.json exists** (the user ran `/mur scan` first, then
+     connected): augment in place. Add the `external.*` keys to
+     the existing object. Don't re-run local probes (gh CLI, file
+     reads) — those ran in the original scan and are still valid.
+   - **scan.json missing** (no-repo user came in via the helpful
+     no-repo ask path, OR connected without scanning first): the
+     write target doesn't exist yet. **Create a minimal scan.json
+     stub** at the project's `.murmur/scan.json` (or
+     `~/.murmur/scan-no-repo.json` if there's no project — see
+     below). The stub has the schema:
+
+     ```json
+     {
+       "scanned_at": "<ISO timestamp>",
+       "scanner_version": "connect-only-stub",
+       "repo_root": null,
+       "no_repo": true,
+       "product_summary": null,
+       "business_profile": null,
+       "signals": {},
+       "local_resources": {},
+       "external": { "<connector>": { ... } }
+     }
+     ```
+
+     This gives `recommend.md` something to ground on (the
+     `external.*` namespace) without requiring a fresh local scan.
+     `recommend.md` already handles `no_repo: true` per its "no
+     scan.json" edge case (degraded mode, marquee via connector
+     signals only via `recommend-matcher.md`'s `mode: post-connect`
+     branch).
+
+     **Path selection.** If `~/.murmur/state.json` has a
+     `currentProjectId` cached, write to
+     `<project-cwd>/.murmur/scan.json`. If not (no-repo case),
+     write to `~/.murmur/scan-no-repo.json` instead — the
+     no-repo orchestrator picks this up directly (per recommend.md
+     preconditions: "Recommend works without scan.json — degraded;
+     reads from `~/.murmur/scan-no-repo.json` if present").
 
    This deeper rescan typically takes 2–5 seconds (server-side
    reads, parallelizable). Stream a progress line ("pulling Stripe

@@ -169,6 +169,16 @@ contains the detailed instructions, examples, and edge cases.
 | Call a paid flow / find a paid endpoint that does X                        | `prompts/consume-flow.md`     |
 | Publish a `.js` file as a paid Murmuration flow                            | `prompts/publish-flow.md`     |
 
+### Substrate prompts (called by other prompts; not user-facing)
+
+These are NOT triggered by user verbs. They're read by other
+prompts when they need canonical structure for emit / matching.
+
+| If another prompt needs… | Read this prompt |
+|---|---|
+| Canonical scaffolds for local install artifacts (cron, launchd, GH workflow, gstack skill) — read by `recommend.md`'s `install` move | `prompts/_artifacts.md` |
+| Per-SDK watcher patterns + API endpoints for co-design candidates (Twilio, Weaviate, Posthog, Stripe, Sentry, Linear, Pylon, OpenAI/Anthropic, Railway) — read by `recommend.md`'s `co-design` move | `prompts/_codesign-substrate.md` |
+
 ## Trigger phrases
 
 **`/mur <verb>`, `/murmur <verb>`, and `/murmuration <verb>` are all
@@ -545,9 +555,8 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
 1. Detect the cwd repo name:
    `basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`.
-   If git fails AND cwd is `$HOME` or `~/Desktop`, treat as "no repo"
-   (skip the scan suggestion — Mur is currently strongest for code
-   projects).
+   If git fails AND cwd is `$HOME` or `~/Desktop` (or `~/Documents`,
+   `~/Downloads`), treat as "no repo" — go to **Branch C** below.
 2. Detect gstack:
    `test -f ~/.claude/skills/gstack/SKILL.md`. Branch the welcome
    accordingly.
@@ -619,6 +628,36 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > morning digest currently needs GitHub for the watching loop.
    > GitLab / Bitbucket / self-hosted git are on the roadmap, not
    > shipped.
+
+   **Branch C — no repo (cwd is `$HOME`, `~/Desktop`,
+   `~/Documents`, or `~/Downloads`; or `git rev-parse` fails
+   anywhere git is unrelated):**
+
+   > Mur installed. The path is **scan → connect → recommend →
+   > install**: connect a tool you use (Stripe, GitHub, Linear,
+   > Calendar — whatever fits), then we have a recommend
+   > conversation grounded in what's actually there, then we
+   > install one or more flows that watch it for you (locally
+   > with a render-confirm-revoke contract, or remotely in our
+   > TEE).
+   >
+   > You're not in a project folder right now, which is fine —
+   > Mur works from any of three starting points:
+   >
+   > 1. **Connect a tool first.** Hook up Stripe, GitHub, Linear,
+   >    Gmail, or any other source — I can watch what you've
+   >    connected and surface what to look at each morning, no
+   >    code project required to start here.
+   >    `/mur connect stripe`  (or github / linear / etc.)
+   > 2. **Find a project on your machine.** If you've got a code
+   >    folder somewhere, I'll look for git repos under your home
+   >    directory and list a few. You pick.
+   >    Say "find my projects."
+   > 3. **Type a path.** If you know where your project is, say
+   >    `scan ~/path/to/project`.
+   >
+   > Pick whichever fits. Connect-first is the fastest start if
+   > you don't have a code project handy.
 
 4. **Wait.** Do NOT auto-run scan or auto-install gstack. Typing
    `/mur scan` (or `/mur scan --no-gh`) is the user's consent —

@@ -34,6 +34,13 @@ thesis. After that tier, the user can ask for infra gaps too.
 test -f .murmur/scan.json
 ```
 
+The behavior here depends on the **caller mode** — whether this
+matcher was invoked standalone (user typed `/mur recommend` from
+the shell) or as a substrate call from `recommend.md` (the
+post-connect orchestrator). The orchestrator passes a `mode` flag.
+
+### Standalone caller (user typed `/mur recommend` directly)
+
 - **File doesn't exist:** redirect cleanly. Don't auto-scan — that
   bypasses the scan-level consent. Reply (one short paragraph):
 
@@ -44,6 +51,39 @@ test -f .murmur/scan.json
   Stop. Don't continue.
 
 - **File exists:** read it (Read tool) and proceed.
+
+### `mode: post-connect` caller (recommend.md orchestrator)
+
+The orchestrator handles no-repo + no-scan paths and calls this
+matcher to get marquee candidates from connector signals alone.
+**Don't redirect; degrade gracefully.**
+
+- **File doesn't exist:** read `~/.murmur/pages/HEARTBEAT.md`
+  frontmatter `connectors` list (server-mirrored after each
+  successful connect — written by `connect.md`'s After-connect
+  step). Run the matcher with **connector-only signals** —
+  evaluate `presence_signal` and `category_signals` against the
+  connector slugs (e.g. `connector:stripe` matches when
+  HEARTBEAT lists stripe). Skip any guard that requires
+  scan.json fields directly (no `package_imports` checks, no
+  `risky_patterns` checks). Surface the resulting candidates
+  with a `confidence: low` tag if the marquee normally needs
+  scan-grounded checks but couldn't run them — recommend.md
+  decides whether to render them or fall through to all-co-
+  designed.
+
+- **File exists:** read it AND `HEARTBEAT.md`. Run the matcher
+  with both signal sources. Connector-grounded candidates can
+  reach `confidence: high`; scan-grounded checks contribute to
+  the score normally.
+
+The point: `mode: post-connect` from recommend.md must NEVER
+return "redirect to scan first" — it would loop the no-repo
+caller into the helpful-no-repo-ask, which is the failure mode
+H14 exists to prevent. If the matcher truly can't produce any
+candidate for the connector set (e.g. user connected only an
+unusual SaaS we don't have any marquee for), return an empty
+list and let recommend.md handle the all-co-designed edge case.
 
 ## Branch on registry-match consent
 

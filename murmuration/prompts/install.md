@@ -1,9 +1,27 @@
-# Install a recommended flow on the user's behalf
+# Install a recommended marquee flow on the user's behalf
 
 > Sub-prompt of the unified `murmuration` skill. The user has already
 > said "yes" to a recommendation in `prompts/recommend.md` (or has
 > directly typed "install <slug>"). This prompt is the mechanical verb
 > that runs *after* hearing yes — it is not a prompt surface of its own.
+>
+> **Scope: marquee remote installs only.** This prompt handles
+> `kind: marquee-remote` registry slugs (entries in
+> `~/.claude/skills/murmuration/registry/flows/`). For the other
+> install kinds, recommend.md routes elsewhere:
+>
+> - **`kind: co-designed-remote`** → `prompts/automate.md`. The
+>   FlowState row carries the user's LLM-polished prompt + connector
+>   list + cadence as custom handler config. Different schema, different
+>   server endpoint (`POST /api/automations`).
+> - **`kind: local-cron` / `local-launchd` / `local-gh-workflow` /
+>   `local-gstack-skill`** → recommend.md handles directly via the
+>   render-confirm-revoke contract + scaffolds at
+>   `prompts/_artifacts.md`.
+>
+> All four kinds register in `~/.murmur/installs.jsonl` with their
+> respective `kind` discriminator so `/mur uninstall <slug>` knows
+> which revoke path to use.
 
 ## What this prompt does
 

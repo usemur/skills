@@ -68,8 +68,23 @@ because:
 - `<project>/.murmur/scan.json` is **optional**. Recommend works
   without it (degraded — co-designed candidates skip the
   scan-signal grounding rules; marquee matching via
-  recommend-matcher.md still applies based on connector signals).
-  If scan.json exists, use it.
+  recommend-matcher.md still applies based on connector signals
+  via its `mode: post-connect` branch). Read order:
+  1. `<project>/.murmur/scan.json` (full scan, ideal)
+  2. `<project>/.murmur/scan.json` with `"no_repo": true`
+     (connect-only stub written by `connect.md` After-connect when
+     the user came in without a project scan)
+  3. `~/.murmur/scan-no-repo.json` (no-project case — user came
+     via helpful no-repo ask + connected a tool. connect.md
+     writes here when there's no `currentProjectId`.)
+  4. None of the above. Read HEARTBEAT.md's `connectors` list
+     directly and run with marquee-only-via-connector signals.
+
+  In all four cases, hand the data to `recommend-matcher.md` with
+  `mode: post-connect`. The matcher's no-scan branch handles
+  cases 3 and 4 by reading HEARTBEAT.md and matching marquee on
+  connectors alone. Don't redirect to `/mur scan first` — that
+  loops the no-repo audience.
 
 ## Hard contracts
 
@@ -120,29 +135,42 @@ rules of thumb for when to play which. Sequence is flexible.
 
 | Move | What it does |
 |---|---|
-| **light** | "You connected X. Here are three things I can now watch for you that I couldn't before." Three concrete patterns per connector mix in chief-of-staff voice — never tile aesthetic, never "capability list." See "Lighting move — voice spec" below. |
-| **probe** | One pointed question about goals/pain. Default: "What's the thing you check first thing Monday, or wish you'd been told overnight?" |
-| **propose** | Return 3 candidates with structured metadata (see Propose Schema). Mix of marquee + co-designed per the cap. Marquee candidates come from `prompts/recommend-matcher.md`'s tiered logic. |
-| **co-design** | Drop into deeper polish on one candidate (max 4 turns — see Co-Design Contract). User's LLM iterates the prompt, picks cadence, decides install path. Force-commit to install or defer by turn 4. |
-| **install** | Emit local artifact (with render-confirm-revoke) OR install remote (FlowState row + handler). Register in `installs.jsonl`. |
+| **light** | The H15 opener. ONE grounded propose + invitation to probe / propose-your-own / co-design / defer. "Given <signal>, my read is <flow> would be useful — want me to install it, dig into something else, or describe what you'd actually want?" Single candidate, not a menu, not a 3-pattern lighting list. The single-grounded-propose shape is what earns the wow on first sight without forcing the user to pick from a forced list. See "Light move — voice spec" below. |
+| **probe** | One pointed question about goals/pain. Used as a follow-up when the user pushed back on the light propose without a clear direction, or as the standalone opener when the light move can't ground (no scan signals AND no marquee fits). Default: "What's the thing you check first thing Monday, or wish you'd been told overnight?" |
+| **propose** | Return up to 3 candidates with structured metadata (see Propose Schema). Mix of marquee + co-designed per the cap. Marquee candidates come from `prompts/recommend-matcher.md`'s tiered logic. Used when the light opener's single candidate didn't fit and the user wants options. |
+| **co-design** | Drop into deeper polish on one candidate (max 4 turns — see Co-Design Contract). User's LLM iterates the prompt, picks cadence, decides install path. Force-commit to install or defer by turn 4. Per-SDK substrate guide at `prompts/_codesign-substrate.md`. |
+| **install** | Emit local artifact (with render-confirm-revoke, scaffolds at `prompts/_artifacts.md`) OR install remote. Marquee remote → `prompts/install.md`. Co-designed remote → `prompts/automate.md` (FlowState row). Either path registers in `~/.murmur/installs.jsonl`. |
 | **defer** | Stash for later in `recommend-history.jsonl` with optional resurface condition (e.g., `resurface_when: "next scan delta surfaces N new commits in src/billing/"`). |
 
 ## Default opening sequence
 
-`probe → propose → (co-design | install | defer)`
+`light → (install | probe | co-design | propose | defer)`
 
-If `probe` returns a non-answer ("dunno, surprise me"), fall
-through to `light → propose`. The pain-first default earns the
-right to recommend and matches the chief-of-staff voice; the
-lighting fallback ensures the user never leaves without a
-concrete next step.
+The default opener is `light` — one grounded propose + invitation
+— not `probe`. A bare probe is content-free; it doesn't earn the
+H15 wow. The light move delivers value on first sight (the user
+sees a concrete recommendation grounded in their stack) AND keeps
+the conversation open (the invitation lists every other move as
+available). This is the post-connect moment where the user finds
+out whether Mur understood what they connected.
+
+Fallbacks:
+- **Light can't ground (no scan signals AND no marquee fits the
+  connector set).** Drop to `probe` — ask one pointed question to
+  get directional signal, then `propose` from the answer.
+- **User accepts the light propose.** Route to `install`.
+- **User pushes back with a specific direction** ("what about
+  X?"). Route to `propose` with the rule of three — ≤3 candidates,
+  ≥1 marquee, ≤2 co-designed.
+- **User pushes back without direction** ("not that, surprise
+  me"). Route to `probe`, then `propose`.
+- **User describes a custom need** ("could you build me Y"). Route
+  to `co-design`.
+- **User can't engage right now.** Route to `defer`.
 
 User-invokable shortcuts skip the default sequence:
 
 - `/mur recommend --quick` → straight to `propose` with 3 cards.
-- `/mur recommend --tuesday` → narrative simulation of a day with
-  recommended automations installed (renders what tomorrow would
-  look like if all 3 propose candidates were running).
 - `/mur recommend --local-only` → only candidates with a local
   install path (no remote, no credit spend).
 - `/mur recommend --forget` → clear `recommend-history.jsonl`.
@@ -154,50 +182,103 @@ conversation. The default flow IS the conversation.
 
 ## Propose schema
 
-Each candidate is a structured object the LLM renders into prose:
+Each candidate (whether surfaced via the light opener or a propose
+round) is a structured object the LLM renders into prose:
 
 ```yaml
-slug:        "@mur/digest-daily"          # marquee flows use @mur/ prefix
-                                          # co-designed: descriptive-slug-no-prefix
-what:        "Overnight cross-system digest, threaded by issue↔PR"
-cadence:     "Daily 6am your tz"
+slug:                  "@mur/digest-daily"   # marquee flows use @mur/ prefix in metadata
+                                              # co-designed: descriptive-slug-no-prefix
+what:                  "Overnight cross-system digest, threaded by issue↔PR"
+cadence:               "Daily 6am your tz"
 install:
-  local:     "cron entry + ~/.local/bin/mur-digest.sh"
-  remote:    "$0.05/run, billed against credit balance"
-why-you:     "Stripe + Linear + GH all connected — high thread density"
-provenance:  marquee | co-designed | community-template
-confidence:  high | medium | low          # how well does this match scan signals
+  local:               "cron entry + ~/.local/bin/mur-digest.sh"
+  remote:              "$0.05/run, billed against credit balance"
+why-you:               "Stripe + Linear + GH all connected — high thread density"
+requires_connections:  []                    # OAuth slugs the flow REQUIRES at runtime
+                                              # e.g. ["stripe"] for a Stripe-watcher
+                                              # gate render: surface as prereq if missing
+provenance:            marquee | co-designed | community-template
+confidence:            high | medium | low   # how well does this match signals
 ```
 
 **Render rules.** Per candidate, render 3-4 lines:
-- Bold name (lowercased, descriptive — no `@mur/` prefix in the
-  user-facing line).
+- Bold name (lowercased, descriptive — **never include the `@mur/`
+  prefix in the user-facing line**, even for marquee flows. The
+  prefix is metadata; the prose says "digest" not "@mur/digest-
+  daily." Provenance neutrality requires marquee and co-designed
+  to render identically.)
 - One-line `what`.
 - One-line `why-you` citing a concrete signal.
 - Both install paths when both available, framed as "$X.XX/run if
   remote, free if local."
+- **Prereq line if `requires_connections` is non-empty AND any of
+  those slugs aren't in HEARTBEAT.md's connections list.** Render:
+  > "Needs `/mur connect <slug>` first — the flow reads from there."
+  > 
+  Don't surface this when all required connections are already
+  authorized. The check is: read HEARTBEAT.md frontmatter `connectors`
+  list (server-mirrored after each successful connect); set-difference
+  with `requires_connections`. Any leftover → render the prereq line.
 
 **No provenance label in the rendered prose.** `provenance` lives
-in scan.json / metadata, not in the surface.
+in scan.json / metadata, not in the surface. The user can ask
+("how did you come up with that?") and Mur answers plainly — but
+unprompted prose treats marquee and co-designed identically.
+
+**Why `requires_connections` matters.** A propose card cites
+`why-you` from scan signals (e.g. "Stripe live in your stack"),
+which is local code-side detection — NOT a connection. A
+Stripe-watcher needs the OAuth grant. Without the prereq line,
+the user accepts the install, then hits a wall at install time
+when the flow can't actually fetch from Stripe. This was caught
+in the indie-stripe sim and the prereq line is the fix.
 
 ## Marquee + co-designed mix rule
 
-Within each `propose` round (3 candidates):
+Within each `propose` round (up to 3 candidates):
 
 - Run `recommend-matcher.md` to get the ranked marquee candidate
   list. Pick 1-2 from the top.
 - Generate 1-2 co-designed candidates from scan signals + vault
-  keys + connector list (see "Co-designed flow examples" below
-  for shape).
-- Total: 3.
+  keys + connector list. Use `prompts/_codesign-substrate.md` for
+  per-SDK watcher patterns + canonical API endpoints — this
+  prevents fabrication; the substrate guide is the source of
+  truth for "what does a credible Twilio/Weaviate/Posthog watcher
+  look like."
+- Total: up to 3. Fewer is fine when the propose is precise. More
+  is never fine.
 
-Edge case — zero marquee matches: surface up to 3 co-designed
-with the explicit note ("custom designs, longer to set up but
-tailored").
+**If the user asks for more than the cap in one breath** (e.g.
+"give me ALL the custom watchers — Twilio + Weaviate + Posthog +
+Pylon"), don't silently exceed 3. Ship the highest-priority one
+through `co-design` first; stash the rest as deferred candidates
+with `resurface_when: "user invokes /mur recommend"`. Tell the
+user: "Co-designed flows need a 2-4 turn polish loop each — let's
+ship one cleanly, then come back for the next round." This
+preserves co-design quality.
 
-Edge case — three+ marquee match strongly: still cap at 2 marquee
-+ 1 co-designed. The co-designed slot ensures the conversation
-opens up the long-tail 80%.
+**Edge case — zero marquee fits the stack** (rare; matcher
+returns empty for the connector set + scan signals): surface up
+to 3 co-designed with explicit note: "I don't have a pre-built
+flow that fits your stack — these are all custom designs, longer
+to set up but tailored to what you're building." This is the
+all-co-designed mix; H16 still scores 3 if the rule-of-three is
+otherwise honored.
+
+**Edge case — zero marquee fits the user's NAMED PAIN** (common;
+matcher returns marquee candidates but none address what the user
+just said they care about, e.g. user says "Twilio rate-limits
+keep me up at night" but matcher returns @mur/digest-daily +
+@mur/reviewer): pair 1 marquee anchor (for cross-system context)
+with up to 2 co-designed (for the named pain). Flag the gap in
+the propose framing: "No pre-built flow targets <named pain>
+specifically — anchoring with [marquee] for the cross-system
+read, plus [co-designed]s tailored to what you described."
+
+**Edge case — three+ marquee match strongly**: still cap at 2
+marquee + 1 co-designed. The co-designed slot ensures the
+conversation opens up the long-tail 80% even when marquee fit is
+strong.
 
 ## Co-design contract
 
@@ -223,48 +304,71 @@ sketch as resurface payload.
 
 ## Install paths
 
+There are FOUR install paths, branching on `kind`:
+
+| `kind` | Path | Owner |
+|---|---|---|
+| `local-cron` | render-confirm-revoke → write `~/.local/bin/mur-<slug>.sh` + crontab line | this prompt + `_artifacts.md` |
+| `local-launchd` | render-confirm-revoke → write `~/Library/LaunchAgents/dev.usemur.<slug>.plist` + `launchctl load` | this prompt + `_artifacts.md` |
+| `local-gh-workflow` | render-confirm-revoke → write `<project>/.github/workflows/<slug>.yml` (uncommitted) | this prompt + `_artifacts.md` |
+| `local-gstack-skill` | render-confirm-revoke → write `~/.claude/skills/<slug>/SKILL.md` | this prompt + `_artifacts.md` |
+| `marquee-remote` | hand off to `prompts/install.md` (calls `POST /api/flows/install`) | install.md |
+| `co-designed-remote` | hand off to `prompts/automate.md` (calls `POST /api/automations` with custom handler config) | automate.md |
+
 ### Local artifacts (with render-confirm-revoke)
 
-For each emit format, Mur's responsibility is to produce the
-artifact + plain-language description. The user's LLM polishes
-the actual content.
+The literal templates for each emit format live in
+**`prompts/_artifacts.md`** — cron entry, launchd plist, GH
+workflow, gstack skill. Each scaffold has the canonical structure
+with placeholders the LLM fills in (script body, cadence, env
+var assertions, alert dispatcher). Reading `_artifacts.md` is
+mandatory before emitting any artifact — this is what prevents
+two Claude runs from producing different plist shapes for the
+same install.
 
-- **cron entry.** Write to `~/.local/bin/mur-<slug>.sh` (the
-  script body) + add line to crontab via `(crontab -l 2>/dev/null;
-  echo "<cron expr> <path>") | crontab -`. Render shows: cron
-  expression in plain English ("every Sunday at 11pm") + script
-  body + uninstall command.
-- **launchd plist.** Write to
-  `~/Library/LaunchAgents/dev.usemur.<slug>.plist`. Load via
-  `launchctl load <path>`. Render shows: schedule in plain
-  English + plist body + uninstall command.
-- **GH workflow.** Write to `<project>/.github/workflows/<slug>.yml`.
-  Don't commit automatically — leave the file uncommitted, ask
-  the user to commit + push (it lives in their repo, their
-  control). Render shows: trigger schedule + workflow body +
-  uninstall command (`rm <path>` + commit removal).
-- **gstack skill.** Write to `~/.claude/skills/<slug>/SKILL.md`.
-  Render shows: skill activation phrase + skill body + uninstall
-  command (`rm -rf ~/.claude/skills/<slug>/`).
-
-For each: the artifact is **rendered + confirmed before any
-write** to disk or shell. The exact emit format spec (templates,
-cron-vs-launchd selection logic, GH workflow YAML structure)
-lives in a separate plan; this prompt names the four formats
-and the safety contract.
+The artifact is **rendered + confirmed before any write** to
+disk or shell. See "Local-install safety contract — full spec"
+below for the three steps.
 
 ### Remote installs (TEE)
 
-For marquee flows: register the FlowState row via
-`POST /api/automations` (see `prompts/automate.md`'s schema). The
-flow handler is already on the server (W1 PR #1's webhook
-dispatch + handler registry).
+**Marquee remote** (`kind: marquee-remote`). Hand off to
+`prompts/install.md`. install.md hits
+`POST /api/flows/install` with the registry slug; the server-
+side handler is already deployed (W1 PR #1's webhook dispatch +
+handler registry). install.md writes the `installs.jsonl` row
+and wires the MCP endpoint if needed.
 
-For co-designed remote flows: ship as a FlowState row with
-custom handler config — references the user's LLM-polished
-prompt + connector list + cadence. The handler runs in the TEE
-with vaulted OAuth tokens. Pricing: same $0.05/run default as
-marquee unless the flow's complexity warrants a custom price.
+**Co-designed remote** (`kind: co-designed-remote`). Hand off to
+`prompts/automate.md`. automate.md hits `POST /api/automations`
+with a FlowState row carrying the LLM-polished prompt + connector
+list + cadence as custom handler config. The handler runs in the
+TEE with vaulted OAuth tokens. Pricing: same $0.05/run default
+as marquee unless the flow's complexity warrants a custom price.
+Both paths register the install in `~/.murmur/installs.jsonl`
+with the appropriate `kind` so `/mur uninstall <slug>` knows
+which revoke surface to point at (dashboard for both — neither
+has a local artifact to remove).
+
+### Budget rendering on install confirm
+
+For ANY remote install (marquee or co-designed), the install
+confirm step MUST surface a budget line. Read the credit balance
+via `GET /api/credit-balance` (or whatever the server exposes;
+otherwise pull from `~/.murmur/account.json` if cached). Render:
+
+```
+Cost: ~$0.05/run × every 4 hours = ~$0.30/day, ~$9/month.
+Your balance: $15 from connect bonuses ($5 × 3 connects) + $0
+top-up = $15. ~50 days runway at this cadence.
+```
+
+This is required, not optional. The user shouldn't accept a
+recurring remote install without seeing the burn-rate × balance
+math. If the balance is $0 AND the install is paid, surface the
+top-up link instead and offer the local alternative if one exists.
+
+For local installs, no budget line — they're free.
 
 ## Local-install safety contract — full spec
 
@@ -429,11 +533,99 @@ What this demonstrates: co-design composes across two connectors
 (Stripe + Slack) with custom filtering logic ("tier == enterprise").
 No marquee flow does exactly this; co-design fits.
 
-## Lighting move — voice spec
+## Light move — voice spec
 
-When `light` fires (typically as fallback after a non-answer
-probe), use chief-of-staff voice. Three patterns named, each
-naming the case the pattern catches.
+The `light` move is the canonical post-connect opener. It picks
+ONE candidate (marquee preferred when one fits high-confidence;
+co-designed when no marquee anchors the highest-leverage thing
+the connectors unlock) and surfaces it with an explicit invitation
+to take any other path. Single grounded propose; never a menu;
+never a 3-pattern lighting list (the 3-pattern shape is reserved
+for the secondary "show me what you can watch" depth read — see
+"Light depth read" below).
+
+**Anchor example A — happy path** (post-connect for a user who
+just connected GitHub on a Stripe + Sentry stack with one stale
+own-PR; the proposed flow's `requires_connections` is satisfied
+by the just-completed connect):
+
+```
+Connected. I can watch your B2B SaaS for engineering teams now.
+
+The highest-leverage thing I see right now: PR #142 (yours, no
+review in 5 days) is sitting in front of a payment-touching
+change. My read is **reviewer** would catch this and the next
+one — auto-comments on every PR with first-pass review. Hosted
+in our TEE; ~$0.05/PR, free if you'd rather emit the GH workflow
+yourself.
+
+Want me to install it? Or:
+  · poke at something specific (`/mur recommend probe <thing>`)
+  · describe what'd actually help ("could you build me a...")
+  · see the wider set (`/mur recommend --quick`)
+  · come back later (`/mur defer`)
+```
+
+**Anchor example B — with unmet prereq** (same persona, but the
+highest-leverage flow happens to need a Stripe OAuth grant the
+user hasn't done yet — local SDK signals say "Stripe live" but
+HEARTBEAT.connectors only has `[github]`):
+
+```
+Connected. I can watch your B2B SaaS for engineering teams now.
+
+The highest-leverage thing I see right now: 3 customers churned
+last month while their Sentry error rates were spiking. My read
+is a **churn-watcher** would catch this pattern early — pings
+when a customer's Sentry error volume crosses a threshold and
+their last login was >7d. Hosted in our TEE; ~$0.05/run.
+
+Needs `/mur connect stripe` first — the watcher reads customer
++ subscription state from there.
+
+Want to connect Stripe (~30s, +$5 credit), or:
+  · poke at something else specific
+  · describe what'd actually help
+  · see the wider set
+  · come back later
+```
+
+The prereq line is the load-bearing fix from the propose schema's
+`requires_connections` field. Without it, the user accepts install,
+hits a wall at runtime. With it, the next step is unambiguous.
+
+**Voice rules:**
+- Open with the one-line "Connected. I can watch <product summary,
+  lowercased> for you now." (Drop product summary if scan.json is
+  missing — fall back to "Connected.") This tile-frees the surface.
+- Single grounded propose: bold name (no `@mur/` prefix), one-line
+  *what*, one-line *why-you* citing a concrete signal, install
+  paths.
+- Surface `requires_connections` prereq if applicable (see Propose
+  schema render rules).
+- Invitation block listing 3-4 paths the user can take instead of
+  install. Each path is a single bullet with the verb command.
+- Total length: 8-12 lines. Terse. Chief-of-staff brief, not
+  marketing.
+
+**Voice rules — what NOT to do:**
+- Don't render multiple candidates (that's the `propose` move).
+- Don't surface provenance ("@mur/" / "(curated)" / "(custom for
+  you)"). The render shape is identical for marquee and
+  co-designed.
+- Don't use "Three things I can now watch" — that's the depth
+  read, not the opener.
+- Don't soften with "perhaps" / "might" / "if you'd like."
+  Chief-of-staff voice is direct. "My read is X" beats "I think
+  maybe X could be."
+
+## Light depth read — voice spec (secondary surface)
+
+If the user types `/mur recommend --light` explicitly, OR the
+light opener's single propose was rejected without direction AND
+the user asked "what else can you watch?", surface the 3-pattern
+lighting list. This is the deeper "give me the full read" surface
+and IS NOT the H15 opener.
 
 **Anchor example** (for a user who connected GitHub + Stripe +
 Linear):
@@ -468,19 +660,36 @@ watch overnight that I couldn't before:
 - **No marquee fits the stack.** Surface up to 3 co-designed
   candidates with explicit note: "I don't have a pre-built flow
   that fits your stack — these are all custom designs, longer
-  to set up but tailored to what you're building."
+  to set up but tailored to what you're building." See "Marquee +
+  co-designed mix rule" above for the distinction between "no
+  marquee fits stack" vs "no marquee fits named pain."
 - **No scan.json (no-repo user post-helpful-ask).** Skip the
   `why-you` field that depends on scan signals. Co-designed
   candidates degrade to "based on the connectors you've
-  authorized." Marquee still applies based on connector match.
-- **Probe returns non-answer.** Fall through to `light → propose`.
+  authorized." Marquee still applies based on connector match;
+  recommend-matcher.md's no-scan branch supports `mode:
+  post-connect` callers and runs a degraded match on connector
+  signals alone.
+- **No marquee fits AND no scan.json (worst case for no-repo
+  users).** Light opener can't ground; drop to `probe`. Ask the
+  user what they actually want, then `propose` with all-co-
+  designed candidates from the substrate guide.
+- **User asks for more than the cap in one breath.** Ship one
+  through `co-design`; defer the rest with `resurface_when`. See
+  "Marquee + co-designed mix rule."
 - **All 3 propose candidates declined.** Don't insist. Move to
   defer with resurface condition: "Want me to come back when X
   changes (new connector, new commits, new TODO)?"
 - **User adds a new connector mid-recommend.** Don't auto-fire a
-  fresh recommend (Q7 in the original plan — wait-for-user). Note
-  the new connector in the current session and offer "want me to
-  add candidates that use the new connector?"
+  fresh recommend. Note the new connector in the current session
+  and offer "want me to add candidates that use the new
+  connector?"
+- **Co-design candidate references a connector the user hasn't
+  authorized.** The propose render MUST surface the prereq line
+  (`requires_connections` field). If user accepts install before
+  authorizing the prereq, install-time check fires: "Need
+  `/mur connect <slug>` first — installing this without it would
+  fail at runtime. Do that and I'll fire the install."
 
 ## Failure modes
 
@@ -506,9 +715,9 @@ watch overnight that I couldn't before:
 
 Route to `prompts/recommend.md` when the user says:
 
-- `/mur recommend` / `/mur recommend --quick` / `/mur recommend
-  --tuesday` / `/mur recommend --local-only` / `/mur recommend
-  --forget` / `/mur recommend --history`
+- `/mur recommend` / `/mur recommend --quick` /
+  `/mur recommend --local-only` / `/mur recommend --forget` /
+  `/mur recommend --history`
 - "what should I do with these tools" / "what should I automate"
   *(when scan.json or vault shows ≥1 connection)*
 - After a successful `/mur connect <source>` (programmatic
@@ -543,15 +752,29 @@ After install, defer, or explicit done:
 ## Cross-references
 
 - `prompts/recommend-matcher.md` — marquee + Tier-2-OSS matching
-  logic, called from the `propose` move.
+  logic, called from the `propose` move. Has a dedicated
+  `mode: post-connect` branch for the no-scan / no-repo path.
+- `prompts/_artifacts.md` — canonical scaffolds for local
+  artifact emit (cron, launchd, GH workflow, gstack skill). Read
+  this before emitting any local artifact — prevents two Claude
+  runs from producing different shapes for the same install.
+- `prompts/_codesign-substrate.md` — per-SDK watcher patterns +
+  API endpoints (Twilio, Weaviate, Posthog, Stripe, Sentry,
+  Linear, Pylon, OpenAI/Anthropic, Railway). Read this during
+  the `co-design` move when constructing a candidate against a
+  specific SDK — prevents fabrication of endpoints/auth.
 - `prompts/scan.md` — the four-pillar local diagnostic that
-  precedes recommend.
+  precedes recommend (when there's a project to scan).
 - `prompts/connect.md` — the OAuth handoff that triggers
-  recommend in `mode: post-connect`.
-- `prompts/automate.md` — the recurring-job substrate remote
-  installs use under the hood (FlowState row schema).
-- `prompts/install.md` — the install-event recorder for marquee
-  flows.
+  recommend in `mode: post-connect`. Also writes a minimal
+  scan.json stub when no project scan exists, so recommend has
+  something to ground on.
+- `prompts/automate.md` — handles `kind: co-designed-remote`
+  installs (FlowState row + custom handler config).
+- `prompts/install.md` — handles `kind: marquee-remote` installs
+  (registry slugs via `POST /api/flows/install`).
+- `prompts/uninstall.md` — revoke surface for any install kind.
+  Reads `~/.murmur/installs.jsonl`, branches on `kind`.
 - `prompts/catalog.md` — full registry browse (independent of
   recommend).
 - `prompts/digest.md` — formerly the canonical post-connect
