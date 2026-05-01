@@ -31,13 +31,16 @@ install funnel.
    user said against the `slug` and `label` fields — match on slug
    exact, label exact, then case-insensitive substring of either.
 
-   The hint table below is illustrative for common phrasings — it
-   is NOT exhaustive and will lag the server. The server's response
-   is the source of truth:
+   GitHub is NOT in this catalog — it routes through the native
+   Murmur Cofounder GitHub App, not Composio. See the `app === 'github'`
+   special case below; it runs *before* the server lookup.
+
+   The hint table below is illustrative for common phrasings (for
+   the Composio-backed apps) — it is NOT exhaustive and will lag
+   the server. The server's response is the source of truth:
 
    | User said | Likely slug |
    |---|---|
-   | github / "my repo" / "repos" | `github` |
    | stripe / revenue / billing | `stripe` |
    | search console / SEO / search | `searchconsole` |
    | sheets / google sheets | `googlesheets` |
