@@ -1,405 +1,558 @@
-# Recommend automations and tools from the vendored registry
+# Recommend — post-connect co-design phase
 
-> Sub-prompt of the unified `murmuration` skill. The user said something
-> like "what should I automate," "what tools am I missing," "fix my LLM
-> observability gap," or any phrasing about gaps in their stack. This
-> prompt walks Claude through reading `.murmur/scan.json`, matching
-> against `<skill-dir>/registry/{tools,flows}/*.yaml`, and producing a
-> ranked list of conversational proposals — leading with **LLM-in-the-loop
-> automations** (Mur's strongest paid story), then OSS options for
-> generic infra gaps.
+> Sub-prompt of the unified `murmuration` skill. Fires after the
+> user's first `/mur connect <source>` succeeds, replacing the
+> prior plan-of-action menu (see `prompts/plan.md`, now superseded).
+> Recommend turns "you connected things" into "here's what to do
+> with them" through a small toolkit of moves, mixing pre-built
+> marquee flows with co-designed flows the user's LLM polishes
+> alongside Mur.
 >
-> **Curation rule:** never recommend a paid Mur flow that's a managed
-> wrapper of an OSS tool the user can self-host (e.g. `@mur/langfuse-host`,
-> `@mur/uptime-ping`). Those flows still exist in the catalog (browsable
-> via `/mur catalog`), they're just not what we surface as a
-> recommendation. Recommend the OSS directly when the gap is generic
-> infra; recommend a paid Mur flow only when there's genuine
-> LLM-in-the-loop value.
-
-## What this prompt produces
-
-A short, ranked sequence of recommendations, each presented as a
-proposal the user can answer in natural language ("yes," "no,"
-"later," "tell me more," "what are the alternatives?"). One decision
-at a time, never a numbered picker.
-
-The opening tier is always **LLM-in-the-loop automations** when at
-least one marquee flow matches the user's stack — that's Mur's
-thesis. After that tier, the user can ask for infra gaps too.
-
-## Branch on whether the scan exists
-
-```
-test -f .murmur/scan.json
-```
-
-- **File doesn't exist:** redirect cleanly. Don't auto-scan — that
-  bypasses the scan-level consent. Reply (one short paragraph):
-
-  > I don't have a scan of this project yet. Say "scan my repo" and I'll
-  > do that first (~5 seconds, all local). Then ask for recommendations
-  > again.
-
-  Stop. Don't continue.
-
-- **File exists:** read it (Read tool) and proceed.
-
-## Branch on registry-match consent
-
-The scan-level consent in `.murmur/consents.json` is a separate decision
-from "OK to match my scan against the registry." Even though the
-registry is local, the user might prefer not to engage the recommend
-loop. Check:
-
-```
-cat .murmur/consents.json
-```
-
-- **Has `registry_match` key with a `yes@...` value:** steady-state. Skip
-  the consent ask, run the matcher.
-- **`registry_match` key missing:** first-run for this verb. Ask once:
-
-  > I'll match your scan against the recommendation registry — ~13 OSS
-  > tools + 11 Murmuration flows, all vendored in the skill pack at
-  > `~/.claude/skills/murmuration/registry/`. No network call. Proceed?
-
-  On yes: write `{"registry_match": "yes@<ISO timestamp>"}` into
-  `.murmur/consents.json` (preserving any existing keys), then run the
-  matcher.
-  On no: write `"no@..."`, exit cleanly with a one-line "no problem,
-  ask again whenever you're ready."
-
-Use the same wall-clock timestamp pattern as scan.md
-(`date -u +%Y-%m-%dT%H:%M:%SZ` via Bash).
-
-## Run the matcher
-
-Walk every YAML file under `<skill-dir>/registry/tools/` and
-`<skill-dir>/registry/flows/`. For each entry:
-
-### Step 0 — filter out demoted catalog entries
-
-If the YAML has a top-level `recommended: false`, **skip it
-entirely** for recommendation purposes. The entry stays browsable
-via `/mur catalog`, but recommend.md never surfaces it.
-
-This filter exists because some Mur flows (`@mur/langfuse-host`,
-`@mur/uptime-ping`, `@mur/twenty-deploy`, `@mur/dep-drift`,
-`@mur/rss-watch`) are managed wrappers of OSS tools or have been
-superseded by marquee flows. Pitching them as recommendations is
-weak — the user can self-host the OSS for free. We keep the wrappers
-in the catalog because some users do want them, but they don't
-get a curated rec.
-
-If `recommended` is missing, treat as `true` (default).
-
-### Step 1 — does any presence_signal match?
-
-Presence signals mean *the user already has this tool*. If any
-matches, **skip this entry entirely** — don't recommend it, don't
-mention it.
-
-| Presence signal kind  | How to evaluate against scan.json                                                  |
-|-----------------------|------------------------------------------------------------------------------------|
-| `package_import: X`   | Check `signals.third_party_apis[].via` for `package_import:X`, plus all category-specific arrays (`signals.llm_obs`, `signals.logging`, `signals.errors`, `signals.analytics`, `signals.uptime`, `signals.auth`, `signals.payments`). |
-| `env_var_prefix: X`   | The scan doesn't currently capture env vars by prefix — only call this a match if `signals.third_party_apis[].via` mentions the same prefix elsewhere. (If never, it's a non-match — that's fine.) |
-| `file_glob: X`        | Use Glob with the pattern against the project root.                                |
-| `has_keyword: [...]`  | Substring-match against `product.summary` + `product.keywords`.                    |
-
-If presence is detected, the user has the tool already. Skip.
-
-### Step 2 — does any category_signal match?
-
-Category signals mean *this category is relevant to the user's stack*.
-If any matches, this entry is a candidate. Evaluate:
-
-| Category signal kind             | How to evaluate                                                                       |
-|----------------------------------|---------------------------------------------------------------------------------------|
-| `package_import: X`              | Same as presence above, but for category triggers (e.g. having `@anthropic-ai/sdk` triggers the LLM-obs category). |
-| `missing: signals.<path>`        | True iff that path in scan.json is empty `[]` or absent.                              |
-| `public_url_detected: true`      | True iff `signals.deploy` is non-empty AND product summary mentions a public surface (web app, API, dashboard, etc.). |
-| `deploy_kind: X`                 | True iff any `signals.deploy[].kind` matches.                                         |
-| `high_console_log_density: true` | Heuristic — the scan doesn't directly capture this. Treat as true iff `signals.logging` is empty AND the project has > 5 source files. |
-| `frontend_detected: true`        | True iff any framework in `signals.frameworks` is a frontend framework (react, vue, svelte, next, remix, astro, vite, nuxt). |
-| `product_category: X`            | True iff `product.keywords` or `product.summary` contains the category keyword (b2b, b2c, sales, app, etc.). Use natural-language judgment, not strict matching. |
-| `has_keyword: [...]`             | Substring-match against `product.summary` + `product.keywords`.                       |
-| `third_party_apis_count: ">=N"`  | True iff `signals.third_party_apis` length meets the threshold.                       |
-| `active_git_repo: true`          | True iff `git_activity.last_30d` is non-empty.                                         |
-| `has_manifest: true`             | True iff `shape.package_manager` is non-null.                                          |
-| `lockfile_age_days: ">N"`        | Run `git log -1 --format=%cs <lockfile>` to compare; treat unknown as false.          |
-| `team_size: ">N"`                | Run `git log --format=%ae \| sort -u \| wc -l`; treat as the team size approximation. |
-| `prs_per_week: ">=N"`            | Skip — too expensive to compute deterministically. Treat as a hint, not a hard rule.  |
-| `llm_sdk_present: true`          | True iff `signals.llm.providers` is non-empty.                                        |
-| `custom_prompts_detected: true`  | True iff `outbound_candidates` contains entries with `kind: custom_system_prompt`.    |
-| `gh_authed: true`                | True iff `local_resources.github.authed === true`.                                    |
-| `open_issues_count: ">=N"`       | True iff `local_resources.github.open_issues.length` meets threshold.                 |
-
-If at least one category_signal matches AND no presence_signal matched
-in Step 1 AND `recommended !== false`, this entry is a recommendation
-candidate.
-
-### Step 2.5 — conjunctive guards on flagship marquee flows
-
-The marquee `@mur/*` flows are pitched only when their *full* shape
-matches, not just any one signal. Without these guards, "any
-gh-authed repo" would qualify for `@mur/issue-triage` — very noisy.
-
-| Marquee flow                     | Conjunctive guard                                                                                          |
-|----------------------------------|------------------------------------------------------------------------------------------------------------|
-| `@mur/digest-daily`              | active project (any) — single-signal pitch is fine, the digest is the flagship and degrades gracefully.   |
-| `@mur/reviewer`                  | `active_git_repo: true` AND `signals.deploy` non-empty (real product, not a scratch repo).                 |
-| `@mur/issue-triage`              | `gh_authed: true` AND `open_issues_count >= 5` — handful of open issues, otherwise it's premature.        |
-| `@mur/dep-release-digest`        | `has_manifest: true` AND third-party deps count `>= 10`.                                                   |
-| `@mur/competitor-scan`           | `product.summary` mentions "B2B" OR "B2C" OR "SaaS" OR "marketplace" — i.e. has competitors at all.        |
-
-Note: `@mur/prompt-regression` is **not** a marquee flow. The
-managed version isn't built — recommend.md surfaces `promptfoo`
-(OSS, registry/tools/promptfoo.yaml) when an LLM-using project
-lacks an eval suite. The `@mur/prompt-regression` flow YAML stays
-`recommended: false` (catalog-browsable only).
-
-If a flagship flow's conjunctive guard fails, drop it from the
-candidate list even if a single category_signal matched. Apply
-this gate AFTER Step 2 (presence + any category_signal) and
-BEFORE Tier-1 ranking.
-
-### Step 2.5b — conjunctive guards on Tier 2 OSS tools
-
-Most Tier 2 tools are fine on a single category_signal match
-(e.g. any LLM SDK → `langfuse` is a fair pitch). A few need a
-conjunction because a single signal would be too noisy:
-
-| Tool        | Conjunctive guard                                                                                          |
-|-------------|------------------------------------------------------------------------------------------------------------|
-| `promptfoo` | `llm_sdk_present: true` AND `custom_prompts_detected: true` — both required. Without custom prompts, an eval suite is premature. |
-
-Apply the same way as Step 2.5: if the guard fails, drop the
-tool from candidates even if its YAML's category_signals matched.
-
-## Rank and group
-
-### Tier 0 — Honor explicit user intent first
-
-**Before** Tier 1 fires, check the user's actual request for a
-specific category or tool. If the user said any of:
-
-- "fix my LLM observability gap" / "set up Langfuse" / "I need
-  prompt tracing"
-- "set up uptime monitoring" / "I need a status page"
-- "add error tracking" / "wire up Sentry"
-- "add product analytics" / "set up PostHog"
-- "I need a CRM" / "set up scheduling" / "e-sign tool"
-- "add logging" / "structured logs"
-- a registry slug directly: "install langfuse", "@mur/reviewer", etc.
-
-…answer THAT request first. Surface the matching Tier 1 flow OR
-Tier 2 OSS option for the named category, and skip the digest pitch
-on this turn. The flagship-first ordering (digest as "always #1")
-applies to **discovery** turns ("what should I install" /
-"recommend tools for me"), not to direct gap requests.
-
-Concrete: the user says "fix my LLM observability gap" → surface
-`langfuse` and `helicone` (Tier 2 OSS for that gap), then offer
-`@mur/digest-daily` as a *next-step* on a follow-up turn, not as
-the first answer. The user told you what they wanted to do; do
-that thing first.
-
-If the user's phrasing is generic ("what should I install", "what
-am I missing", "recommend tools") — no category named — fall
-through to Tier 1 / Tier 2 in normal order.
-
-Two tiers below, surfaced after Tier 0 has been honored.
-
-### Tier 1 — LLM-in-the-loop automations (the Mur thesis)
-
-These are marquee flows where Mur's automation does work that a
-free OSS tool can't — LLM-in-the-loop reasoning, cross-system
-context, or single-balance billing across providers. Surfaced
-*first*, always, when at least one matches.
-
-The marquee flows (each is an `@mur/*` entry in
-`registry/flows/` with `recommended: true`):
-
-1. **`@mur/digest-daily`** — flagship. Match on any active project.
-   Even when only GitHub is connected, the flow's pitch includes
-   "and gets smarter as you connect more systems."
-2. **`@mur/reviewer`** — LLM PR review. Match on active git repo
-   with multiple PRs.
-3. **`@mur/issue-triage`** — LLM labels + prioritizes new GH issues.
-   Match on `gh_authed: true` + open issues exist.
-4. **`@mur/dep-release-digest`** — weekly LLM summary of dep
-   release notes. Match on any manifest + multiple deps.
-5. **`@mur/competitor-scan`** — weekly LLM diff of competitor
-   sites. Always offerable (every product has competitors); offer
-   as "want me to keep an eye on N competitors?".
-
-Prompt regression testing is *not* a Tier 1 marquee. When an LLM
-project lacks an eval suite, Tier 2 surfaces `promptfoo` (OSS) —
-that's the honest answer until the managed flow is built.
-
-Cap Tier 1 at **3 surfaced flows per round** to avoid overwhelm.
-Pick by relevance: digest-daily is always #1 (flagship — and the
-connection-flywheel story makes it the best entry point); the
-other two slots go to the highest-confidence matches based on
-the user's stack.
-
-### Tier 2 — Infra gaps (point at OSS, no managed wrapper)
-
-When the user has worked through Tier 1 and asks for more, OR
-when no Tier 1 flow matches (rare — digest-daily almost always
-does), surface the OSS options for the gaps. Categories in
-priority order:
-
-1. **llm-observability** — when LLM SDKs present without obs.
-   Recommend `langfuse` (self-host) or `helicone` (self-host).
-   **Do NOT pitch `@mur/langfuse-host` here** — it's
-   `recommended: false` for a reason.
-2. **error-tracking** — recommend `sentry-oss` (self-host) or
-   the user's preferred vendor's free tier.
-3. **logging** — recommend `grafana-loki` or `openobserve`
-   (both self-host).
-4. **uptime-monitoring** — recommend `uptime-kuma` (self-host)
-   or "Better Stack has a free tier with 10 monitors / 3-min
-   checks — that's probably what you want." **Do NOT pitch
-   `@mur/uptime-ping`.**
-5. **product-analytics** — recommend `posthog` (self-host).
-6. **crm / project-mgmt / e-sign / scheduling / erp** — recommend
-   the OSS directly (`twenty`, `plane`, `documenso`, `cal-com`,
-   `erpnext`). The matching `@mur/*-deploy` wrappers exist in the
-   catalog but aren't surfaced here — see `/mur catalog` to
-   browse those.
-7. **prompt-eval / regression-testing** — when an LLM project has
-   prompts but no eval suite (`llm_sdk_present: true` AND
-   `custom_prompts_detected: true` AND no presence_signals matching
-   `promptfoo` / `evals/` / known eval keywords). Recommend
-   `promptfoo` (OSS, runs on the user's CI + LLM keys). **Do NOT
-   pitch `@mur/prompt-regression`** — that flow is `recommended:
-   false` (managed version not built; promptfoo is the honest
-   answer).
-
-For Tier 2 entries, the rendered recommendation has *one path*
-(the OSS option), not two. We're not pretending the user has a
-choice between "self-host" and "managed Mur version" — we're
-honestly recommending the OSS.
-
-## Render the recommendations
-
-### Tier 1 render
-
-Cap at 3 entries per round. For each, render in this shape (markdown):
-
-```
-### Daily digest  ← Mur flagship · LLM-in-the-loop
-
-Overnight, ranks every open issue, TODO, and PR across the systems
-you've connected, then surfaces the 3 things to look at first thing
-in the morning. With just GitHub connected: top issues + waiting
-PRs + diff weight. Connect Linear or Stripe and the digest finds
-cross-system threads — "PR #142 fixes the bug in #98 that blocks
-the customer in MUR-203."
-
-  → @mur/digest-daily — runs on your schedule (default 6am local)
-    Pricing varies with sources; ~$0.05/day typical.
-
-Want me to set this up? (We'll start with what you have connected
-and add more later.)
+> **Note:** the marquee-matching logic that *was* recommend.md
+> moved to `prompts/recommend-matcher.md`. The phase orchestrator
+> here calls the matcher when generating `propose` candidates from
+> the marquee catalog. Both files are needed.
+
+## Why this verb exists
+
+The marquee catalog covers maybe 20% of what a connected stack
+could be automated for. The other 80% is long-tail, per-user, and
+only solvable by co-design. Without a phase that turns connected
+state into a *conversation*, that 80% stays invisible. Recommend
+is that conversation.
+
+The plan-of-action menu (#170) was the right shape one iteration
+ago — a curated list of 3-5 grounded items including digest,
+security-audit, recommend, catalog. Recommend supersedes it
+because:
+
+- The menu treated digest + security-audit + automate as parallel
+  options at the same level. They're not — they're all *installs*
+  that recommend chooses among.
+- The menu didn't include co-designed flows at all, so the long-
+  tail 80% was invisible.
+- The menu's structure constrained the conversation. Recommend's
+  move toolkit (light / probe / propose / co-design / install /
+  defer) gives the user's LLM flexibility while preserving voice.
+
+## Caller modes
+
+- **From `connect.md` After-connect** (post-first-connect, automatic
+  hand-off). The canonical onboarding moment. `mode: post-connect`.
+- **Standalone `/mur recommend`** — user-invoked at any later
+  state. Reads `recommend-history.jsonl` to render a "since last
+  recommend" delta if one exists.
+- **From `scan.md` tail** when HEARTBEAT.md shows
+  `hasMinConnections: true` AND no recommend session has fired
+  yet on this project. Scan's close-the-loop suggests `/mur
+  recommend` instead of `/mur connect github`.
+- **From the no-repo helpful ask** (post-#175). When the user
+  picked "connect a tool" and connect succeeded, recommend fires
+  even without a project — it works on vault state + connector
+  state alone. Co-designed candidates degrade gracefully; marquee
+  still applies.
+
+## Preconditions
+
+- `~/.murmur/account.json` exists (account key — required for any
+  remote install or vault read).
+- **At least one connection** in either:
+  - `~/.murmur/pages/HEARTBEAT.md` frontmatter `hasMinConnections:
+    true` (the canonical signal), OR
+  - vault state showing ≥1 OAuth connection or ≥1 API key (for
+    no-repo users who connected via the helpful ask).
+
+  If neither: redirect to `/mur connect`. Don't fire recommend
+  with zero connections.
+
+- `<project>/.murmur/scan.json` is **optional**. Recommend works
+  without it (degraded — co-designed candidates skip the
+  scan-signal grounding rules; marquee matching via
+  recommend-matcher.md still applies based on connector signals).
+  If scan.json exists, use it.
+
+## Hard contracts
+
+- **Exit invariant.** Recommend never silent-bounces. Every
+  session terminates via one of: install (local OR remote),
+  explicit defer (with optional resurface condition), or a
+  user-stated "I'm done." A trailing-off conversation is the
+  failure mode this verb exists to prevent.
+- **Provenance neutrality.** The user shouldn't be able to tell
+  which `propose` candidates are marquee vs. co-designed unless
+  they ask. The data model carries `provenance:`; the rendered
+  prose does not surface it visually. On user ask ("how did you
+  come up with that?") — answer plainly.
+- **Cap propose at 3.** Rule of three. "What else?" advances to
+  a fresh batch of 3 (not 6 cumulative).
+- **Of those 3, at most 2 are co-designed.** At least 1 must be
+  marquee. Edge case: if zero marquee fits the user's stack,
+  surface up to 3 co-designed candidates with an explicit note
+  ("I don't have a pre-built flow that fits — these are all
+  custom designs, longer to set up but tailored to what you're
+  building").
+- **Local-install safety: render-confirm-revoke.** Co-designed
+  flows that emit local artifacts (cron entry, launchd plist,
+  GH workflow, bash script, gstack skill) MUST go through:
+  1. **Render** — show the artifact in plain language ("This
+     adds a cron entry that runs every Sunday at 11pm and writes
+     to `~/.local/share/mur-churn-watch.log`") AND raw form (the
+     literal bytes that will land on disk) on user ask.
+  2. **Confirm** — never write to crontab / disk without an
+     explicit user "yes, install."
+  3. **Revoke** — every install registers in
+     `~/.murmur/installs.jsonl` with the slug, install path, raw
+     artifact, and undo command. `/mur uninstall <slug>`
+     removes the artifact and updates the registry.
+
+  No exceptions. Remote installs (TEE-isolated) skip
+  render-confirm but still appear in `installs.jsonl` for parity.
+
+- **Never dismiss the user.** No "come back when you have a
+  project" / "Mur isn't for you yet" / "cd into a repo first"
+  copy. Recommend works for non-developers connecting Stripe +
+  Calendar alone (post-#175 helpful no-repo path).
+
+## Canonical moves
+
+The skill prompt names these moves and gives the user's LLM
+rules of thumb for when to play which. Sequence is flexible.
+
+| Move | What it does |
+|---|---|
+| **light** | "You connected X. Here are three things I can now watch for you that I couldn't before." Three concrete patterns per connector mix in chief-of-staff voice — never tile aesthetic, never "capability list." See "Lighting move — voice spec" below. |
+| **probe** | One pointed question about goals/pain. Default: "What's the thing you check first thing Monday, or wish you'd been told overnight?" |
+| **propose** | Return 3 candidates with structured metadata (see Propose Schema). Mix of marquee + co-designed per the cap. Marquee candidates come from `prompts/recommend-matcher.md`'s tiered logic. |
+| **co-design** | Drop into deeper polish on one candidate (max 4 turns — see Co-Design Contract). User's LLM iterates the prompt, picks cadence, decides install path. Force-commit to install or defer by turn 4. |
+| **install** | Emit local artifact (with render-confirm-revoke) OR install remote (FlowState row + handler). Register in `installs.jsonl`. |
+| **defer** | Stash for later in `recommend-history.jsonl` with optional resurface condition (e.g., `resurface_when: "next scan delta surfaces N new commits in src/billing/"`). |
+
+## Default opening sequence
+
+`probe → propose → (co-design | install | defer)`
+
+If `probe` returns a non-answer ("dunno, surprise me"), fall
+through to `light → propose`. The pain-first default earns the
+right to recommend and matches the chief-of-staff voice; the
+lighting fallback ensures the user never leaves without a
+concrete next step.
+
+User-invokable shortcuts skip the default sequence:
+
+- `/mur recommend --quick` → straight to `propose` with 3 cards.
+- `/mur recommend --tuesday` → narrative simulation of a day with
+  recommended automations installed (renders what tomorrow would
+  look like if all 3 propose candidates were running).
+- `/mur recommend --local-only` → only candidates with a local
+  install path (no remote, no credit spend).
+- `/mur recommend --forget` → clear `recommend-history.jsonl`.
+- `/mur recommend --history` → print past sessions' picks +
+  outcomes.
+
+These are belt-and-suspenders for users who don't want the
+conversation. The default flow IS the conversation.
+
+## Propose schema
+
+Each candidate is a structured object the LLM renders into prose:
+
+```yaml
+slug:        "@mur/digest-daily"          # marquee flows use @mur/ prefix
+                                          # co-designed: descriptive-slug-no-prefix
+what:        "Overnight cross-system digest, threaded by issue↔PR"
+cadence:     "Daily 6am your tz"
+install:
+  local:     "cron entry + ~/.local/bin/mur-digest.sh"
+  remote:    "$0.05/run, billed against credit balance"
+why-you:     "Stripe + Linear + GH all connected — high thread density"
+provenance:  marquee | co-designed | community-template
+confidence:  high | medium | low          # how well does this match scan signals
 ```
 
-Then **stop and wait for the user's reply** before proposing the
-next Tier 1 entry. One decision per round — never a menu.
+**Render rules.** Per candidate, render 3-4 lines:
+- Bold name (lowercased, descriptive — no `@mur/` prefix in the
+  user-facing line).
+- One-line `what`.
+- One-line `why-you` citing a concrete signal.
+- Both install paths when both available, framed as "$X.XX/run if
+  remote, free if local."
 
-### Tier 2 render
+**No provenance label in the rendered prose.** `provenance` lives
+in scan.json / metadata, not in the surface.
 
-Render in this shape:
+## Marquee + co-designed mix rule
+
+Within each `propose` round (3 candidates):
+
+- Run `recommend-matcher.md` to get the ranked marquee candidate
+  list. Pick 1-2 from the top.
+- Generate 1-2 co-designed candidates from scan signals + vault
+  keys + connector list (see "Co-designed flow examples" below
+  for shape).
+- Total: 3.
+
+Edge case — zero marquee matches: surface up to 3 co-designed
+with the explicit note ("custom designs, longer to set up but
+tailored").
+
+Edge case — three+ marquee match strongly: still cap at 2 marquee
++ 1 co-designed. The co-designed slot ensures the conversation
+opens up the long-tail 80%.
+
+## Co-design contract
+
+When user picks a co-designed candidate from `propose`, drop into
+a 2-4 turn loop:
+
+- **Turn 1 (Mur):** "Here's the sketch. What it'd fetch: <list>.
+  What it'd LLM-summarize: <list>. What it'd thread: <list>.
+  Cadence I'd start at: <X>. Sound right? Tweaks?"
+- **Turn 2 (User):** Iterates — adds/removes data sources,
+  changes the threading, adjusts cadence.
+- **Turn 3 (Mur):** Refined sketch + install path picker. "Local
+  install: <render>. Remote install: <$X/run>. Which?"
+- **Turn 4 (User picks):** Mur emits the artifact (local) or
+  installs the remote (FlowState + handler). Register in
+  `installs.jsonl`.
+
+**Force-commit by turn 4.** If the user is still iterating at
+turn 4, Mur surfaces: "I'm going to commit to a defer here unless
+you want to ship one of these now. The artifact's too unsettled
+to ship safely — we can come back to it." Defer with the current
+sketch as resurface payload.
+
+## Install paths
+
+### Local artifacts (with render-confirm-revoke)
+
+For each emit format, Mur's responsibility is to produce the
+artifact + plain-language description. The user's LLM polishes
+the actual content.
+
+- **cron entry.** Write to `~/.local/bin/mur-<slug>.sh` (the
+  script body) + add line to crontab via `(crontab -l 2>/dev/null;
+  echo "<cron expr> <path>") | crontab -`. Render shows: cron
+  expression in plain English ("every Sunday at 11pm") + script
+  body + uninstall command.
+- **launchd plist.** Write to
+  `~/Library/LaunchAgents/dev.usemur.<slug>.plist`. Load via
+  `launchctl load <path>`. Render shows: schedule in plain
+  English + plist body + uninstall command.
+- **GH workflow.** Write to `<project>/.github/workflows/<slug>.yml`.
+  Don't commit automatically — leave the file uncommitted, ask
+  the user to commit + push (it lives in their repo, their
+  control). Render shows: trigger schedule + workflow body +
+  uninstall command (`rm <path>` + commit removal).
+- **gstack skill.** Write to `~/.claude/skills/<slug>/SKILL.md`.
+  Render shows: skill activation phrase + skill body + uninstall
+  command (`rm -rf ~/.claude/skills/<slug>/`).
+
+For each: the artifact is **rendered + confirmed before any
+write** to disk or shell. The exact emit format spec (templates,
+cron-vs-launchd selection logic, GH workflow YAML structure)
+lives in a separate plan; this prompt names the four formats
+and the safety contract.
+
+### Remote installs (TEE)
+
+For marquee flows: register the FlowState row via
+`POST /api/automations` (see `prompts/automate.md`'s schema). The
+flow handler is already on the server (W1 PR #1's webhook
+dispatch + handler registry).
+
+For co-designed remote flows: ship as a FlowState row with
+custom handler config — references the user's LLM-polished
+prompt + connector list + cadence. The handler runs in the TEE
+with vaulted OAuth tokens. Pricing: same $0.05/run default as
+marquee unless the flow's complexity warrants a custom price.
+
+## Local-install safety contract — full spec
+
+The render-confirm-revoke contract is the safety wedge for
+co-designed local installs.
+
+### Step 1: render
+
+Before any write, surface the artifact in TWO forms:
+
+**Plain language** (always, mandatory):
+```
+I'm about to install: stripe-failed-payment-alert (local cron)
+
+What it does:
+  Every 4 hours, calls the Stripe API to check for new
+  payment_failed events. Filters to customers tagged
+  "enterprise" tier. If any, posts a message to your Slack
+  #alerts via your existing Slack OAuth.
+
+Where it lives:
+  ~/.local/bin/mur-stripe-failed-payment-alert.sh   (60 lines)
+  + cron entry: 0 */4 * * *
+
+How to undo:
+  /mur uninstall stripe-failed-payment-alert
+```
+
+**Raw form** (mandatory on user ask "show me the script"):
+```bash
+#!/bin/bash
+# mur-stripe-failed-payment-alert.sh
+# Generated by /mur recommend on <date>
+# Uninstall: /mur uninstall stripe-failed-payment-alert
+set -euo pipefail
+# ... [actual body] ...
+```
+
+### Step 2: confirm
+
+Wait for explicit "yes" (or "install it" / "go ahead"). Bare
+silence → defer, not install. "yes" alone after a different
+prompt → ambiguous → ask. Same pending-intent semantics as
+SKILL.md hard-contracts.
+
+### Step 3: revoke (uninstall registry)
+
+Every install writes a row to `~/.murmur/installs.jsonl` — the
+unified install registry shared with `prompts/install.md` (for
+marquee remote installs) and consumed by `prompts/uninstall.md`
+on revoke. One JSONL row per event:
+
+```json
+{
+  "ts": "2026-04-30T22:00:00Z",
+  "event": "install",
+  "slug": "stripe-failed-payment-alert",
+  "kind": "local-cron",
+  "artifact_path": "~/.local/bin/mur-stripe-failed-payment-alert.sh",
+  "cron_line": "0 */4 * * * ~/.local/bin/mur-stripe-failed-payment-alert.sh",
+  "uninstall_steps": [
+    "rm ~/.local/bin/mur-stripe-failed-payment-alert.sh",
+    "crontab -l | grep -v 'mur-stripe-failed-payment-alert' | crontab -"
+  ],
+  "session_id": "<recommend session id>"
+}
+```
+
+The `kind` discriminates the revoke path: `local-cron`,
+`local-launchd`, `local-gh-workflow`, `local-gstack-skill` go
+through render-confirm-revoke; `marquee-remote`,
+`co-designed-remote` point at the dashboard. The `event` field
+distinguishes install rows from uninstalled rows so a slug can
+be installed and uninstalled multiple times without losing the
+audit trail.
+
+`/mur uninstall <slug>` reads this registry, executes the
+`uninstall_steps`, and writes a corresponding row with
+`event: "uninstalled"`. `/mur installs` lists everything
+currently installed — useful for audit + cleanup.
+
+## Profile memory — recommend-history.jsonl
+
+Per-project memory at `<project>/.murmur/recommend-history.jsonl`.
+Append-only JSONL. Read on entry; write on each event.
+
+**Shape per line:**
+```json
+{
+  "ts": "2026-04-30T22:00:00Z",
+  "session_id": "<recommend session id>",
+  "event": "install" | "defer" | "probe-answer" | "co-design-iteration",
+  "slug": "<candidate slug, if applicable>",
+  "payload": "<event-specific data>"
+}
+```
+
+**On entry:**
+- Read last 90 days of entries.
+- Skip pain probes the user already answered (compare
+  probe-answer payload).
+- De-duplicate proposes the user explicitly deferred (skip in
+  current session unless the deferred item's resurface condition
+  fires).
+- Re-surface deferred items when their resurface condition fires
+  (e.g., `resurface_when: "next scan delta surfaces N new commits
+  in src/billing/"` → check against current scan).
+
+**TTL:** 90 days. Lines older than 90d ignored on read,
+garbage-collected on next write.
+
+**User control:**
+- `/mur recommend --history` → print recent sessions' picks +
+  outcomes.
+- `/mur recommend --forget` → clear the file (back up to
+  `recommend-history.jsonl.bak` first; show the user how to
+  restore).
+
+**Scope:** per-project. Cross-project memory is the punted Q6.
+Each `cd` switches to a different recommend-history.jsonl.
+
+## Co-designed flow examples (in-context for the user's LLM)
+
+These aren't in `registry/flows/` — they're exemplars Mur shows
+the user's LLM during `propose` to anchor what a co-designed
+candidate looks like:
+
+### Example 1: railway-deploy-watch
+
+```yaml
+slug: railway-deploy-watch
+what: "Watches Railway deploys for failures + slow rollouts"
+cadence: "Per-deploy webhook (push) + 4hr poll fallback"
+install:
+  local: "GH workflow + Railway API webhook → Slack post"
+  remote: "FlowState row + Railway webhook handler"
+why-you: "Railway in package.json + deploy.yml + RAILWAY_API_KEY in vault"
+provenance: co-designed
+confidence: high
+```
+
+What this demonstrates: co-design picks up on a vault key
+(`RAILWAY_API_KEY`) for which there's no marquee flow. The user's
+LLM constructs the candidate from the key + deploy signals in
+scan.
+
+### Example 2: stripe-failed-payment-alert
+
+```yaml
+slug: stripe-failed-payment-alert
+what: "Slack alert on Stripe payment_failed for enterprise customers"
+cadence: "4-hour poll (no Stripe webhook in the user's stack yet)"
+install:
+  local: "cron entry + bash script calling Stripe + Slack APIs"
+  remote: "FlowState row + handler with vaulted Stripe + Slack tokens"
+why-you: "Stripe live + Slack connected + scan saw 'enterprise tier' in your customer model"
+provenance: co-designed
+confidence: medium
+```
+
+What this demonstrates: co-design composes across two connectors
+(Stripe + Slack) with custom filtering logic ("tier == enterprise").
+No marquee flow does exactly this; co-design fits.
+
+## Lighting move — voice spec
+
+When `light` fires (typically as fallback after a non-answer
+probe), use chief-of-staff voice. Three patterns named, each
+naming the case the pattern catches.
+
+**Anchor example** (for a user who connected GitHub + Stripe +
+Linear):
 
 ```
-### LLM observability  ← infra gap
+You connected GitHub, Stripe, Linear. Three things I can now
+watch overnight that I couldn't before:
 
-You've got Anthropic + OpenAI SDKs in 4 files with no LLM
-observability. Without it you're blind to prompt regressions,
-latency spikes, and runaway token costs.
-
-The OSS answer: Langfuse — self-host on your Fly or Render. Apache-2.0,
-SQLite or Postgres backend, ~5 min to deploy.
-
-  https://github.com/langfuse/langfuse
-
-Want help wiring it up? Or shall we move on?
+· **PR ↔ Linear-issue threading.** Every merge that touches a
+  file flagged in a Linear issue surfaces in the morning brief.
+  Catches "Pat fixed the bug Marcus has been waiting for, but
+  neither knows."
+· **Failed-payment alerts on enterprise customers.** Stripe
+  payment_failed × customer-tier metadata. Catches churn risk
+  before it lands.
+· **MRR rolled up against Linear cycle-end.** Cycle-end = MRR
+  snapshot. Trend over 4 cycles → know if shipping velocity is
+  trading against revenue.
 ```
 
-Single path, OSS-first. No "two paths" pitching the managed wrapper
-alongside.
+**Voice rules:**
+- Three patterns, comma-separated header naming connectors.
+- Each pattern: bold name + one-line *what* + one-line *case it
+  catches* (the "this is the situation that gets caught" beat —
+  not "this is what the feature does").
+- No tile aesthetic, no capability lists, no marketing language.
+- Always grounded in the connectors actually present in vault +
+  HEARTBEAT.
 
-## Handling user replies
+## Edge cases
 
-- **"Yes" to a Tier 1 `@mur/*` flow:** read `prompts/install.md` and
-  follow it. Pass `slug` from the registry entry's `slug` field
-  and `actingAgent: "claude-code"` (or the appropriate agent name).
-  On success, the install prompt prints a confirmation. Then loop
-  back here to propose the next Tier 1 entry (if any uncovered) or
-  ask if the user wants to look at infra gaps (Tier 2).
+- **No marquee fits the stack.** Surface up to 3 co-designed
+  candidates with explicit note: "I don't have a pre-built flow
+  that fits your stack — these are all custom designs, longer
+  to set up but tailored to what you're building."
+- **No scan.json (no-repo user post-helpful-ask).** Skip the
+  `why-you` field that depends on scan signals. Co-designed
+  candidates degrade to "based on the connectors you've
+  authorized." Marquee still applies based on connector match.
+- **Probe returns non-answer.** Fall through to `light → propose`.
+- **All 3 propose candidates declined.** Don't insist. Move to
+  defer with resurface condition: "Want me to come back when X
+  changes (new connector, new commits, new TODO)?"
+- **User adds a new connector mid-recommend.** Don't auto-fire a
+  fresh recommend (Q7 in the original plan — wait-for-user). Note
+  the new connector in the current session and offer "want me to
+  add candidates that use the new connector?"
 
-- **"Yes" to a Tier 2 OSS recommendation:** the registry entry's
-  `deploy.link` field points at the tool's self-hosting docs. Tell
-  the user we don't currently automate self-host deployments —
-  paste the link and a one-line summary of what they'll need
-  (Docker, a Fly account, etc.). Move to the next recommendation.
+## Failure modes
 
-- **"No" / "skip":** drop the entry, move to the next.
+- **scan.json missing or corrupt** → degrade gracefully (skip
+  scan-grounded `why-you`). Don't crash.
+- **HEARTBEAT.md missing** → check vault state for OAuth
+  connections. If both empty, redirect to `/mur connect`.
+- **recommend-history.jsonl corrupt** → start fresh log. Lose
+  the "since last recommend" delta on next run; re-establish
+  going forward.
+- **installs.jsonl corrupt** → CRITICAL. Don't write new
+  installs until repaired (the user can't undo what got
+  installed). Surface the error and pause the session.
+- **Connector unreachable mid co-design** → mid-flight, Mur
+  can't fetch fresh data. Defer the candidate with a
+  `resurface_when` condition tied to connector availability.
+- **User picks remote install but credit balance is 0** →
+  surface: "Remote install would cost ~$X/month at the proposed
+  cadence. Your balance is $0. Top up at usemur.dev/billing or
+  pick the local install (free)."
 
-- **"Tell me more":** read more of the YAML out loud (alternatives,
-  reason_template populated with scan vars, license, deploy options).
+## Trigger phrases
 
-- **"Alternatives":** read the `alternatives:` array from the YAML,
-  one line each.
+Route to `prompts/recommend.md` when the user says:
 
-- **"Why not the managed Mur version?":** honest answer —
-  "Langfuse self-hosts free in 5 minutes. We do offer a managed
-  `@mur/langfuse-host` flow at $0.003/trace if you'd rather skip
-  the Fly setup, but for most projects the OSS path is the better
-  call. Say `/mur catalog` if you want to see the managed flow
-  anyway." Same template applies for any other demoted wrapper.
+- `/mur recommend` / `/mur recommend --quick` / `/mur recommend
+  --tuesday` / `/mur recommend --local-only` / `/mur recommend
+  --forget` / `/mur recommend --history`
+- "what should I do with these tools" / "what should I automate"
+  *(when scan.json or vault shows ≥1 connection)*
+- After a successful `/mur connect <source>` (programmatic
+  hand-off from connect.md After-connect — `mode: post-connect`).
 
-- **"Later":** stop the round. Don't push further.
+## Hand-off back
 
-Don't track "later" state in `.murmur/`. The recommend round is
-ephemeral — re-running the matcher next time is cheap.
+After install, defer, or explicit done:
 
-## Special-case behaviors
+- Append the event to `recommend-history.jsonl`.
+- For installs: append to `installs.jsonl` with full undo info.
+- Tell the user the resurface conditions for any deferred items.
+- Close the session — do NOT auto-re-fire recommend on the same
+  invocation. The user can re-run `/mur recommend` to start a
+  fresh session.
 
-- **The user asks for installs of things you didn't recommend.** Read
-  the YAML directly. If the entry exists (including ones with
-  `recommended: false`), render its detail. The user opting into a
-  catalog entry directly is fine — we just don't push them there.
-- **The scan is stale.** If `scan.scanned_at` is more than 7 days old,
-  mention it once in the opening line: "Heads up — your scan is N days
-  old; some of these may be off." Don't auto-rescan.
-- **Empty Tier 1 result.** Rare — digest-daily almost always
-  matches. If somehow it doesn't, skip straight to Tier 2.
-- **Empty Tier 1 + Tier 2.** If no candidates emerge: congratulate
-  briefly and point at outbound candidates if scan.json has any.
-  "Your stack looks solid — the only thing left to flag is the
-  outbound publish candidates from the scan. Say `/mur stack` to
-  see them, or `/mur catalog` to browse everything Mur ships."
+## What this prompt does NOT do
 
-## Privacy contract — same as scan
+- Doesn't replace `/mur catalog` (browse the full registry —
+  separate verb for "show me everything Mur has").
+- Doesn't replace `/mur scan` (the local diagnostic phase).
+- Doesn't replace `/mur connect` (the OAuth handoff).
+- Doesn't gate the quality of co-designed flows. That's between
+  the user and their own LLM. Mur supplies substrate; the LLM
+  supplies polish. Local-install safety contract (render-
+  confirm-revoke) is the only quality gate.
+- Doesn't auto-fire on connector additions (Q7 — wait for user).
+- Doesn't replace the marquee matcher logic — that lives at
+  `prompts/recommend-matcher.md` and gets called during the
+  `propose` move.
 
-- Don't read full file contents during recommend. The matcher operates
-  off `scan.json` and the registry YAMLs. The Glob check for
-  `file_glob` presence signals reads filenames only.
-- Don't send the scan to any external service. Recommendations are
-  100% local.
+## Cross-references
 
-## Hand-off to other prompts
-
-- **User says "yes" to a Tier 1 `@mur/*` flow** → read
-  `prompts/install.md`. The install prompt does the account check,
-  calls `POST /api/flows/install`, and wires the flow's MCP endpoint
-  into the user's agent.
-- **User says "show me everything" / "what about the managed version"**
-  → read `prompts/catalog.md`.
-- User asks to scan again → read `prompts/scan.md`.
-- User asks to see the slot view → read `prompts/stack.md`.
-- User wants to publish their own utility (after seeing outbound
-  candidates) → read `prompts/publish-flow.md`.
+- `prompts/recommend-matcher.md` — marquee + Tier-2-OSS matching
+  logic, called from the `propose` move.
+- `prompts/scan.md` — the four-pillar local diagnostic that
+  precedes recommend.
+- `prompts/connect.md` — the OAuth handoff that triggers
+  recommend in `mode: post-connect`.
+- `prompts/automate.md` — the recurring-job substrate remote
+  installs use under the hood (FlowState row schema).
+- `prompts/install.md` — the install-event recorder for marquee
+  flows.
+- `prompts/catalog.md` — full registry browse (independent of
+  recommend).
+- `prompts/digest.md` — formerly the canonical post-connect
+  outcome; now one of many candidates recommend can `propose`.

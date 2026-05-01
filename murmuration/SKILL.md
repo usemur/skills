@@ -28,8 +28,8 @@ Docs: https://usemur.dev/docs.
 ## Getting started — the canonical path
 
 When a user has just installed Mur, the path that gets them from
-"installed" to "Mur is helping me ship" is **scan → connect → plan
-→ pick**, in that order:
+"installed" to "Mur is helping me ship" is **scan → connect →
+recommend → install**, in that order:
 
 1. **Scan** — `/mur scan`. Reads the project locally (repo, git log,
    TODOs, manifests, gh CLI if present). **Fully local — no network
@@ -40,71 +40,83 @@ When a user has just installed Mur, the path that gets them from
    and *what we can connect to* (tools detected locally). One
    primary CTA at the bottom: connect deeper. Free.
 
-2. **Connect** — `/mur connect github` (and any other relevant source
-   that came up in the scan's "what we can connect to" pillar). This
-   grants server-side OAuth so Mur can watch overnight, find cross-
-   tool patterns, propose automations, AND expand "who you work
-   with" to include external entities (your customers across Stripe,
-   your team across Linear, etc.). Local `gh auth login` is great
-   for foreground reads, but the overnight digest runs on Mur's
-   server with Composio-vaulted OAuth tokens — so `/mur connect` is
-   required for the watching loop to close. The first connect also
-   runs the bootstrap (`POST /api/projects` → registers this repo as
-   a Mur project), credits the developer's $5 connection bonus, and
-   triggers a deeper rescan that pulls server-side data (customer
-   counts, team rosters, recent issues) into `.murmur/scan.json`
-   under `external.*`.
+   *No-repo path:* if `git rev-parse` fails, scan.md's "Project
+   location check" renders the helpful 3-option ask (connect /
+   find / type-a-path) with **connect first**. Recommend works
+   for non-developers connecting Stripe + Calendar alone — no
+   git project required.
 
-3. **Plan of action** — `/mur plan` (auto-routes from connect's
-   After-connect; also re-invokable anytime). Surfaces a curated 3–5
-   item menu of things the user can do next, each grounded in scan
-   signals + connection data:
-   - Run a security audit (when scan finds payment + risky patterns)
-   - Wire an LLM-in-the-loop automation (when recommend.md matches)
-   - Browse the paid catalog (when stack opens up paid-flow categories)
-   - **Set up the daily digest** (one option among many — overnight
-     chief-of-staff briefing, fires once user picks it)
-   - Hand off to gstack (when scan flagged scoping / planning /
-     investigate opportunities AND gstack is installed)
-   - Publish a utility (when outbound_candidates fire)
+2. **Connect** — `/mur connect github` (and any other relevant
+   source that came up in the scan's "what we can connect to"
+   pillar). This grants server-side OAuth so Mur can watch
+   overnight, find cross-tool patterns, propose automations, AND
+   expand "who you work with" to include external entities (your
+   customers across Stripe, your team across Linear, etc.).
+   Local `gh auth login` is great for foreground reads, but the
+   overnight digest runs on Mur's server with Composio-vaulted
+   OAuth tokens — so `/mur connect` is required for the watching
+   loop to close. The first connect also runs the bootstrap
+   (`POST /api/projects` for repo-anchored projects, primary
+   fallback for no-repo users), credits the developer's $5
+   connection bonus, and triggers a deeper rescan that pulls
+   server-side data into `scan.json` under `external.*`.
 
-   The user picks ONE based on what they need TODAY. The digest is
-   no longer auto-fired — it's a menu option the user opts into. This
-   keeps user agency while making every sub-product (security audit,
-   automate, catalog, publish, gstack hand-off) discoverable through
-   one surface.
+3. **Recommend** — `/mur recommend` (auto-routes from connect's
+   After-connect; also re-invokable anytime). The post-connect
+   *conversation* — Mur turns "you connected things" into "here's
+   what to do with them" using a small toolkit of moves:
+   - **probe** — one pointed question about pain
+   - **propose** — 3 candidates (1-2 marquee + 1-2 co-designed),
+     provenance hidden by default
+   - **co-design** — 2-4 turn polish loop on a chosen candidate
+   - **install** — emit local artifact (with render-confirm-revoke
+     safety contract) OR install remote (TEE-isolated)
+   - **defer** — stash with optional resurface condition
+   - **light** — fallback when probe gets a non-answer
 
-4. **The morning loop** — once the user picks "Set up the daily
-   digest" from the plan menu, `digest.md --backfill` fires and the
-   recurring morning briefing self-sustains thereafter. If the user
-   picks something else first (security audit, etc.), they can come
-   back to `/mur plan` anytime — re-invocations include a "since
-   last plan" delta showing what changed.
+   The user picks ONE candidate per session. Co-designed flows
+   cover the ~80% of automation surface area that no marquee
+   flow fits. Provenance neutrality means the user picks based
+   on stack-fit, not "is this branded." See `prompts/recommend.md`
+   for the full move spec.
+
+4. **Install** — chosen by the user inside recommend. Two paths:
+   - **Local artifact** (cron / launchd / GH workflow / gstack
+     skill): rendered + confirmed before any disk write. Every
+     install gets a `/mur uninstall <slug>` revoke command.
+     Free.
+   - **Remote** (FlowState row + handler in TEE): runs on Mur's
+     server with vaulted OAuth tokens. Pricing: ~$0.05/run
+     default. Includes the daily digest, PR review, prompt
+     regression eval, etc. — all "remote installs" the user
+     picked from inside recommend.
 
 **The scan output's primary CTA depends on connection state** —
 scan.md's Step 2 conditionally renders the closing line:
 - **No connections yet** (`~/.murmur/pages/HEARTBEAT.md` is missing
   OR `hasMinConnections` is false): scan closes with the connect-
   deeper ask ("I need server-side read access on the tools above").
-- **≥1 connection AND no plan has fired yet** (HEARTBEAT shows
-  `hasMinConnections: true` AND `.murmur/plan-history.jsonl` is
-  empty): scan closes with `/mur plan`.
-- **Plan has fired before**: same — `/mur plan` again, with a
-  "since last plan" delta on re-invocation.
+- **≥1 connection AND no recommend session has fired yet**
+  (HEARTBEAT shows `hasMinConnections: true` AND
+  `.murmur/recommend-history.jsonl` is empty): scan closes with
+  `/mur recommend`.
+- **Recommend has fired before**: same — `/mur recommend` again,
+  with a "since last recommend" delta on re-invocation.
 
 Reading HEARTBEAT.md is a local-mirror file read, not a network
 call — scan stays in its no-network contract.
 
-**At the end of every /mur connect**, route to `prompts/plan.md` with
-`mode: post-connect`. The plan composes the menu and the user picks
-from there. (Do NOT auto-fire `digest.md --backfill` — that's the
-old flow, replaced by user-choice in the plan menu.)
+**At the end of every /mur connect**, route to
+`prompts/recommend.md` with `mode: post-connect`. Recommend's
+default opening is `probe → propose`. The user picks one
+candidate to install (or defer all). Do NOT auto-fire any
+specific install — the user chooses.
 
-This is the canonical path. Mur can do other things (catalog browsing
-standalone, publishing flows, automate this-or-that as a recurring
-job) — but for a new user, the proactive read-and-react-then-plan
-loop is the product, and scan → connect → plan → pick is how it
-gets activated.
+This is the canonical path. Mur can do other things (catalog
+browsing standalone, publishing flows, automate this-or-that as
+a recurring job) — but for a new user, the proactive
+read-and-react-then-co-design loop is the product, and scan →
+connect → recommend → install is how it gets activated.
 
 ## How users invoke Mur
 
@@ -125,10 +137,10 @@ contains the detailed instructions, examples, and edge cases.
 | If the user wants to…                                                      | Read this prompt              |
 |----------------------------------------------------------------------------|-------------------------------|
 | Scan the active project: read everything locally first (repo, git log, TODOs, gh CLI), then surface findings | `prompts/scan.md`             |
-| See the plan-of-action menu: post-connect curated 3–5 item menu (security audit, automations, catalog, digest, gstack, publish), grounded in scan + connections | `prompts/plan.md`             |
+| Open the recommend conversation: post-connect chief-of-staff dialogue (probe / propose / co-design / install / defer) over the long tail of automations | `prompts/recommend.md`        |
 | See what Mur already knows about the project (pages, business cat, connections) | `prompts/whoami.md`           |
 | Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
-| Trigger a fresh daily digest now (free, once/day) — also surfaced as a menu option in `/mur plan` | `prompts/digest.md`           |
+| Trigger a fresh daily digest now (free, once/day) — also a candidate inside `/mur recommend` | `prompts/digest.md`           |
 | Trigger a deep digest with more sources + reasoning (billed)               | `prompts/digest-deep.md`      |
 | Open the morning loop / read the most recent fired digest                  | `prompts/morning-check.md`    |
 | Approve / fire the action for a digest item                                | `prompts/approve.md`          |
@@ -143,9 +155,10 @@ contains the detailed instructions, examples, and edge cases.
 | Connect a third-party source (GitHub, Stripe, Slack, etc.) — Composio OAuth | `prompts/connect.md`          |
 | Wire a recurring automation ("every Mon 9am roll up MRR")                  | `prompts/automate.md`         |
 | Build/rebuild the local contact graph from Gmail / Slack / GitHub          | `prompts/contact-grapher.md`  |
-| Recommend LLM-in-the-loop automations for the gaps in this stack           | `prompts/recommend.md`        |
+| Recommend LLM-in-the-loop automations for the gaps in this stack (called by `recommend.md` during `propose`; user-facing verb is `/mur recommend`) | `prompts/recommend-matcher.md` |
 | Browse the full flow + tool catalog (everything, not just the curated recs) | `prompts/catalog.md`          |
-| Install a recommended flow (after the user says yes)                       | `prompts/install.md`          |
+| Install a recommended flow (after the user says yes — called by recommend's `install` move for marquee remote flows) | `prompts/install.md`          |
+| Uninstall a local artifact / list what Mur installed on this machine        | `prompts/uninstall.md`        |
 | Run an adversarial 3-agent bug hunt locally (Hunter → Skeptic → Referee)   | `prompts/bug-hunt.md`         |
 | Run a static security audit on the repo (OWASP-shaped, severity-rated)     | `prompts/security-audit.md`   |
 
@@ -271,6 +284,21 @@ When `install.md` runs after a recommend proposal, the actingAgent is
 `claude-code` (or whatever agent is running). When the user types
 `install <slug>` directly, the actingAgent is `user`.
 
+Route to **`prompts/uninstall.md`** when the user says things like:
+
+- `/mur uninstall <slug>` / `/mur uninstall` (no slug = list mode)
+- `/mur installs` / `/mur list installs`
+- "remove the X cron" / "undo the Y install"
+- "what did Mur install on my machine"
+- "show me what Mur put on disk"
+
+`uninstall.md` is the revoke half of the render-confirm-revoke
+contract that `recommend.md` commits to (eval rubric H17). It
+reads `~/.murmur/installs.jsonl`, renders the install before
+removing, executes the recorded `uninstall_steps`, and appends an
+`uninstalled` audit row. For remote (TEE) installs, it points the
+user at usemur.dev/dashboard/integrations.
+
 Route to **`prompts/stack.md`** when the user says things like:
 
 - "show my murmuration stack" / "render the murmuration stack view"
@@ -319,19 +347,30 @@ Route to **`prompts/connect.md`** when the user says things like:
 - "hook up GitHub" / "authorize Stripe" / "wire up Search Console"
 - "connect everything" *(do GitHub first, then prompt for next)*
 
-Route to **`prompts/plan.md`** when the user says things like:
+Route to **`prompts/recommend.md`** when the user says things like:
 
-- `/mur plan` / `/mur menu` / `/mur options`
-- "what should I do next" / "what's the plan" *(when scan.json exists
-  and ≥1 connection exists; otherwise route to scan or connect first)*
+- `/mur recommend` / `/mur next` / `/mur what now`
+- "what should I do next" / "what's a good automation for this"
+  *(when scan.json exists and ≥1 connection exists; otherwise route
+  to scan or connect first)*
+- "could you build me something that..." / "is there a way to..."
+  / "I want to automate..." (these trigger the co-design move
+  inside recommend)
 - After a successful `/mur connect <source>` (programmatic hand-off
   from connect.md After-connect — `mode: post-connect`).
 
-`plan.md` is the post-connect surface that replaces the old "auto-fire
-the Day-0 digest" behavior. It composes a 3–5 item menu (security
-audit, automations, catalog, daily digest, publish, gstack hand-offs)
-grounded in scan + connection signals. The user picks ONE option. The
-digest is one of those options, not the only outcome.
+`recommend.md` is the post-connect chief-of-staff conversation that
+replaces the prior plan-of-action menu (#170) and the older "auto-fire
+the Day-0 digest" behavior. Six canonical moves (light, probe,
+propose, co-design, install, defer) compose over the long tail of
+automation surface — including custom flows the user describes that
+no marquee covers. Caps: ≤3 proposed candidates per turn, ≤2 of those
+co-designed, ≥1 marquee. Local installs go through render-confirm-
+revoke and are tracked in `.murmur/installs.jsonl` for `/mur uninstall`.
+The digest is one possible install candidate, not THE outcome.
+
+`prompts/plan.md` is preserved as a thin alias that hands off to
+`recommend.md` (`mode: legacy-plan`) for users with muscle memory.
 
 Route to **`prompts/whoami.md`** when the user says things like:
 
@@ -516,13 +555,14 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch A — gstack present:**
 
-   > Mur installed. The path is **scan → connect → plan → pick**:
+   > Mur installed. The path is **scan → connect → recommend → install**:
    > scan reads your project locally (free, nothing leaves your
    > machine), you connect GitHub so I can watch while you sleep,
-   > then I show you a plan of action — a curated menu of things to
-   > do next (security audit, automations, catalog browsing, the
-   > daily digest, publish a utility, hand off to gstack). You pick
-   > ONE based on what you need today.
+   > then we have a recommend conversation — I propose grounded
+   > automations (some marquee, some co-designed for you), you steer
+   > with probe / propose / co-design / defer, and we install the
+   > one(s) you pick (locally with a render-confirm-revoke contract,
+   > or remotely in our TEE).
    >
    > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
    > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
@@ -547,13 +587,14 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch B — gstack missing:**
 
-   > Mur installed. The path is **scan → connect → plan → pick**:
+   > Mur installed. The path is **scan → connect → recommend → install**:
    > scan reads your project locally (free, nothing leaves your
    > machine), you connect GitHub so I can watch while you sleep,
-   > then I show you a plan of action — a curated menu of things to
-   > do next (security audit, automations, catalog browsing, the
-   > daily digest, publish a utility, hand off to gstack). You pick
-   > ONE based on what you need today.
+   > then we have a recommend conversation — I propose grounded
+   > automations (some marquee, some co-designed for you), you steer
+   > with probe / propose / co-design / defer, and we install the
+   > one(s) you pick (locally with a render-confirm-revoke contract,
+   > or remotely in our TEE).
    >
    > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
    > TODOs, and your open GitHub PRs/issues *if* `gh` is authed

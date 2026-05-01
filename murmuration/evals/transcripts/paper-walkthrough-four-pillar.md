@@ -1,5 +1,14 @@
 # Paper Walkthrough — Four-Pillar Initial Sweep
 
+> **SUPERSEDED** by `paper-walkthrough-recommend.md`. The four-
+> pillar sweep itself is unchanged (Turn 2 still lands per this
+> walkthrough), but the post-connect surface — Turn 4 onward —
+> has been replaced. The plan-of-action menu (#170) is now a
+> chief-of-staff `recommend` conversation; H9/H10 redefined and
+> H15/H16/H17 added. See the latest walkthrough for the current
+> rubric set + scores. Kept here as historical record of the
+> four-pillar work.
+
 Re-walk after restructuring scan.md Step 2 around the four
 pillars (what you're building / who's working on it with you /
 what we noticed / what we can connect to) + dropping Step 2.5

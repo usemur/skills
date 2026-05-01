@@ -22,20 +22,30 @@ chat. Same content as the daily email; the on-demand fire is free
   triggers a 30-day synthesis (Day-0 backfill). Without `--backfill`,
   the digest covers since-last-fire (or the last 24h if first-ever).
 
-## Positioning relative to /mur plan
+## Positioning relative to /mur recommend
 
-As of the plan-of-action restructure: the digest is **one option in
-`/mur plan`'s menu**, not auto-fired after first connect. The
-canonical path is now `scan → connect → plan → user picks "Set up
-the daily digest"` (or another menu item). When the user picks the
-digest option from plan.md, this prompt fires with `--backfill` for
-the Day-0 synthesis.
+As of the recommend-phase restructure: the digest is **one possible
+install candidate inside `/mur recommend`**, not a menu option, not
+auto-fired after first connect. The canonical path is now
+`scan → connect → recommend → install`. When the recommend
+conversation lands on the daily digest as the right install for the
+user (e.g. their stack has connected sources whose value compounds
+in a morning briefing), recommend's `install` move fires this prompt
+with `--backfill` for the Day-0 synthesis. The user still owns the
+pick — recommend proposes, user confirms, install fires.
 
-Direct invocation of `/mur digest` still works for power users and
-for re-firing after the morning loop is established. The morning
-loop (recurring fire at user-configured time) is unchanged — once
-the user has fired the Day-0 backfill once, the server-side daemon
-takes over and digests land in chat each morning automatically.
+Direct invocation of `/mur digest` still works for power users who
+know they want the briefing now, and for re-firing after the morning
+loop is established. The morning loop (recurring fire at the
+user-configured time) is unchanged — once the user has fired the
+Day-0 backfill once, the server-side daemon takes over and digests
+land in chat each morning automatically.
+
+For users with muscle memory: `/mur plan` still works as a thin
+alias that routes through `prompts/plan.md` → `recommend.md`. The
+digest doesn't appear as a numbered menu item there — recommend
+will surface it via a `propose` move when the conversation reaches
+the moment where a daily briefing is the right next install.
 
 ## Walk-through
 

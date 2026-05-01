@@ -10,25 +10,28 @@ flow iterations).
 ## What's being evaluated
 
 The arc: SKILL.md "Getting started" path —
-**scan → connect → plan → pick** — measured from the first-contact
-welcome through the four-pillar initial sweep, the connect step,
-the deeper rescan, and the post-connect plan-of-action menu.
+**scan → connect → recommend → install** — measured from the
+first-contact welcome through the four-pillar initial sweep, the
+connect step, the deeper rescan, and the post-connect recommend
+conversation (which replaces the prior plan-of-action menu).
 
 The wow has two stages:
 1. **Four-pillar initial sweep** at turn 2 (scan output) — what
    you're building, who's working on it with you, what we
    noticed, what we can connect to.
-2. **Plan-of-action menu** at turn 4 (post-connect) — 3-5
-   grounded options including the digest as one of them.
+2. **Recommend opening** at turn 4 (post-connect) — a `light`
+   move with one grounded propose + invitation to probe / propose-
+   your-own / co-design / defer. Six canonical moves compose
+   over the long tail of automation surface.
 
 ## Files
 
 ```
-heuristics.yaml          14 rubric items: 7 binary, 7 graded (0-3)
-personas/*.json          6 canonical personas with signals + expected wow
+heuristics.yaml          17 rubric items: 9 binary, 8 graded (0-3)
+personas/*.json          7 canonical personas with signals + expected wow
 judge-prompt.md          Instructions for an LLM judge (stub for later)
 transcripts/             Recorded walkthroughs (latest:
-                         paper-walkthrough-four-pillar.md)
+                         paper-walkthrough-recommend.md)
 ```
 
 ## Personas (current set)
@@ -39,6 +42,7 @@ transcripts/             Recorded walkthroughs (latest:
 - **ai-app-dev** — building an AI product, no LLM observability yet.
 - **pre-product** — noodling on side projects, has publishable utilities.
 - **desktop-user** — no git repo, ran from `~/Desktop`. The honest-redirect canary.
+- **stack-rich-solo** — vertical-B2B-SaaS founder with 6 unusual tools (Twilio + Weaviate + Pylon + …). The recommend-phase deep canary — exercises co-design + marquee mix discipline.
 
 ## How to do a paper walkthrough
 
@@ -46,8 +50,9 @@ transcripts/             Recorded walkthroughs (latest:
 2. Read its `repo_signals` and `accounts_present`.
 3. Walk through the canonical arc mentally, simulating both the
    assistant's output (per `SKILL.md`, `prompts/scan.md`,
-   `prompts/connect.md`, `prompts/digest.md`) and the user's
-   responses (per the persona's `accounts_likely_to_connect` and
+   `prompts/connect.md`, `prompts/recommend.md`,
+   `prompts/digest.md`) and the user's responses (per the
+   persona's `accounts_likely_to_connect` and
    `expected_dropoff_risk`).
 4. For each heuristic in `heuristics.yaml`, record:
    - `score`: yes/no for binary, 0-3 for graded
@@ -55,11 +60,13 @@ transcripts/             Recorded walkthroughs (latest:
 5. Compute the average. Ship-ready iff:
    - average ≥ 2.5 (binary "yes" normalized as 3 for averaging)
    - no heuristic scores 0
-   - all binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"
+   - all binary heuristics (1, 2, 4, 7, 12, 13, 14, 15, 17) score
+     "yes" (where in-scope; H14 is n/a for in-repo personas, H17
+     is n/a when no local install fires)
 
 Capture the score sheet inline in `transcripts/paper-<persona>-<date>.md`
 or in a single combined doc per walkthrough session (latest:
-`transcripts/paper-walkthrough-four-pillar.md` — superseded older
+`transcripts/paper-walkthrough-recommend.md` — superseded older
 walkthroughs are kept as historical record with SUPERSEDED banners).
 
 ## How to run an automated judge pass (when ready)
@@ -110,10 +117,24 @@ History of additions:
   silent-scan failure mode but with shell-jargon copy that
   excluded non-developer users. H14 makes the right answer
   explicit: helpful 3-option ask, connect first, never dismiss.
+- H9, H10 redefined for the recommend phase: was "plan-of-action
+  breadth + grounding"; now "recommend propose breadth +
+  grounding." Same intent (adaptive multi-path surface, every
+  item grounded) applied to recommend's `propose` move.
+- H15, H16, H17 added with the recommend phase: caught the
+  failure mode that the plan-of-action menu still had — menus
+  push "pick from what we offer" rather than "describe what you
+  need," closing off the long-tail 80% of useful automation
+  surface that no marquee flow fits. H15 enforces the light-move
+  opener, H16 enforces the marquee + co-designed mix discipline,
+  H17 enforces the render-confirm-revoke contract for any local
+  artifact a co-designed flow emits.
 
 ## Acceptance bar
 
 > For every canonical persona:
-> - Average score across all 14 heuristics ≥ 2.5
+> - Average score across all 17 heuristics (in-scope) ≥ 2.5
 > - No heuristic scores 0
-> - All binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"
+> - All binary heuristics (1, 2, 4, 7, 12, 13, 14, 15, 17) score
+>   "yes" where in-scope (H14 n/a for in-repo personas; H17 n/a
+>   when no local install fires)

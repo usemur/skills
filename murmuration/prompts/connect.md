@@ -154,11 +154,12 @@ to push to last.
 
    Then route to the next step:
 
-   - **First connect on this project (no plan has fired yet):**
-     **route to `prompts/plan.md`** with `mode: post-connect`. Do
-     NOT auto-fire `digest.md --backfill` — the digest is one
-     option among many in the plan-of-action menu, not THE outcome.
-     The user picks from the menu what fits their need today.
+   - **First connect on this project (no recommend has fired yet):**
+     **route to `prompts/recommend.md`** with `mode: post-connect`.
+     Do NOT auto-fire `digest.md --backfill` — the digest is one
+     candidate among many that recommend may surface, not THE outcome.
+     Recommend opens with a `light` move (1 grounded propose + an
+     invitation to co-design), and the user steers from there.
 
      Surface the hand-off in chief-of-staff voice — pull
      `product_summary` from `.murmur/scan.json` (composed during
@@ -177,19 +178,20 @@ to push to last.
      to:
      > "Connected. Pulling together what I'd do next…"
 
-     Then hand off to `prompts/plan.md`. Plan reads scan.json +
-     `~/.murmur/pages/HEARTBEAT.md` (for `hasMinConnections`) +
-     plan-history.jsonl, composes a 3–5 item menu, and presents
-     it. The user picks. The digest is one of those items ("Set up
-     the daily digest — `/mur digest --backfill`"), not auto-fired.
+     Then hand off to `prompts/recommend.md`. Recommend reads
+     scan.json + `~/.murmur/pages/HEARTBEAT.md` (for
+     `hasMinConnections`) + recommend-history.jsonl, opens with a
+     light move, and lets the user steer (probe / propose /
+     co-design / install / defer). The digest, when relevant, shows
+     up as one possible install — not auto-fired.
 
-   - **Subsequent connects** (a plan has fired before on this
+   - **Subsequent connects** (recommend has fired before on this
      project, user is now connecting an additional source like
      Stripe or Linear): confirm the new source and suggest
-     re-invoking plan to see the updated menu:
-     > "Got Stripe wired up too — `/mur plan` for the updated menu
-     > (your next morning digest will pull from it either way once
-     > you've set up the digest)."
+     re-invoking recommend to fold the new signal in:
+     > "Got Stripe wired up too — `/mur recommend` to fold the
+     > new signal in (your next morning digest will pull from it
+     > either way once you've set up the digest)."
 
 5. On timeout / cancellation: show the latest `/check` status and tell
    the user to retry `/connect <source>`.
@@ -265,10 +267,10 @@ If this was the founder's first connect, do these in order:
    reads, parallelizable). Stream a progress line ("pulling Stripe
    customer summary…") so the user sees it's working.
 
-3. **Surface what changed, then route to `prompts/plan.md`.**
+3. **Surface what changed, then route to `prompts/recommend.md`.**
    After the deeper rescan completes, render a brief delta — a
    "now I can also see" line — so the user feels what unlocked.
-   Then hand off to plan.md.
+   Then hand off to recommend.md.
 
    Surface line:
    > "Connected. I can watch <product_summary, lowercased>
@@ -280,9 +282,9 @@ If this was the founder's first connect, do these in order:
    external data couldn't be pulled:
    > "Connected. Pulling together what I'd do next…"
 
-   Then hand off to `prompts/plan.md` with `mode: post-connect`.
-   Plan composes a 3–5 item menu including "Set up the daily
-   digest" as one option — the user can pick it from the menu to
-   fire `digest.md --backfill`, or pick a different option, or
-   skip and come back to `/mur plan` later. Do NOT auto-fire the
-   digest — the digest is one option in the menu, not THE outcome.
+   Then hand off to `prompts/recommend.md` with `mode: post-connect`.
+   Recommend opens with a `light` move (1 grounded propose +
+   invitation to co-design) — the user can accept and route to
+   install, ask Mur to probe deeper, propose their own automation
+   to co-design, or defer. The digest, when relevant, shows up as
+   one possible install candidate — not auto-fired.

@@ -142,66 +142,79 @@ heuristics:
       the FIRST wow (the local-only sweep).
 
   - id: 9
-    short: "Plan-of-action breadth"
+    short: "Recommend propose breadth"
     grading: 0-3
     description: |
-      When the plan menu fires, does it surface the major paths
-      (security audit, automate, catalog, daily digest, gstack
-      hand-off, publish) when their trigger conditions are met?
-      A menu that only ever offers "Set up the daily digest" is
-      worse than one that adapts to the user's stack.
+      When recommend's `propose` move fires (after a `light` opener
+      or in response to a probe), do the surfaced candidates span
+      the major paths the user's stack opens up — security-audit,
+      automate (marquee), automate (co-designed for stack gap),
+      catalog browse, daily digest, publish, gstack hand-off — when
+      their trigger conditions are met? The recommend phase replaces
+      the prior plan-of-action menu (#170): cap is now ≤3 candidates
+      per propose turn, at most 2 co-designed, at least 1 marquee.
+      H9 measures whether what gets surfaced ADAPTS to the user's
+      actual stack vs. always proposing the same kind of thing.
     score_3_when: |
-      All applicable paths surface — security-audit when scan
-      finds payment + risky patterns, automate when recommend
-      matches, catalog when stack opens up paid categories,
-      digest always (for connected users), publish when
-      outbound_candidates exist, gstack when hand-offs flagged.
+      Across the recommend session (opening light + any propose
+      turns), candidates span the user's relevant paths. A
+      pre-product persona sees publish + digest + co-designed
+      utility-watcher (NOT padded with security-audit). An
+      indie-stripe sees security-audit + reviewer-marquee +
+      MRR-watcher co-design.
     score_2_when: |
-      Most applicable paths surface. 1–2 missing options that
-      should have appeared.
+      Most relevant paths surface. 1–2 obvious paths missing
+      that the stack signals would have justified.
     score_1_when: |
-      Only digest + 1 other option surfaces. Menu feels narrow.
+      Recommend keeps proposing the same flavor (e.g. only
+      digest variants, or only marquee flows) despite the
+      stack opening up other paths.
     score_0_when: |
-      Only one option surfaces (typically the digest). Menu
-      isn't earning its existence — could just auto-fire digest
-      and skip the menu turn.
+      Recommend proposes the same single candidate every turn,
+      OR pads with paths the stack signals don't justify
+      (security-audit for a user with no payment surface).
     note: |
-      H9 measures whether the menu adapts to the user's actual
-      stack vs. always presenting the same surface. A pre-product
-      persona with no Stripe + no risky patterns should see
-      "Publish a utility" + "Set up the daily digest" + "Run
-      /office-hours" — NOT a menu padded with security-audit
-      and automate items that don't apply.
+      H9 was originally "Plan-of-action breadth" (#163). Reframed
+      for the recommend phase (#190+): the 3–5-item menu became
+      a multi-turn conversation with ≤3-cap-per-turn proposes.
+      Same intent — measure adaptive breadth — applied to the new
+      surface. A flow that opens with light → user accepts → install
+      and never proposes more than 1 candidate is fine for that
+      user (the 1 fit perfectly). H9 only fires when the user
+      probes or rejects the opener and recommend has to propose
+      multiples — at that point breadth must show up.
 
   - id: 10
-    short: "Plan-of-action grounding"
+    short: "Recommend propose grounding"
     grading: 0-3
     description: |
-      Is each menu item cited with a specific signal that
-      justifies it for THIS user? Generic recommendations
-      ("you might want to set up monitoring") fail this; signal-
-      grounded items ("Run security audit — you have Stripe
-      wired AND 2 raw-SQL patterns in src/api/users.ts") pass.
-      Mirrors H5 (per-item finding specificity) but applied at
-      the plan level.
+      Is each candidate that recommend proposes cited with a
+      specific signal that justifies it for THIS user? Generic
+      proposals ("you might want to set up monitoring") fail this;
+      signal-grounded proposals ("MRR-watcher — you have 47
+      customers on Stripe and Sentry deployed; this connects them")
+      pass. Mirrors H5 at the propose-move level.
     score_3_when: |
-      Every menu item names a file / PR / SDK / signal. The user
-      can verify why the item appeared without leaving the menu.
+      Every proposed candidate names a file / PR / SDK / customer-
+      count / signal. Marquee and co-designed candidates are
+      indistinguishable in grounding (provenance neutrality).
+      The user can verify why each appeared without leaving the
+      conversation.
     score_2_when: |
-      Most items cite a signal. 1–2 items are generic
-      ("Browse the catalog — useful for any stack").
+      Most candidates cite a signal. 1–2 are generic
+      ("the catalog has a few things for your stack").
     score_1_when: |
-      Half the items are generic.
+      Half the candidates are generic.
     score_0_when: |
-      Most items are generic recommendations. Menu reads like
-      a static feature list, not a curated plan.
+      Candidates read like a static product menu, not a curated
+      proposal grounded in scan + connections.
     note: |
-      H10 protects against the "plan menu becomes a static
-      product menu" failure mode. The whole point of plan.md
-      is that it's MORE specific than scan.md's priority sort
-      (one finding) — it surfaces multiple findings, each
-      grounded. If items are generic, the menu adds confusion
-      without adding signal.
+      H10 was originally "Plan-of-action grounding" (#163).
+      Reframed for the recommend phase. Specifically protects
+      against co-designed candidates being SOFTER than marquee
+      candidates ("here's one I made up for you" with no signal
+      tie). Provenance neutrality requires both kinds carry the
+      same evidence weight.
 
   - id: 7
     short: "Drop-off recoverability"
@@ -390,11 +403,134 @@ heuristics:
       heuristic. The welcome no longer "exits"; it routes
       through the same helpful no-repo ask.
 
+  - id: 15
+    short: "Recommend opening shape"
+    grading: binary
+    description: |
+      Does recommend.md open with a `light` move — one grounded
+      proposed candidate plus an explicit invitation to probe /
+      propose-your-own / co-design / defer — instead of a 3–5-item
+      curated menu? The recommend phase replaces the prior
+      plan-of-action menu surface (#170). Menus optimize for
+      "pick from what we offer." Light-move openers optimize for
+      "describe what you need, including things we wouldn't have
+      thought to put on a menu." That's the long-tail unlock.
+    score_yes_when: |
+      First post-connect message from recommend is a single
+      grounded propose ("Given <signal>, my read is <flow> would
+      be useful — want me to install it, dig into something else,
+      or describe what you'd actually want?"). Probe / co-design
+      / defer paths are mentioned as available. No numbered menu.
+    score_no_when: |
+      Recommend opens with "Here are 3–5 things you can do" /
+      a numbered menu / a fork-of-options. Even if every option
+      is grounded, menu-shaped opens push the user away from
+      describing what they need.
+    note: |
+      H15 makes the recommend phase's structural commitment
+      explicit. The plan-of-action menu (#170) was the right
+      shape one iteration ago — it cleared "auto-fire the
+      digest" failure but kept the user in pick-from-our-list
+      mode. The recommend phase replaces that with a chief-of-
+      staff conversation. H15 enforces the surface change.
+
+      Edge case: if the user opens with "what should I do next?"
+      (legacy plan phrasing) recommend can still respond with a
+      light propose. The acknowledgement line ("plan is the
+      recommend conversation now") is permitted but doesn't
+      excuse a menu.
+
+  - id: 16
+    short: "Marquee + co-designed mix discipline"
+    grading: 0-3
+    description: |
+      When recommend's `propose` move surfaces multiple candidates,
+      does the mix obey the rule of three: ≤3 candidates total,
+      ≤2 co-designed, ≥1 marquee? Marquee = entries from
+      `registry/flows/*.yaml` (recommend-matcher.md substrate).
+      Co-designed = constructed in conversation from scan + user
+      need. Provenance neutrality: candidates render in the same
+      shape regardless of source — the user shouldn't be able to
+      tell which is which from format alone.
+    score_3_when: |
+      Mix obeys all three rules: ≤3 cap, ≤2 co-designed,
+      ≥1 marquee (or, in the edge case where zero marquee fit,
+      explicit note "no marquee flow fits — these are all
+      co-designed"). Surface format is identical for both kinds.
+    score_2_when: |
+      Mix obeys cap and co-designed limit but doesn't surface
+      a marquee where one would fit (substrate filtered too
+      aggressively). Or surfaces a marquee but tags it visibly
+      as "from our catalog" while co-designed gets no equivalent
+      label — provenance leaks through framing.
+    score_1_when: |
+      Cap exceeded (4+ candidates) OR all co-designed despite
+      marquee fits being available. The user gets either too
+      many choices or a ground-everything-from-scratch feel
+      that ignores the substrate.
+    score_0_when: |
+      All marquee (recommend reverts to old recommend-matcher
+      behavior, no co-design surface fires) OR all co-designed
+      with no marquee anywhere in the session despite obvious
+      fits. The phase isn't earning its name.
+    note: |
+      H16 protects the recommend phase's core architectural
+      commitment: long-tail unlock requires co-design, but
+      co-design without marquee anchors becomes "Mur invents
+      flows from thin air" — losing the substrate's quality
+      bar. The mix rule is the constitutional check.
+
+      If the user explicitly said "no marquee, build me
+      something custom," all-co-designed is correct and
+      H16 still scores 3 (rule-of-three preserved with the
+      edge-case note).
+
+  - id: 17
+    short: "Local-install render-confirm-revoke"
+    grading: binary
+    description: |
+      When recommend's `install` move emits any local artifact
+      (cron entry, launchd plist, GitHub Actions workflow, gstack-
+      skill file), does it follow the render-confirm-revoke
+      contract: render the exact diff/file content, ask for
+      explicit confirmation, register the install in
+      `.murmur/installs.jsonl` for `/mur uninstall <slug>`?
+      Remote installs (TEE-hosted) bypass this — they're owned by
+      the server and revoked via dashboard. H17 only fires when
+      a local artifact is created.
+    score_yes_when: |
+      Local install renders the artifact in full (file path +
+      contents), waits for user confirm, writes the install to
+      `.murmur/installs.jsonl` with slug + artifact path + ts +
+      revoke-instructions. `/mur uninstall <slug>` removes the
+      artifact and the registry entry.
+    score_no_when: |
+      Any of: artifact written without rendering full content
+      first, no confirm step, no installs.jsonl entry, or
+      `/mur uninstall <slug>` not honored. Silent local writes
+      under user $HOME are the failure mode H17 catches.
+    note: |
+      H17 was added with the recommend phase. The remote
+      substrate (FlowState rows in TEE) already had a clear
+      revoke surface. Local installs are powerful — cron and
+      launchd write to user $HOME and run on schedule — but
+      have historically been the failure mode where automation
+      tools accumulate cruft the user can't audit. Render-
+      confirm-revoke makes the local path safe to use without
+      the audit problem.
+
+      Personas where H17 is n/a: the persona's recommend
+      session ended without an install, OR install was remote
+      (FlowState only). Mark `n/a` with reason in evidence.
+
 # Acceptance criteria
 acceptance:
   ship_when: |
     For every canonical persona in evals/personas/:
-    - Average score across all 14 heuristics ≥ 2.5
+    - Average score across all 17 heuristics (in-scope for
+      that persona) ≥ 2.5
     - No heuristic scores 0
-    - All binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"
+    - All binary heuristics (1, 2, 4, 7, 12, 13, 14, 15, 17)
+      score "yes" (where in-scope; H14 is n/a for in-repo
+      personas, H17 is n/a when no local install fires)
     - Binary "yes" normalized as 3 for averaging

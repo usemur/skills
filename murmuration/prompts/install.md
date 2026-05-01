@@ -169,25 +169,41 @@ Cline: VS Code settings, etc.)."
 
 ## Step 5 — record locally and confirm
 
-Append to `~/.murmur/installed.json`:
+Append a single JSONL row to `~/.murmur/installs.jsonl` — the
+unified install registry shared with `recommend.md`'s local
+installs and `uninstall.md`'s revoke path. Single source of truth
+for "what did Mur install on this machine," covering both
+TEE-hosted marquee flows and local artifacts.
 
 ```json
 {
-  "installs": [
-    {
-      "slug": "<flow.slug>",
-      "name": "<flow.name>",
-      "mcpUrl": "<flow.mcpUrl>",
-      "actingAgent": "<agent>",
-      "installedAt": "<ISO timestamp from `date -u +%FT%TZ`>",
-      "serverInstallId": "<install.id>"
-    }
-  ]
+  "ts": "<ISO timestamp from `date -u +%FT%TZ`>",
+  "event": "install",
+  "slug": "<flow.slug>",
+  "kind": "marquee-remote",
+  "name": "<flow.name>",
+  "mcpUrl": "<flow.mcpUrl>",
+  "actingAgent": "<agent>",
+  "serverInstallId": "<install.id>",
+  "uninstall_pointer": "https://usemur.dev/dashboard/integrations",
+  "uninstall_curl": "curl -X DELETE -H 'Authorization: Bearer <apiKey>' https://usemur.dev/api/installs/<install.id>"
 }
 ```
 
-(Create the file with `{"installs": []}` if absent. Append, don't
-overwrite, and de-duplicate by `slug`.)
+Append-only: don't rewrite the file. If the file is absent,
+create it. Don't de-dup at write time — `uninstall.md` and any
+audit reader collapse install + uninstalled events per slug at
+read time, so the registry stays a faithful event log.
+
+**Legacy migration.** Older installs may live in
+`~/.murmur/installed.json` (object-with-array shape, used before
+the recommend phase). On first read of `installs.jsonl` for any
+prompt that walks it, if `installed.json` exists AND
+`installs.jsonl` doesn't yet contain its slugs, fold each entry
+into `installs.jsonl` as one `event: install` row each (with
+`kind: marquee-remote` and `migrated_from_installed_json: true`),
+then leave `installed.json` in place as a backup. Don't delete
+it. The fold runs once; subsequent reads see both files in sync.
 
 Then print a success summary:
 
@@ -228,7 +244,14 @@ gracefully — `recommend.md` may continue with the next category.
 ## State this prompt may write
 
 - `~/.murmur/account.json` (first install only)
-- `~/.murmur/installed.json` (every install, append-only with dedup)
+- `~/.murmur/installs.jsonl` (every install — unified registry,
+  shared with `recommend.md` local installs and `uninstall.md`
+  revoke path; append-only event log, one row per install /
+  uninstall event)
+- `~/.murmur/installed.json` (LEGACY — older installs may still
+  live here. install.md folds into `installs.jsonl` on next read
+  but doesn't delete the legacy file. Safe to delete manually
+  once `installs.jsonl` has the rows you care about.)
 - `~/.claude.json` MCP config (via `claude mcp add` — Claude Code only)
 - Server-side: a `UserFlowInstall` row at `usemur.dev`, visible in the
   user's dashboard at https://usemur.dev/dashboard/integrations with
@@ -241,8 +264,7 @@ gracefully — `recommend.md` may continue with the next category.
 - User asks to call the installed flow → read `prompts/consume-flow.md`.
   The flow is now wired into MCP, so the consume verb will see it
   alongside the catalog.
-- User asks to uninstall → not yet a dedicated prompt. Tell them to
-  visit the dashboard at https://usemur.dev/dashboard/integrations
-  and click uninstall, OR run
-  `curl -X DELETE -H "Authorization: Bearer <apiKey>" \
-    https://usemur.dev/api/installs/<install.id>`.
+- User asks to uninstall → route to `prompts/uninstall.md`. It
+  handles local-artifact removal (the render-confirm-revoke
+  contract recommend.md commits to) and points at the dashboard
+  for remote (TEE) installs.

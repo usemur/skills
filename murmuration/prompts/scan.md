@@ -824,13 +824,14 @@ line):
   OR its frontmatter `hasMinConnections` is false): Step 2 closes
   with the connect-deeper ask (default — "I need server-side read
   access on the tools above").
-- **At least one connection AND no plan has fired yet** (HEARTBEAT
-  has `hasMinConnections: true` AND `.murmur/plan-history.jsonl`
-  is missing or empty): Step 2 closes with `/mur plan` instead —
-  the user is past first-connect and ready to see the menu.
-- **Plan has fired before** (`plan-history.jsonl` has ≥1 entry):
-  Step 2 closes with `/mur plan` again (composes a "since last
-  plan" delta on re-invocation).
+- **At least one connection AND no recommend has fired yet**
+  (HEARTBEAT has `hasMinConnections: true` AND
+  `.murmur/recommend-history.jsonl` is missing or empty): Step 2
+  closes with `/mur recommend` instead — the user is past
+  first-connect and ready to start the recommend conversation.
+- **Recommend has fired before** (`recommend-history.jsonl` has
+  ≥1 entry): Step 2 closes with `/mur recommend` again (folds in
+  any new signals since the last session).
 
 Reading HEARTBEAT.md is a local-mirror file read, not a network
 call (it lives at `~/.murmur/pages/`, server-synced when /mur
