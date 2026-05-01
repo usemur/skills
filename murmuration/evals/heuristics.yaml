@@ -224,7 +224,7 @@ heuristics:
       invocation can resume from the same step without losing state
       or re-asking already-answered questions.
     score_yes_when: |
-      `.murmur/scan.json` carries the cursor for "what else?". State
+      `.murmur/scan.json` carries `progress` for "what else?". State
       `~/.murmur/state.json` carries projectId. `.murmur/consents.json`
       carries scan + gh-probe consents. After a scan, "/mur" without
       a verb closes the loop with the next step (connect) rather than

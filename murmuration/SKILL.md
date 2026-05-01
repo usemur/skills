@@ -210,7 +210,7 @@ but waits for the user's yes.
 
 **Scan continuation phrases.** When `<project>/.murmur/scan.json`
 exists AND its **internal `scanned_at` field** is within 24h of
-now (do NOT rely on file mtime — the cursor writes refresh that),
+now (do NOT rely on file mtime — `progress` writes refresh that),
 the following phrases route back to scan.md §"Step 3":
 
 - "what else?" / "what else" / "what else for this scan"

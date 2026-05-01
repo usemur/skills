@@ -85,7 +85,7 @@ TEE installs don't exercise the render-confirm-revoke contract.)
   The signal must be *visible* in the user-facing turn, not just
   in scan.json.
 - **H7 (recoverability).** Check that state files exist (scan.json
-  cursor, HEARTBEAT.md, plan-history.jsonl). If not visible in
+  `progress`, HEARTBEAT.md, plan-history.jsonl). If not visible in
   transcript, mark `"needs_manual_check"`.
 - **H11 (four-pillar structure).** A pillar dropped honestly
   (e.g. "Who's working on it with you" omitted for solo persona)

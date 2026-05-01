@@ -138,26 +138,26 @@ Three entry modes. Detect which one applies before doing any work.
 **Continuation mode** — the user typed a continuation phrase
 AND `<project>/.murmur/scan.json` exists AND
 `scan.json.scanned_at` is within 24h of now. (Use the `scanned_at`
-field inside the JSON, **not** the file mtime — cursor writes
+field inside the JSON, **not** the file mtime — `progress` writes
 update mtime on every "what else?" and would otherwise refresh
 the staleness window indefinitely.) In this mode:
 
 - Do NOT re-run the scan, do NOT re-prompt for consent, do NOT
   re-probe gh.
 - Read the existing `scan.json` and dispatch by phrase:
-  - **"what else?" / "what else"** → advance the cursor (see
-    "Cursor" below) and jump to "Step 3" with the next-priority
-    finding. If the cursor is exhausted, reply: "That's the list.
-    Want me to re-scan? Just say 'rescan' or 'scan again'." (Do
-    NOT include "skip"
-    or bare "next" / "more" as advance triggers — those are used
-    by recommend.md's pagination and including them here would
-    steal turns from a recommend session.)
+  - **"what else?" / "what else"** → advance to the next finding
+    (see "Progress — tracking which findings have been shown"
+    below) and jump to "Step 3" with the next-priority finding.
+    If the list is exhausted, reply: "That's the list. Want me
+    to re-scan? Just say 'rescan' or 'scan again'." (Do NOT
+    include "skip" or bare "next" / "more" as advance triggers
+    — those are used by recommend.md's pagination and including
+    them here would steal turns from a recommend session.)
   - **"open #N" / "show me &lt;file&gt;"** → these
     are inspection actions on the **current** finding. Do **NOT**
-    advance the cursor. Read the relevant file/PR/issue, surface
+    advance `progress`. Read the relevant file/PR/issue, surface
     the relevant chunk to the user, then wait. The next "what
-    else?" still advances from the same cursor position.
+    else?" still advances from the same position.
 
 **Steady-state mode** — `consents.json` exists with
 `"scan": "yes@..."` AND the user invoked scan explicitly (via
@@ -171,7 +171,7 @@ the staleness window indefinitely.) In this mode:
     proceeding. Skip the re-ask only when `gh_probe_last` is
     `"yes@..."` and within 14 days.
   - After resolving the gh consent, run the full scan (everything
-    below, fresh `scan.json`, cursor reset to its initial 1-based
+    below, fresh `scan.json`, `progress` reset to its initial 1-based
     shape: `{"shown": [], "next": 1}`).
 
 **First-run mode** — `consents.json` doesn't exist OR the `scan`
@@ -191,13 +191,13 @@ key is missing. Two paths:
   verb, fall back to the §2.0 disclosure (next section) — they
   may not have seen the welcome. Same 3-option consent applies.
 
-### Cursor — tracking which findings have been shown
+### Progress — tracking which findings have been shown
 
 scan.json carries a small piece of session state so "what else?"
-advances correctly. Add a `cursor` field at the top of scan.json:
+advances correctly. Add a `progress` field at the top of scan.json:
 
 ```json
-"cursor": {
+"progress": {
   "shown": [1, 2],
   "next": 3
 }
@@ -212,13 +212,19 @@ memory) means continuation works even after a context compaction
 or chat restart, as long as the same scan.json is still on disk
 and within the 24h continuation window.
 
-**Freshness anchor.** Cursor updates rewrite `scan.json` and
+**Internal field — never name it to the user.** `progress` is
+implementation detail. In user-facing copy say "next finding" or
+"the next thing on the list," never "the cursor" / "the progress
+field" / "advance the cursor." (The previous name for this field
+was `cursor`, which read as the IDE in user-facing leaks.)
+
+**Freshness anchor.** `progress` updates rewrite `scan.json` and
 therefore bump file mtime. The 24h continuation window is
 measured against the `scanned_at` field inside the JSON, which is
-set ONCE per fresh scan and never changed by cursor updates. Do
-not use file mtime for staleness checks. Steady-state mode (a
+set ONCE per fresh scan and never changed by `progress` updates.
+Do not use file mtime for staleness checks. Steady-state mode (a
 fresh `/mur scan` invocation past 24h on `scanned_at`) overwrites
-`scanned_at` with the new scan's timestamp and resets the cursor.
+`scanned_at` with the new scan's timestamp and resets `progress`.
 
 ## First-run disclosure
 
@@ -590,7 +596,7 @@ Schema (keep field names stable — downstream prompts depend on them):
   "scanned_at": "<ISO 8601>",
   "scanner_version": "1.0",
   "repo_root": "<absolute path>",
-  "cursor": {"shown": [], "next": 1},
+  "progress": {"shown": [], "next": 1},
   "product": {
     "summary": "<one sentence>",
     "keywords": ["<kw1>", "<kw2>", "<kw3>"]
@@ -873,9 +879,9 @@ Render four pillars in order: **What you're building**, **Who's
 working on it with you**, **What we noticed**, **What I can
 connect to**. Then a separator, then the connect-deeper ask.
 
-**Update the cursor before printing.** `cursor.shown` = the
+**Update `progress` before printing.** `progress.shown` = the
 priority-ranked indices of every finding included in the "What we
-noticed" section (typically [1..5]). `cursor.next` = the next rank
+noticed" section (typically [1..5]). `progress.next` = the next rank
 not yet shown. Write scan.json to disk. Without this, "what else?"
 would re-surface what we already rendered.
 
@@ -1166,7 +1172,7 @@ this priority order:
    the items above whenever (e.g. 'audit this', 'show me PR
    #142'), or come back to the connect ask anytime by saying
    'connect github' or 'what should I do next'." Don't push
-   further. The cursor stays where it is.
+   further. `progress` stays where it is.
 
 3. **Specific connector other than the suggested one** — "connect
    stripe" / "let's do sentry instead" / "what about linear" /
@@ -1175,22 +1181,22 @@ this priority order:
    Hand off to `prompts/connect.md` with the named slug. Same
    path as bullet 1, just with a different provider.
 
-4. **"what else?" / "what else"** — advance the cursor — read
-   `scan.json.cursor.next`, surface the finding at that rank
+4. **"what else?" / "what else"** — advance to the next finding — read
+   `scan.json.progress.next`, surface the finding at that rank
    (recompute the priority sort against scan.json's data, take the
-   Nth item), append that rank to `cursor.shown`, increment
-   `cursor.next`, write scan.json. Same summary shape: one thing,
-   one action, "what else?" tail. If the cursor is past the last
-   finding, reply "That's the list. Want me to re-scan? Just say
-   'rescan' or 'scan again'."
+   Nth item), append that rank to `progress.shown`, increment
+   `progress.next`, write scan.json. Same summary shape: one thing,
+   one action, "what else?" tail. If `progress.next` is past the
+   last finding, reply "That's the list. Want me to re-scan? Just
+   say 'rescan' or 'scan again'."
 
 5. **An action verb a sub-CTA offered** ("open #142", "audit
    this", "show me PR #142", "publish lib/retry.ts", "show me
    issue #98"): hand off to the appropriate prompt or run the
-   suggested action. The cursor stays where it is.
+   suggested action. `progress` stays where it is.
 
 6. **Anything else:** treat as a normal verb routing, the scan is
-   done. The cursor stays where it is for the next continuation.
+   done. `progress` stays where it is for the next continuation.
 
 ### What NOT to do
 
