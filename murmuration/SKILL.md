@@ -1,6 +1,6 @@
 ---
 name: murmuration
-description: Mur — the agent skill for growing your business. Proactive chief-of-staff: scans the user's stack, surfaces what to fix today (one finding at a time), then earns the right to automate the recurring stuff with LLM-in-the-loop flows. The flagship is the daily digest — overnight, ranks open issues + TODOs + recent PR activity across every system the user has connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things you should look at today" with the cross-system thread. Other marquee paid flows: LLM PR review, prompt-regression eval on PRs, weekly dependency-release-note summaries, weekly competitor-site diffs, LLM issue triage. The more systems connected, the smarter the digest. Free in chat for scans, fixes, and recommendations; pay only for the automations watched while you sleep — single credit balance, no per-vendor API key juggling. On first contact with a project, reads everything locally (repo, git log, TODOs/FIXMEs, open PRs/issues via gh CLI, deploy configs, manifests, README) before asking the user to connect anything external. Multi-project aware — cd between repos and project context follows. Use when the user says /mur, /murmur, /murmuration, scan my project, what's broken, what should I fix today, what should I do next, what's in my stack, what tools am I missing, what should I automate, connect github, run a digest, automate a recurring check, browse the catalog, what else, skip, or any framing about getting a list of what to do, project status, growing the business, or shipping the next thing. /mur, /murmur, and /murmuration are equivalent prefixes. Docs: https://usemur.dev/docs.
+description: Mur — the agent skill for growing your business. Proactive chief-of-staff: scans the user's stack, surfaces what to fix today (one finding at a time), then earns the right to automate the recurring stuff with LLM-in-the-loop flows. The flagship is the daily digest — overnight, ranks open issues + TODOs + recent PR activity across every system the user has connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things you should look at today" with the cross-system thread. Other marquee paid flows: LLM PR review, weekly dependency-release-note summaries, weekly competitor-site diffs, LLM issue triage. The more systems connected, the smarter the digest. Free in chat for scans, fixes, and recommendations; pay only for the automations watched while you sleep — single credit balance, no per-vendor API key juggling. On first contact with a project, reads everything locally (repo, git log, TODOs/FIXMEs, open PRs/issues via gh CLI, deploy configs, manifests, README) before asking the user to connect anything external. Multi-project aware — cd between repos and project context follows. Use when the user says /mur, /murmur, /murmuration, scan my project, what's broken, what should I fix today, what should I do next, what's in my stack, what tools am I missing, what should I automate, connect github, run a digest, automate a recurring check, browse the catalog, what else, skip, or any framing about getting a list of what to do, project status, growing the business, or shipping the next thing. /mur, /murmur, and /murmuration are equivalent prefixes. Docs: https://usemur.dev/docs.
 ---
 
 # Mur
@@ -231,16 +231,16 @@ Route to **`prompts/recommend.md`** when the user says things like:
 
 - "what should I automate" / "what's worth automating"
 - "what tools am I missing" / "recommend tools for me"
-- "fix my LLM observability gap" / "set up prompt-regression on PRs"
+- "fix my LLM observability gap" / "set up eval testing on my prompts"
 - "what would the digest look like for me" / "make my digest smarter"
 - generally: any "I have a hole or a recurring pain, recommend
   something to fix it" framing
 
 `recommend.md` leads with **LLM-in-the-loop automations** (digest,
-PR review, prompt regression, dep release-note digest, competitor
-scan, issue triage). When the user's gap is generic infra (uptime,
-logging, error tracking) it surfaces the OSS option directly without
-pitching a managed wrapper.
+PR review, dep release-note digest, competitor scan, issue triage).
+When the user's gap is generic infra (uptime, logging, error
+tracking, prompt eval testing) it surfaces the OSS option directly
+without pitching a managed wrapper.
 
 If the user asks for recommendations but `.murmur/scan.json` doesn't
 exist yet, `recommend.md` will redirect them to scan first. Don't

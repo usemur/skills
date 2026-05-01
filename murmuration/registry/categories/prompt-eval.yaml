@@ -1,0 +1,8 @@
+slug: prompt-eval
+display_name: Prompt Eval / Regression Testing
+description: |
+  Run automated tests on prompts. When a PR changes a prompt, runs the
+  new and baseline against your test cases and reports pass-rate,
+  latency, and token deltas. Catches regressions before merge.
+canonical_tools: [tools/promptfoo.yaml]
+canonical_flows: []

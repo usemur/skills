@@ -60,7 +60,7 @@ cat .murmur/consents.json
   the consent ask, run the matcher.
 - **`registry_match` key missing:** first-run for this verb. Ask once:
 
-  > I'll match your scan against the recommendation registry — ~12 OSS
+  > I'll match your scan against the recommendation registry — ~13 OSS
   > tools + 11 Murmuration flows, all vendored in the skill pack at
   > `~/.claude/skills/murmuration/registry/`. No network call. Proceed?
 
@@ -142,24 +142,40 @@ candidate.
 ### Step 2.5 — conjunctive guards on flagship marquee flows
 
 The marquee `@mur/*` flows are pitched only when their *full* shape
-matches, not just any one signal. Without these guards, "any LLM
-project" would qualify for `@mur/prompt-regression` and "any
-gh-authed repo" would qualify for `@mur/issue-triage` — both very
-noisy.
+matches, not just any one signal. Without these guards, "any
+gh-authed repo" would qualify for `@mur/issue-triage` — very noisy.
 
 | Marquee flow                     | Conjunctive guard                                                                                          |
 |----------------------------------|------------------------------------------------------------------------------------------------------------|
 | `@mur/digest-daily`              | active project (any) — single-signal pitch is fine, the digest is the flagship and degrades gracefully.   |
 | `@mur/reviewer`                  | `active_git_repo: true` AND `signals.deploy` non-empty (real product, not a scratch repo).                 |
-| `@mur/prompt-regression`         | `llm_sdk_present: true` AND `custom_prompts_detected: true` — both required.                               |
 | `@mur/issue-triage`              | `gh_authed: true` AND `open_issues_count >= 5` — handful of open issues, otherwise it's premature.        |
 | `@mur/dep-release-digest`        | `has_manifest: true` AND third-party deps count `>= 10`.                                                   |
 | `@mur/competitor-scan`           | `product.summary` mentions "B2B" OR "B2C" OR "SaaS" OR "marketplace" — i.e. has competitors at all.        |
+
+Note: `@mur/prompt-regression` is **not** a marquee flow. The
+managed version isn't built — recommend.md surfaces `promptfoo`
+(OSS, registry/tools/promptfoo.yaml) when an LLM-using project
+lacks an eval suite. The `@mur/prompt-regression` flow YAML stays
+`recommended: false` (catalog-browsable only).
 
 If a flagship flow's conjunctive guard fails, drop it from the
 candidate list even if a single category_signal matched. Apply
 this gate AFTER Step 2 (presence + any category_signal) and
 BEFORE Tier-1 ranking.
+
+### Step 2.5b — conjunctive guards on Tier 2 OSS tools
+
+Most Tier 2 tools are fine on a single category_signal match
+(e.g. any LLM SDK → `langfuse` is a fair pitch). A few need a
+conjunction because a single signal would be too noisy:
+
+| Tool        | Conjunctive guard                                                                                          |
+|-------------|------------------------------------------------------------------------------------------------------------|
+| `promptfoo` | `llm_sdk_present: true` AND `custom_prompts_detected: true` — both required. Without custom prompts, an eval suite is premature. |
+
+Apply the same way as Step 2.5: if the guard fails, drop the
+tool from candidates even if its YAML's category_signals matched.
 
 ## Rank and group
 
@@ -210,15 +226,17 @@ The marquee flows (each is an `@mur/*` entry in
    "and gets smarter as you connect more systems."
 2. **`@mur/reviewer`** — LLM PR review. Match on active git repo
    with multiple PRs.
-3. **`@mur/prompt-regression`** — eval suite on PRs that touch
-   prompt files. Match on `llm_sdk_present` + `custom_prompts_detected`.
-4. **`@mur/issue-triage`** — LLM labels + prioritizes new GH issues.
+3. **`@mur/issue-triage`** — LLM labels + prioritizes new GH issues.
    Match on `gh_authed: true` + open issues exist.
-5. **`@mur/dep-release-digest`** — weekly LLM summary of dep
+4. **`@mur/dep-release-digest`** — weekly LLM summary of dep
    release notes. Match on any manifest + multiple deps.
-6. **`@mur/competitor-scan`** — weekly LLM diff of competitor
+5. **`@mur/competitor-scan`** — weekly LLM diff of competitor
    sites. Always offerable (every product has competitors); offer
    as "want me to keep an eye on N competitors?".
+
+Prompt regression testing is *not* a Tier 1 marquee. When an LLM
+project lacks an eval suite, Tier 2 surfaces `promptfoo` (OSS) —
+that's the honest answer until the managed flow is built.
 
 Cap Tier 1 at **3 surfaced flows per round** to avoid overwhelm.
 Pick by relevance: digest-daily is always #1 (flagship — and the
@@ -251,6 +269,14 @@ priority order:
    `erpnext`). The matching `@mur/*-deploy` wrappers exist in the
    catalog but aren't surfaced here — see `/mur catalog` to
    browse those.
+7. **prompt-eval / regression-testing** — when an LLM project has
+   prompts but no eval suite (`llm_sdk_present: true` AND
+   `custom_prompts_detected: true` AND no presence_signals matching
+   `promptfoo` / `evals/` / known eval keywords). Recommend
+   `promptfoo` (OSS, runs on the user's CI + LLM keys). **Do NOT
+   pitch `@mur/prompt-regression`** — that flow is `recommended:
+   false` (managed version not built; promptfoo is the honest
+   answer).
 
 For Tier 2 entries, the rendered recommendation has *one path*
 (the OSS option), not two. We're not pretending the user has a

@@ -63,7 +63,7 @@ note so the user knows the relationship.
 Format example (the user is just browsing — keep it tight):
 
 ```
-## Murmuration catalog (11 flows · 12 OSS tools)
+## Murmuration catalog (11 flows · 13 OSS tools)
 
 ### LLM-in-the-loop automations  ← curated by /mur recommend
 
@@ -72,9 +72,6 @@ Format example (the user is just browsing — keep it tight):
 
   → @mur/reviewer — LLM PR review on every PR open
     $0.022/PR · GitHub webhook
-
-  → @mur/prompt-regression — eval suite on PRs that touch prompts
-    $0.04/eval-run · GitHub webhook
 
   → @mur/issue-triage — LLM labels + prioritizes new GH issues
     $0.008/issue · GitHub webhook
