@@ -356,7 +356,7 @@ whether each has a cooldown configured:
 | pnpm    | `pnpm-lock.yaml` / `pnpm-workspace.yaml`   | `package.json` `pnpm.minimumReleaseAge` or `.npmrc` `minimum-release-age` (pnpm 10.16+) |
 | bun     | `bun.lockb` / `bunfig.toml`                | `bunfig.toml`: `[install] minimumReleaseAge = <minutes>` (bun 1.2+)                |
 | yarn    | `yarn.lock`                                | no native cooldown — recommend socket.dev or migrating off                         |
-| uv      | `uv.lock` / `[tool.uv]` in `pyproject.toml`| `pyproject.toml` `[tool.uv] exclude-newer = "<date>"` or `--exclude-newer` flag    |
+| uv      | `uv.lock` / `[tool.uv]` in `pyproject.toml`| `pyproject.toml` `[tool.uv] exclude-newer = "P7D"` (ISO 8601 duration — rolling window; preferred over a fixed `<date>` so it doesn't go stale) |
 | pip     | `requirements.txt` only, no other manager  | no native cooldown — note as gap, suggest pip-audit + uv migration                 |
 | cargo   | `Cargo.lock`                               | no native cooldown — note as gap                                                   |
 
@@ -628,7 +628,7 @@ Schema (keep field names stable — downstream prompts depend on them):
     "payments": [{"name": "stripe", "via": "package_import:stripe"}],
     "pkg_cooldown": [
       {"manager": "npm", "supported": true, "configured": false, "value": null, "config_file": ".npmrc"},
-      {"manager": "uv", "supported": true, "configured": true, "value": "2025-10-01", "config_file": "pyproject.toml"}
+      {"manager": "uv", "supported": true, "configured": true, "value": "P7D", "config_file": "pyproject.toml"}
     ]
   },
   "git_activity": {
@@ -726,7 +726,20 @@ wins:
    truth — do not transliterate to camelCase. Custom-auth
    detection without an auth-library is a future tier — needs a
    separate signal pass not yet in the schema.)
-2. **Open GitHub PRs the user can act on.** Actionability depends
+2. **Supply-chain cooldown gap.** ≥1 entry in
+   `signals.pkg_cooldown` has `supported: true` AND
+   `configured: false`. Zero-day worms (malicious version
+   published and yanked within hours) are blunted by a
+   release-age floor — a one-line config change with a huge
+   blast-radius reduction. Sits below active security risks
+   because it's a hardening measure, not a live bug. Skip
+   silently for managers without native support
+   (`supported: false` — pip / yarn / cargo) — don't pitch a
+   feature the user's tooling can't deliver. If multiple
+   managers qualify, name them in one finding (not N). Action
+   line: `Say "set cooldown" and I'll add a 7-day release-age
+   floor.`
+3. **Open GitHub PRs the user can act on.** Actionability depends
    on review state AND who authored it AND (for review-required
    cases) whether the user is actually a requested reviewer. Two
    distinct cases the user can act on right now:
@@ -768,20 +781,20 @@ wins:
    If 1+ PR survives the filter, the top one (most recently
    updated, with their-PR-changes-requested taking precedence over
    their-review-requested when both exist) is the priority.
-3. **Open GitHub issues with high-signal labels.** Issues labeled
+4. **Open GitHub issues with high-signal labels.** Issues labeled
    `bug`, `security`, `regression`, `customer`, `p0`, `p1`. If the
    user just merged something, especially relevant.
-4. **Hotspot file from risky patterns.** A path that appears in
+5. **Hotspot file from risky patterns.** A path that appears in
    `risky_patterns.hotspot_paths` AND in `git_activity.last_7d`
    — that's where the work has been and where the patterns
    accumulated. (`hotspot_paths` is a flat list — paths only land
    there when their pattern hits exceeded the hotspot threshold
    during scan, so any membership is enough; recency is what makes
    it actionable.)
-5. **In-repo `TODOS.md` / `ROADMAP.md` updated recently.** If
+6. **In-repo `TODOS.md` / `ROADMAP.md` updated recently.** If
    `local_resources.in_repo_files` includes one, surface its top
    line as "you wrote this yourself."
-6. **LLM observability gap on an LLM-using product.** When
+7. **LLM observability gap on an LLM-using product.** When
    `signals.llm.providers` is non-empty (the product calls Claude
    / GPT / etc.) AND `signals.llm_obs` is empty, surface the gap.
    This is the only LLM-in-the-loop gap that scan.json reliably
@@ -799,7 +812,7 @@ wins:
    paid flow. Helpful first; treat marquee LLM automations as
    things to recommend after a quick gap-confirm conversation,
    not as findings inferred from absence in `scan.json`.
-7. **Stack gap that affects payments, public surface, or auth.**
+8. **Stack gap that affects payments, public surface, or auth.**
    Missing error tracking on a Stripe-using product, missing
    uptime monitoring on a public deployed service, etc. — concrete,
    not generic. When this wins, point at OSS options
@@ -812,23 +825,24 @@ wins:
    `cloudflare-pages`} captures stdout into a searchable logs UI
    by default, so a separate logging library is noise. `docker`
    alone does NOT count.
-8. **Publishable outbound candidate.** Lowest priority — this is
+9. **Publishable outbound candidate.** Lowest priority — this is
    nice-to-have monetization, not a "you should do this today"
-   item. Still surface it as the top finding *only* when rules 1–7
+   item. Still surface it as the top finding *only* when rules 1–8
    produced nothing AND `outbound_candidates` is non-empty. When
-   rule 8 wins, the action is "publish &lt;path&gt;" (`publish-flow.md`)
+   rule 9 wins, the action is "publish &lt;path&gt;" (`publish-flow.md`)
    and the framing is "nothing urgent — but this is a candidate
    when you're ready."
 
-Rules 6 and 7 are peers in helpfulness — both surface real gaps.
-Rule 6 takes precedence when an LLM is present in the stack
+Rules 7 and 8 are peers in helpfulness — both surface real gaps.
+Rule 7 takes precedence when an LLM is present in the stack
 because that's where Mur's automation moat is strongest *and* the
-gap is highest-leverage. Rule 7 wins when no LLM is present but
+gap is highest-leverage. Rule 8 wins when no LLM is present but
 other infra is missing.
 
-If rules 1–8 ALL produce nothing — no security risk, no waiting PR,
-no labeled issue, no hotspot, no recent in-repo TODO, no LLM gap,
-no infra gap, no outbound candidate — the project is in good shape.
+If rules 1–9 ALL produce nothing — no security risk, no
+supply-chain cooldown gap, no waiting PR, no labeled issue, no
+hotspot, no recent in-repo TODO, no LLM gap, no infra gap, no
+outbound candidate — the project is in good shape.
 The "What we noticed" pillar in Step 2 below renders honestly empty
 ("Nothing screaming for attention from what I can read locally").
 The connect-deeper ask still fires — that's the primary CTA
@@ -962,7 +976,7 @@ Or pick one of the items above first — just say which.
   on this repo. After connect this expands to your customers +
   teams." Keep the forward-looking note even when the local team
   is solo — the connect pitch is the same.
-- **What we noticed.** Honest absence: if rules 1-8 produce
+- **What we noticed.** Honest absence: if rules 1-9 produce
   nothing, render "Nothing screaming for attention from what I
   can read locally — repo's in good shape." Don't pad with
   lower-tier findings.
