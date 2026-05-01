@@ -38,6 +38,99 @@ These are hard rules. Violating them breaks user trust permanently:
   reveals a different author for a file, don't flag it. Vendored copies
   of OSS code are not the user's to publish.
 
+## Project location check (run first)
+
+Before any of the mode branching below, determine whether the
+user is standing in a project. If they're not, the scan should
+never silently scan whatever's in cwd — it asks helpfully
+instead.
+
+**The check:**
+
+```sh
+git rev-parse --show-toplevel 2>/dev/null
+realpath "$PWD"
+```
+
+**Three cases:**
+
+1. **`git rev-parse` succeeds** — cwd is inside a git project.
+   Treat the output as the project root. Continue to the entry-
+   mode branching below (continuation / steady-state / first-run).
+   This is the happy path.
+
+2. **`git rev-parse` fails AND cwd is `$HOME`, `~/Desktop`,
+   `~/Documents`, `~/Downloads`, or `~/`** — the user opened a
+   Mur session from a default location, not a project. Don't
+   refuse, don't silently scan. Render the **helpful no-repo ask**
+   below.
+
+3. **`git rev-parse` fails AND cwd is some other folder** (a
+   non-git project directory, a code folder without git init,
+   etc.) — same behavior as case 2: render the helpful no-repo
+   ask. The folder might be a real project that just doesn't have
+   git yet — but we can't infer that locally without scanning,
+   which is exactly what we won't do silently.
+
+### Helpful no-repo ask
+
+When case 2 or 3 fires, render this. Don't refuse, don't dismiss,
+don't say "cd into a project first" (that's shell jargon many
+Claude Code users won't decode). Lead with **connect** as option
+1 — it's the path that works for everyone, including users who
+don't have a git repo at all.
+
+```
+I'm in <basename of cwd, e.g. "your home folder" or "Desktop"> —
+not a project. Three ways to start:
+
+1. **Connect a tool** — hook up GitHub, Stripe, Linear, or others
+   so I can watch them for you and surface what to look at each
+   morning. No code project required to start here.
+   `/mur connect github`  (or stripe, linear, etc.)
+2. **Find a project on your machine** — if you've got a code
+   folder somewhere, I'll look for git repos under your home
+   and list a few. You pick.
+   Say "find my projects" and I'll do the lookup.
+3. **Type a path** — if you know where your project is, say
+   "scan ~/path/to/project".
+```
+
+**Hard contracts on this ask:**
+
+- Connect is option 1 — always. It's the universal path. Even a
+  pure non-developer can connect Stripe + Calendar and get value
+  from the morning brief.
+- Never include framing like "come back when you have a project"
+  / "Mur isn't for you yet" / "cd into a repo first." Those
+  dismiss users who have no repo (yet) but could still benefit
+  from connections. They are wrong.
+- The "Find my projects" branch (option 2) runs:
+  ```sh
+  find "$HOME" -maxdepth 4 -type d -name '.git' \
+    -not -path '*/node_modules/*' \
+    -not -path '*/.cache/*' 2>/dev/null
+  ```
+  Cap at top 5 by recency (most-recently-modified). For each:
+  print the folder path + last-modified date. User picks by
+  number; we then `cd` to that path (mentally — instruct the
+  user to re-run scan from there, or the agent navigates if it
+  has filesystem access).
+- The "Type a path" branch accepts a path string. If the path
+  exists AND has a git remote, treat it as the project root for
+  this scan. Otherwise, fall back to the ask.
+
+If the user picks **option 1 (connect a tool)** but is still
+sitting in `~/`, that's fine: connect.md / `_bootstrap.md` lets
+no-repo connects through (no project gets registered; the
+connection lives under the user's primary on the server).
+See `_bootstrap.md` "Step 4 — register with the server" for the
+no-repo bootstrap behavior.
+
+If the user picks **option 2 or 3** and lands on a real project,
+re-fire scan from that location — proceed to the mode branching
+below with the new cwd as project root.
+
 ## Branch on first-run vs. steady-state vs. continuation
 
 Three entry modes. Detect which one applies before doing any work.

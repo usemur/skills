@@ -311,9 +311,24 @@ different remote), don't silently re-register. Prompt the user with
 - **Account key missing** (`~/.murmur/account.json` empty):
   redirect to sign-in, same as `connect.md`'s precondition.
 - **`git rev-parse` fails AND realpath of cwd is the user's home
-  directory:** refuse to register — registering `~` as a project
-  silently captures every future ad-hoc command into the same
-  project. Tell the user to `cd` into a project directory first.
+  directory (or `~/Desktop`, `~/Documents`, `~/Downloads`):**
+  do NOT register a project. Don't refuse the calling verb either
+  — let it through with no `X-Mur-Project-Id` header. The server
+  falls back to the user's primary project automatically (single-
+  project users have always had this fallback path; we're using
+  it for no-repo users too). Practical effect: when the user runs
+  `/mur connect github` from `~/`, the connection lands under
+  primary on the server. Their first scan from a real repo later
+  registers a new project, and the connection migrates to that
+  project (server policy) — or stays on primary if the user is
+  truly project-less (running Mur on connected SaaS data alone,
+  no git repo).
+
+  This replaces the prior "refuse to register, tell the user to
+  cd into a project directory first" behavior, which assumed
+  every Mur user is a developer standing in a repo. They aren't.
+  See `prompts/scan.md` "Helpful no-repo ask" for the user-facing
+  copy that leads with connect.
 
 ## Why repo root, not raw cwd
 

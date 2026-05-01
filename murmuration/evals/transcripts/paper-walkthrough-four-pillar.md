@@ -31,14 +31,19 @@ Three blind spots:
 
 ## Summary table — all 6 personas vs H1–H13
 
-| Persona | H1 | H2 | H3 | H4 | H5 | H6 | H7 | H8 | H9 | H10 | H11 | H12 | H13 | Avg |
-|---|----|----|----|----|----|----|----|----|----|-----|-----|-----|-----|-----|
-| indie-stripe | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | 3.00 |
-| agency-dev | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | 3.00 |
-| company-eng | yes | yes | 2 | yes | 3 | 3 | yes | 3 | 2 | 3 | 3 | yes | yes | 2.85 |
-| ai-app-dev | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | 3.00 |
-| pre-product | yes | yes | 2 | yes | 3 | 3 | yes | 3 | 2 | 3 | 2 | yes | yes | 2.69 |
-| desktop-user | yes | yes | n/a | n/a | n/a | n/a | yes | n/a | n/a | n/a | n/a | yes | yes | 3.00 |
+| Persona | H1 | H2 | H3 | H4 | H5 | H6 | H7 | H8 | H9 | H10 | H11 | H12 | H13 | H14 | Avg |
+|---|----|----|----|----|----|----|----|----|----|-----|-----|-----|-----|-----|-----|
+| indie-stripe | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | n/a | 3.00 |
+| agency-dev | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | n/a | 3.00 |
+| company-eng | yes | yes | 2 | yes | 3 | 3 | yes | 3 | 2 | 3 | 3 | yes | yes | n/a | 2.85 |
+| ai-app-dev | yes | yes | 3 | yes | 3 | 3 | yes | 3 | 3 | 3 | 3 | yes | yes | n/a | 3.00 |
+| pre-product | yes | yes | 2 | yes | 3 | 3 | yes | 3 | 2 | 3 | 2 | yes | yes | n/a | 2.69 |
+| desktop-user | yes | yes | 3 | yes | n/a | n/a | yes | 3 | n/a | n/a | n/a | yes | yes | yes | 3.00 |
+
+H14 (helpful no-repo handling) is n/a for the five repo-based
+personas (they're standing in a real repo when scan fires) and
+**yes** for desktop-user (the persona that exercises the no-repo
+ask path).
 
 **6/6 pass.** Two adjusted scores from prior walkthrough:
 - **company-eng H9=2**: same as before — narrow post-connect menu
@@ -215,11 +220,34 @@ staff voice for this persona.*
 **Aggregate**: Avg 2.69. **Ships.** (≥ 2.5 with no zeros, all
 binary "yes".)
 
-## desktop-user — unchanged
+## desktop-user — REVISED post-#170 + helpful no-repo ask
 
-Welcome detects no git repo, exits gracefully. Scan never fires.
-H1, H2, H7, H12, H13 score "yes" on binary; H3/H5/H6/H8/H9/H10/H11
-n/a. Avg 3.00 of in-scope binary heuristics.
+This persona's expected behavior was updated when H14 was added
+(helpful no-repo handling). Previously: welcome detected no git
+repo and exited. Now: scan.md's project-location-check fires and
+produces a 3-option ask with **connect first** — the persona is
+no longer dismissed.
+
+**New expected walk:**
+
+- Turn 1 (welcome): user types `/mur scan`.
+- Turn 2: scan.md project-location-check fires; renders the
+  3-option ask (connect / find / type-a-path) with connect first.
+  No "cd into a repo" jargon, no "come back later" dismissal.
+- Turn 3: user picks option 1, e.g. `/mur connect stripe`.
+  `_bootstrap.md` allows the no-repo connect (server falls back
+  to primary; no project registered).
+- Turn 4: plan.md fires post-connect with grounded items from
+  Stripe data — even though there's no code repo.
+
+**Scores:** H1/H2/H4/H7/H12/H13/H14 = yes; H3/H8 = 3 (chief-of-
+staff voice carries into the ask); H5/H6/H9/H10/H11 = n/a (scan
+didn't produce findings or sweep — those heuristics don't apply
+pre-connect). Avg 3.00 across in-scope heuristics.
+
+**Critical:** if H14 scores "no" (jargon, refuse, silent scan of
+home), this persona drops at turn 2 and the entire non-developer
+audience is excluded. H14 is the gate for keeping that audience.
 
 ## What this PR does NOT change
 

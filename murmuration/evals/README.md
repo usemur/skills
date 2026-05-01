@@ -24,7 +24,7 @@ The wow has two stages:
 ## Files
 
 ```
-heuristics.yaml          13 rubric items: 6 binary, 7 graded (0-3)
+heuristics.yaml          14 rubric items: 7 binary, 7 graded (0-3)
 personas/*.json          6 canonical personas with signals + expected wow
 judge-prompt.md          Instructions for an LLM judge (stub for later)
 transcripts/             Recorded walkthroughs (latest:
@@ -55,7 +55,7 @@ transcripts/             Recorded walkthroughs (latest:
 5. Compute the average. Ship-ready iff:
    - average ≥ 2.5 (binary "yes" normalized as 3 for averaging)
    - no heuristic scores 0
-   - all binary heuristics (1, 2, 4, 7, 12, 13) score "yes"
+   - all binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"
 
 Capture the score sheet inline in `transcripts/paper-<persona>-<date>.md`
 or in a single combined doc per walkthrough session (latest:
@@ -104,10 +104,16 @@ History of additions:
 - H11, H12, H13 added in #170: caught the structural failure
   mode the user surfaced ("two things smashed into one") that
   individual-line scoring missed.
+- H14 added post-#170: caught a real bug where `/mur scan` from
+  `~/` silently scanned home-dir contents. The reviewer who
+  flagged it suggested "cd into a project first" — fixed the
+  silent-scan failure mode but with shell-jargon copy that
+  excluded non-developer users. H14 makes the right answer
+  explicit: helpful 3-option ask, connect first, never dismiss.
 
 ## Acceptance bar
 
 > For every canonical persona:
-> - Average score across all 13 heuristics ≥ 2.5
+> - Average score across all 14 heuristics ≥ 2.5
 > - No heuristic scores 0
-> - All binary heuristics (1, 2, 4, 7, 12, 13) score "yes"
+> - All binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"

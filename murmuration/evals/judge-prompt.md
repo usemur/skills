@@ -8,8 +8,8 @@ are the judge. Score the transcript impartially.
 
 1. **Persona** — JSON describing the simulated user
    (`evals/personas/<id>.json`).
-2. **Heuristics** — YAML rubric with 13 heuristics
-   (`evals/heuristics.yaml`). 6 binary (1, 2, 4, 7, 12, 13);
+2. **Heuristics** — YAML rubric with 14 heuristics
+   (`evals/heuristics.yaml`). 7 binary (1, 2, 4, 7, 12, 13, 14);
    7 graded 0-3 (3, 5, 6, 8, 9, 10, 11).
 3. **Transcript** — JSONL log of every turn the assistant produced and
    every user response. Format per line:
@@ -22,7 +22,9 @@ are the judge. Score the transcript impartially.
 
 ## Your job
 
-Score the transcript against each of the 13 heuristics. Output JSON:
+Score the transcript against each of the 14 heuristics. Output
+JSON. (H14 scores `n/a` for personas standing in a real repo
+when scan fires — only the no-repo path exercises it.)
 
 ```json
 {
@@ -58,7 +60,8 @@ Score the transcript against each of the 13 heuristics. Output JSON:
 - **Evidence:** quote the transcript or reference turn numbers.
   No vague justifications.
 - **Ship-ready:** `true` iff average ≥ 2.5 AND no zeros AND
-  binary heuristics 1, 2, 4, 7, 12, 13 all "yes".
+  binary heuristics 1, 2, 4, 7, 12, 13, 14 all "yes" (where
+  applicable — H14 is `n/a` for in-repo personas).
 
 ## Where to be strict
 

@@ -351,11 +351,50 @@ heuristics:
       voice not structure) didn't catch this. H13 makes
       separation explicit.
 
+  - id: 14
+    short: "Helpful no-repo handling"
+    grading: binary
+    description: |
+      When `/mur scan` (or `/mur connect <source>`) fires from a
+      non-repo location (`$HOME`, `~/Desktop`, `~/Documents`,
+      `~/Downloads`, or any folder where `git rev-parse
+      --show-toplevel` fails), Mur surfaces the helpful 3-option
+      ask documented in `prompts/scan.md` "Helpful no-repo ask"
+      (connect / find / type-a-path), with **connect as option 1**.
+      No silent fallback to scanning whatever's in cwd. No "cd
+      into a repo first" jargon. No "come back when you have a
+      project" / "Mur isn't for you yet" dismissal copy.
+    score_yes_when: |
+      Pre-check fires before §2.0 disclosure; agent renders the
+      3-option ask with connect first; `_bootstrap.md` lets no-
+      repo connects through (server falls back to primary; no
+      project gets registered for `~/`; no refuse).
+    score_no_when: |
+      Any of: (a) scan silently scans home / Desktop / etc.
+      without asking, (b) refuse + jargon copy ("cd into a
+      project"), (c) dismissive copy ("come back later" / "Mur
+      isn't for you"), (d) connect from `~/` fails because
+      bootstrap refuses.
+    note: |
+      H14 was added after a real bug: `/mur scan` from `~/`
+      walked home-dir contents with no warning and wrote
+      scan.json under `~/.murmur/`. An external reviewer
+      suggested "tell the user to cd into a project first" —
+      fixing the silent-scan failure mode but with developer-
+      jargon copy that excludes Claude Code users unfamiliar
+      with shell. The right fix leads with **connect** (the
+      universal path that works for non-developers too) and
+      never dismisses the user.
+
+      Scoring `desktop-user` persona: H14 is now the relevant
+      heuristic. The welcome no longer "exits"; it routes
+      through the same helpful no-repo ask.
+
 # Acceptance criteria
 acceptance:
   ship_when: |
     For every canonical persona in evals/personas/:
-    - Average score across all 13 heuristics ≥ 2.5
+    - Average score across all 14 heuristics ≥ 2.5
     - No heuristic scores 0
-    - All binary heuristics (1, 2, 4, 7, 12, 13) score "yes"
+    - All binary heuristics (1, 2, 4, 7, 12, 13, 14) score "yes"
     - Binary "yes" normalized as 3 for averaging
