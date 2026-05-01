@@ -1,5 +1,10 @@
 # Paper Walkthrough — Cofounder Voice + Business Recognition
 
+> **SUPERSEDED** by `paper-walkthrough-four-pillar.md` (PR #170
+> restructured scan output around four pillars and dropped the
+> predictive digest preview that this walkthrough scored as part
+> of the wow). Kept as historical record of the post-#158 flow.
+
 Re-walk after applying the cofounder-voice changes in PR
 `davidlsneider/onboarding-cofounder-voice`. Stacked on top of the
 flow-improvements PR (#156).

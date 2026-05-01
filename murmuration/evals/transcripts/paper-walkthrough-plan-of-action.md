@@ -1,5 +1,11 @@
 # Paper Walkthrough — Plan-of-Action Restructure (2026-04-30)
 
+> **SUPERSEDED** by `paper-walkthrough-four-pillar.md` (PR #170
+> restructured scan output around four pillars; the single-finding
+> "Top of mind" lead and predictive digest preview that this
+> walkthrough scored have been replaced). Kept as historical record
+> of the post-#161 flow.
+
 Re-walk after the plan-of-action restructure (PR
 `davidlsneider/onboarding-plan-of-action`). This is the third
 walkthrough in the eval framework's history:
