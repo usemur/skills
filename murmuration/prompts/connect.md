@@ -16,14 +16,27 @@ install funnel.
 
 ## Preconditions
 
-1. **Account key.** `~/.murmur/account.json` must exist (the user has
-   signed in at `usemur.dev` at least once and pasted their account
-   key). If it's missing, redirect:
+1. **Account key.** `~/.murmur/account.json` must exist. If it's
+   missing, kick off the browser claim flow — the agent never asks the
+   user to paste anything:
 
-   > You don't have a Murmuration account key yet. Sign in at
-   > https://usemur.dev → click your avatar → Account → copy the key
-   > → paste here. I'll save it to `~/.murmur/account.json` and we'll
-   > come back to /connect.
+   > You don't have a Murmuration account key yet. I'll open a browser
+   > claim link — sign in (or sign up) and click "Approve connection."
+   > I'll wait here.
+
+   Then run `node <skill-dir>/scripts/claim-connect.mjs`. The script:
+   - Generates a one-time `mur_claim_…` token locally.
+   - Registers it via `POST /api/claim/init`.
+   - Prints the URL **and** opens it (`if a browser doesn't open, click the link above`).
+   - Polls `/api/claim/status` every 2s for up to 10 minutes.
+   - On approval, writes `{ accountKey, apiBase, createdAt }` to
+     `~/.murmur/account.json` and emits a final
+     `RESULT {"ok": true, ...}` line.
+
+   On `RESULT {"ok": false, ...}` surface `reason` (`expired`,
+   `consumed`, `timeout`, `init_failed`) to the user and offer to retry.
+   Do **not** fall back to the old paste-the-key flow — it no longer
+   exists server-side.
 
 2. **App slug.** **The canonical list of supported apps lives on the
    server.** Always start by calling `GET /api/connections/apps`
@@ -217,7 +230,7 @@ to push to last.
 
 ## Errors the user might see
 
-- `account_key_missing` → redirect (see preconditions).
+- `account_key_missing` → run the browser claim flow (see preconditions).
 - `Unsupported app` → V1.5 connector message; offer to add the
   slug to the waitlist.
 - `Composio not configured` → server side missing `COMPOSIO_API_KEY`.

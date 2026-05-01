@@ -308,8 +308,11 @@ different remote), don't silently re-register. Prompt the user with
   ("can't reach Murmuration — check connection") and stop. Don't
   fall back to "use primary" — that silently routes data to the
   wrong project.
-- **Account key missing** (`~/.murmur/account.json` empty):
-  redirect to sign-in, same as `connect.md`'s precondition.
+- **Account key missing** (`~/.murmur/account.json` empty): kick off
+  the browser claim flow per `connect.md`'s precondition — run
+  `node <skill-dir>/scripts/claim-connect.mjs` and resume the calling
+  verb once it emits `RESULT {"ok": true}`. Never ask the user to paste
+  a key.
 - **`git rev-parse` fails AND realpath of cwd is the user's home
   directory (or `~/Desktop`, `~/Documents`, `~/Downloads`):**
   do NOT register a project. Don't refuse the calling verb either

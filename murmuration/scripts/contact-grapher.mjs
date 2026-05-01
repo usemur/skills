@@ -263,7 +263,7 @@ async function loadAccount() {
   } catch (err) {
     if (err && /** @type {NodeJS.ErrnoException} */(err).code === 'ENOENT') {
       throw new Error(
-        `Murmur account not configured: ${path} not found. Sign in at usemur.dev → copy account key.`,
+        `Murmur account not configured: ${path} not found. Run \`node <skill-dir>/scripts/claim-connect.mjs\` to claim a key in your browser.`,
       );
     }
     throw err;
