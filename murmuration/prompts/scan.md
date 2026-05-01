@@ -87,7 +87,7 @@ not a project. Three ways to start:
 1. **Connect a tool** — hook up GitHub, Stripe, Linear, or others
    so I can watch them for you and surface what to look at each
    morning. No code project required to start here.
-   `/mur connect github`  (or stripe, linear, etc.)
+   Say "connect github" (or stripe / linear / whatever fits).
 2. **Find a project on your machine** — if you've got a code
    folder somewhere, I'll look for git repos under your home
    and list a few. You pick.
@@ -148,7 +148,8 @@ the staleness window indefinitely.) In this mode:
   - **"what else?" / "what else"** → advance the cursor (see
     "Cursor" below) and jump to "Step 3" with the next-priority
     finding. If the cursor is exhausted, reply: "That's the list.
-    Want me to re-scan? Say `/mur scan`." (Do NOT include "skip"
+    Want me to re-scan? Just say 'rescan' or 'scan again'." (Do
+    NOT include "skip"
     or bare "next" / "more" as advance triggers — those are used
     by recommend.md's pagination and including them here would
     steal turns from a recommend session.)
@@ -244,8 +245,9 @@ read it back exactly as written, in 1–2 short paragraphs):
 > What touches the network:
 > - **Nothing goes to Mur's servers during scanning.** Scan is
 >   local-only. The first time anything reaches `usemur.dev` is
->   when you sign up and run `/mur connect github` — that's where
->   we register the project and start the digest loop.
+>   when you sign up and tell me to connect a tool (e.g. "connect
+>   github") — that's where we register the project and start the
+>   digest loop.
 > - If you're already authenticated to GitHub via `gh auth login`,
 >   I'll run `gh issue list` / `gh pr list` / `gh repo view` for
 >   *this* repo. That hits GitHub's API as you, using your
@@ -272,8 +274,8 @@ until they say yes (or any clear affirmative).
   with the gh probes skipped this run (`local_resources.github =
   { authed: null, skipped_by_user: true }`).
 - If "no": write `{"scan": "no@<ISO>"}` and exit cleanly with a
-  one-line "no problem, just say `/mur scan` again when you're
-  ready." Do not push further.
+  one-line "no problem, just say 'scan my project' again when
+  you're ready." Do not push further.
 
 **Important — gh consent is per-run, not permanent.** Steady-state
 re-scans (when `consents.json.scan` is already `yes@...`) MUST
@@ -435,8 +437,9 @@ Apply the privacy filters from the top of this prompt before flagging.
 
 ### Local-resource probe (read what's already on the user's machine before asking them to connect)
 
-Mur is proactive. Before the summary recommends `/mur connect github`,
-try to read what's already available locally — most founders have
+Mur is proactive. Before the summary asks the user about
+connecting GitHub, try to read what's already available
+locally — most founders have
 GitHub auth via `gh`, Stripe CLI auth, AWS creds, etc. If those exist,
 Mur can surface real findings on the first scan instead of dead-ending
 at "go connect things in the webapp."
@@ -498,19 +501,27 @@ of these failing should fail the scan.
 **3. CLI auth presence** — does NOT read tokens, just notes
    directory existence. The presence signal helps Mur (a) read
    richer state in the foreground scan when `gh` etc. is locally
-   authed, and (b) suggest the *most relevant* `/mur connect`
-   targets first.
+   authed, and (b) suggest the *most relevant* connector to ask
+   the user about first.
 
-   **Important: local CLI auth is NOT a substitute for /mur connect.**
-   `gh auth login` lets the foreground scan read PRs and issues
-   while the user is at their terminal, but the daily digest and
-   server-side automations run while the user is offline — they
-   need Composio-vaulted OAuth tokens, which only `/mur connect`
-   creates. So having `gh` locally authed is a "Mur can read more
-   on this scan" signal, never a "skip /mur connect" signal. The
-   recommend.md flow surfaces /mur connect for any provider where
-   a digest or automation would benefit, regardless of local CLI
-   auth state.
+   **Important: local CLI auth is NOT a substitute for the
+   server-side OAuth grant.** `gh auth login` lets the foreground
+   scan read PRs and issues while the user is at their terminal,
+   but the daily digest and server-side automations run while the
+   user is offline — they need Composio-vaulted OAuth tokens,
+   which only the server-side `connect` flow creates. So having
+   `gh` locally authed is a "Mur can read more on this scan"
+   signal, never a "skip the connect step" signal. The
+   recommend.md flow surfaces the connect ask for any provider
+   where a digest or automation would benefit, regardless of
+   local CLI auth state.
+
+   When suggesting a connect to the user, ALWAYS frame it as a
+   yes/no ask in chat ("Want me to connect GitHub now? ~30s, +$5
+   credit"), NEVER as a typed slash command — `/mur` isn't a
+   registered Claude Code slash command and would error with
+   "Unknown command: /mur" before the skill ever sees the
+   message.
 
    - `~/.config/gh/` → GitHub CLI
    - `~/.config/op/` → 1Password CLI
@@ -827,11 +838,15 @@ line):
 - **At least one connection AND no recommend has fired yet**
   (HEARTBEAT has `hasMinConnections: true` AND
   `.murmur/recommend-history.jsonl` is missing or empty): Step 2
-  closes with `/mur recommend` instead — the user is past
-  first-connect and ready to start the recommend conversation.
+  closes by asking the user if they want to start the recommend
+  conversation now ("Want me to pull together what I'd do next?
+  Say yes and I'll run through it."). The skill fires recommend
+  on yes — no typed verb needed.
 - **Recommend has fired before** (`recommend-history.jsonl` has
-  ≥1 entry): Step 2 closes with `/mur recommend` again (folds in
-  any new signals since the last session).
+  ≥1 entry): Step 2 closes the same way ("Want me to fold these
+  new signals into a fresh recommend pass?"). Mur fires
+  recommend on yes; the new "since last recommend" delta surfaces
+  in the opener.
 
 Reading HEARTBEAT.md is a local-mirror file read, not a network
 call (it lives at `~/.murmur/pages/`, server-synced when /mur
@@ -925,10 +940,10 @@ touching the same surface), propose automations, expand "who
 you work with" to your customers and teams across all of them
 — I need server-side read access on the tools above.
 
-Easiest start: `/mur connect github`. Each first connect adds
-$5 bonus credit (max $15 across three).
+Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
+$15 across three connects). Want me to fire that now?
 
-Or pick one of the items above first. Either path is fine.
+Or pick one of the items above first — just say which.
 ```
 
 **Pillar contracts**:
@@ -952,14 +967,25 @@ Or pick one of the items above first. Either path is fine.
 **Closing connect-deeper line.** This is the primary CTA. The
 mechanism-honest framing names exactly what unlocks: server-side
 read, cross-tool pattern detection, automations, expanded
-"who you work with." Don't soften to "want to connect?" — name
-the value prop.
+"who you work with." Don't soften with "would you like to" — but
+DO frame it as a yes/no the user answers in chat, NOT as a
+typed slash command.
+
+**Why this matters.** `/mur` is not a registered Claude Code
+slash command. When a user types `/mur connect github`, Claude
+Code's parser intercepts the leading slash and returns
+"Unknown command: /mur" before the skill ever sees the message.
+Every CTA that asks the user to type `/mur <verb>` fails. The
+chief-of-staff pattern fixes this: we ASK in chat, the user
+answers "yes" / "go ahead" / "do it" / "next" in natural
+language, and Mur (already loaded in this conversation) fires
+the next step itself. No typed verb required.
 
 If the user has zero tools detected locally (rare but possible
 for new projects), the connect-deeper line still fires but
 re-frames: "I don't see any tools wired locally. When you do —
-GitHub at minimum, Stripe / Linear / Sentry as relevant — `/mur
-connect github` and I'll re-scan with that."
+GitHub at minimum, Stripe / Linear / Sentry as relevant — say
+'connect github' and I'll fire it + re-scan with the new data."
 
 Three examples to anchor the voice (generic — substitute the
 user's real data when scanning):
@@ -990,17 +1016,18 @@ What we noticed (worth a look)
     template-string interpolation. Stripe is wired in this
     project, so SQL injection on user lookups is a money-loss
     path.
-    Try: `/mur security-audit`
+    Say "audit this" and I'll deep-dive.
   · PR #142 ("fix: heartbeat reconnect race") — your own, no
     reviews requested, sitting since yesterday. Self-merge or
     assign reviewer.
-    Try: `show me PR #142`
+    Say "show me PR #142" for the diff.
   · Issue #98 ("Test authority model end-to-end") — open since
     March 25, not labeled, easy to lose.
-    Try: `show me issue #98`
+    Say "show me issue #98".
   · TODOS.md updated 2 days ago: "build the export feature."
     Sounds like the next project.
-    Try: `/office-hours` (gstack present — scope the surface)
+    Try `/office-hours` if you have gstack installed — scope
+    the surface before writing.
 
 What I can connect to
   gh authed, Stripe CLI, Sentry SDK, OpenAI SDK
@@ -1013,11 +1040,17 @@ touching the same surface), propose automations, expand "who
 you work with" to your customers and teams across all of them
 — I need server-side read access on the tools above.
 
-Easiest start: `/mur connect github`. Each first connect adds
-$5 bonus credit (max $15 across three).
+Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
+$15 across three connects). Want me to fire that now?
 
-Or pick one of the items above first. Either path is fine.
+Or pick one of the items above first — say which (e.g.
+"audit this", "show me PR #142") and I'll do it.
 ```
+
+(In a real run, swap "GitHub" for whichever connector the
+top scan signals point at — Sentry first if errors are the
+named pain, Stripe first if churn is the worry. Either way,
+keep it as a yes/no ask, not a typed-verb instruction.)
 
 **Example B — pre-product / utility scripts shape:**
 
@@ -1040,12 +1073,13 @@ Who's working on it with you
 What we noticed (worth a look)
   · lib/summarize.js looks publishable — 80 lines, takes text
     + returns a 3-bullet summary. Self-contained, your commits.
-    Try: `/mur publish lib/summarize.js`
+    Say "publish lib/summarize.js" to walk through it.
   · lib/chunk-pdf.js similar shape — also publishable.
-    Try: `show me lib/chunk-pdf.js`
+    Say "show me lib/chunk-pdf.js" for the body.
   · No LLM observability detected despite the OpenAI SDK in
     deps. Worth knowing if/when you ship.
-    Try: `/mur recommend` (managed Langfuse-host options)
+    Say "recommend something here" and I'll surface options
+    (managed Langfuse-host, etc).
 
 What I can connect to
   gh authed, OpenAI SDK
@@ -1057,11 +1091,12 @@ patterns, propose automations, expand "who you work with" once
 you have customers — I need server-side read access on the tools
 above.
 
-Easiest start: `/mur connect github`. Each first connect adds
-$5 bonus credit (max $15 across three).
+Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
+$15 across three connects). Want me to fire that now?
 
-Or pick one of the items above first — `/mur publish` is the
-fastest wow for a repo this shape.
+Or — for a repo this shape, publishing one of the utility
+scripts is the fastest wow. Say "publish lib/summarize.js" or
+whichever you'd actually want to ship.
 ```
 
 **Example C — empty / unknown / sparse:**
@@ -1087,7 +1122,7 @@ What I can connect to
 ────
 
 When there's more here, I can do more. For now: ship something,
-then `/mur scan` again.
+then say "scan again" and I'll re-read.
 ```
 
 (Note in Example C: "Who's working on it with you" pillar
@@ -1098,19 +1133,64 @@ something to say.)
 
 ### Step 3 — handle the user's response
 
-- **"what else?" / "what else":** advance the cursor — read
-  `scan.json.cursor.next`, surface the finding at that rank
-  (recompute the priority sort against scan.json's data, take the
-  Nth item), append that rank to `cursor.shown`, increment
-  `cursor.next`, write scan.json. Same summary shape: one thing,
-  one action, "what else?" tail. If the cursor is past the last
-  finding, reply "That's the list. Want me to re-scan? Say
-  `/mur scan`."
-- **An action verb the summary offered** ("open #142", "security
-  audit", "publish lib/retry.ts"): hand off to the appropriate
-  prompt or run the suggested action.
-- **Anything else:** treat as a normal verb routing, the scan is
-  done. The cursor stays where it is for the next continuation.
+The scan output's close-the-loop line ALWAYS names a primary
+connect-deeper ask ("Easiest start: GitHub. Want me to fire that
+now?"). Most user responses bind to that primary ask; sub-CTAs
+in "What we noticed" require an explicit verb phrase. Match in
+this priority order:
+
+1. **Affirmative to the connect-deeper ask** — bare "yes" /
+   "yeah" / "do it" / "go ahead" / "fire it" / "ok" / "let's do
+   it" / "go" / "sure" / "please" / "yes please" / "y" / "kick
+   it off" / "let's go".
+
+   Bind to the primary CTA, which is the connector named in the
+   most recent "Easiest start: <X>" line. Read scan.json's
+   `local_resources.*` to confirm the slug (e.g. if "Easiest
+   start: GitHub", slug = `github`). Hand off immediately to
+   `prompts/connect.md` with that slug — same code path the user
+   would have hit by saying "connect github" directly. Do NOT
+   re-ask, do NOT pause for further confirmation: the user just
+   answered the question Mur asked.
+
+   Edge case: if there's no scan.json yet (impossible — Step 2
+   wrote it) or no clear "Easiest start: <X>" in the rendered
+   close, default to `github` and say so explicitly: "Going
+   with GitHub by default — say which other source if I read
+   that wrong."
+
+2. **Negative to the connect-deeper ask** — bare "no" / "not
+   now" / "later" / "skip" / "skip for now" / "not yet" / "n".
+
+   Acknowledge once and stay in scan: "No problem — pick from
+   the items above whenever (e.g. 'audit this', 'show me PR
+   #142'), or come back to the connect ask anytime by saying
+   'connect github' or 'what should I do next'." Don't push
+   further. The cursor stays where it is.
+
+3. **Specific connector other than the suggested one** — "connect
+   stripe" / "let's do sentry instead" / "what about linear" /
+   "actually do stripe first".
+
+   Hand off to `prompts/connect.md` with the named slug. Same
+   path as bullet 1, just with a different provider.
+
+4. **"what else?" / "what else"** — advance the cursor — read
+   `scan.json.cursor.next`, surface the finding at that rank
+   (recompute the priority sort against scan.json's data, take the
+   Nth item), append that rank to `cursor.shown`, increment
+   `cursor.next`, write scan.json. Same summary shape: one thing,
+   one action, "what else?" tail. If the cursor is past the last
+   finding, reply "That's the list. Want me to re-scan? Just say
+   'rescan' or 'scan again'."
+
+5. **An action verb a sub-CTA offered** ("open #142", "audit
+   this", "show me PR #142", "publish lib/retry.ts", "show me
+   issue #98"): hand off to the appropriate prompt or run the
+   suggested action. The cursor stays where it is.
+
+6. **Anything else:** treat as a normal verb routing, the scan is
+   done. The cursor stays where it is for the next continuation.
 
 ### What NOT to do
 

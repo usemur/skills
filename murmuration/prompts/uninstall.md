@@ -34,8 +34,9 @@ this machine + the corresponding revoke command for each.
 ## Preconditions
 
 - `~/.murmur/installs.jsonl` exists. If absent: tell the user
-  "Nothing's installed locally yet — `/mur recommend` is where
-  installs start." Stop. Don't error.
+  "Nothing's installed locally yet — say 'recommend something'
+  or 'what should I do next' and we'll start there." Stop. Don't
+  error.
 - For `<slug>`-specific uninstall: a row in `installs.jsonl`
   matching the slug. If not found: list available slugs and
   ask which they meant. Don't run any destructive command.
@@ -134,24 +135,25 @@ this machine + the corresponding revoke command for each.
    Local (on this machine):
    1. stripe-failed-payment-alert (cron, installed 4 days ago)
       Runs every 4 hours. Posts to Slack on payment_failed events.
-      Revoke: `/mur uninstall stripe-failed-payment-alert`
+      To revoke: say "uninstall stripe-failed-payment-alert".
 
    2. railway-deploy-watch (gh workflow, installed 2 days ago)
       Watches Railway deploys. Posts to Slack on failure.
-      Revoke: `/mur uninstall railway-deploy-watch`
-              (then commit + push the workflow removal)
+      To revoke: say "uninstall railway-deploy-watch" (then
+      commit + push the workflow removal).
 
    Remote (in our TEE):
-   3. @mur/reviewer (marquee, installed 6 days ago)
+   3. reviewer (marquee, installed 6 days ago)
       Reviews your PRs. Hosted on our infra; no local files.
-      Revoke: usemur.dev/dashboard/integrations
+      To revoke: usemur.dev/dashboard/integrations.
    ```
 
    Empty case:
-   > "Nothing installed yet. `/mur recommend` is where installs
-   > start."
+   > "Nothing installed yet. Say 'recommend something' or 'what
+   > should I do next' and we'll start there."
 
-   `--all` flag: include uninstalled history for audit.
+   To include uninstalled history for audit, the user can say
+   "show all installs including uninstalled".
 
 ### Remote installs (TEE) — uninstall path
 

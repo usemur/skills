@@ -396,9 +396,9 @@ alongside.
 
 - **"Why not the managed Mur version?":** honest answer —
   "Langfuse self-hosts free in 5 minutes. We do offer a managed
-  `@mur/langfuse-host` flow at $0.003/trace if you'd rather skip
-  the Fly setup, but for most projects the OSS path is the better
-  call. Say `/mur catalog` if you want to see the managed flow
+  langfuse-host flow at $0.003/trace if you'd rather skip the Fly
+  setup, but for most projects the OSS path is the better call.
+  Say 'show me the catalog' if you want to see the managed flow
   anyway." Same template applies for any other demoted wrapper.
 
 - **"Later":** stop the round. Don't push further.
@@ -420,8 +420,9 @@ ephemeral — re-running the matcher next time is cheap.
 - **Empty Tier 1 + Tier 2.** If no candidates emerge: congratulate
   briefly and point at outbound candidates if scan.json has any.
   "Your stack looks solid — the only thing left to flag is the
-  outbound publish candidates from the scan. Say `/mur stack` to
-  see them, or `/mur catalog` to browse everything Mur ships."
+  outbound publish candidates from the scan. Say 'show me the
+  stack' to see them, or 'show me the catalog' to browse
+  everything Mur ships."
 
 ## Privacy contract — same as scan
 

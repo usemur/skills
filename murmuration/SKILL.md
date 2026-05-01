@@ -584,13 +584,13 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > planning (`/plan-eng-review`), shipping (`/ship`), or debugging
    > (`/investigate`). Mur watches; gstack does.
    >
-   > Run **`/mur scan`** to start (or `/mur scan --no-gh` to skip
-   > the GitHub API calls). Or type "what else can you do?" for the
-   > full verb list.
+   > Just say **"scan my project"** when you're ready (or "scan,
+   > skip gh" if you'd rather skip the GitHub API calls). Or ask
+   > "what else can you do?" for the full verb list.
    >
    > *Not on GitHub?* Scan still works on any git project (or no git
-   > host at all), and `/mur publish` works for any code — but the
-   > morning digest currently needs GitHub for the watching loop.
+   > host at all), and Mur can publish any code as a paid flow — but
+   > the morning digest currently needs GitHub for the watching loop.
    > GitLab / Bitbucket / self-hosted git are on the roadmap, not
    > shipped.
 
@@ -608,8 +608,8 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
    > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
    > (read-only, scoped to this repo, doesn't share data with Mur's
-   > servers). Nothing reaches `usemur.dev` until you choose to
-   > `/mur connect`.
+   > servers). Nothing reaches `usemur.dev` until you tell me to
+   > connect a tool.
    >
    > Optional but recommended: install **gstack**, the companion
    > skill for scoping, planning, code review, and shipping. Mur
@@ -619,13 +619,13 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && ./setup
    > ```
    >
-   > Run **`/mur scan`** to start (or `/mur scan --no-gh` to skip
-   > the GitHub API calls). Or type "what else can you do?" for the
-   > full verb list.
+   > Just say **"scan my project"** when you're ready (or "scan,
+   > skip gh" if you'd rather skip the GitHub API calls). Or ask
+   > "what else can you do?" for the full verb list.
    >
    > *Not on GitHub?* Scan still works on any git project (or no git
-   > host at all), and `/mur publish` works for any code — but the
-   > morning digest currently needs GitHub for the watching loop.
+   > host at all), and Mur can publish any code as a paid flow — but
+   > the morning digest currently needs GitHub for the watching loop.
    > GitLab / Bitbucket / self-hosted git are on the roadmap, not
    > shipped.
 
@@ -648,24 +648,34 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    >    Gmail, or any other source — I can watch what you've
    >    connected and surface what to look at each morning, no
    >    code project required to start here.
-   >    `/mur connect stripe`  (or github / linear / etc.)
+   >    Say "connect stripe" (or github / linear / etc.) and
+   >    I'll fire it.
    > 2. **Find a project on your machine.** If you've got a code
    >    folder somewhere, I'll look for git repos under your home
    >    directory and list a few. You pick.
    >    Say "find my projects."
    > 3. **Type a path.** If you know where your project is, say
-   >    `scan ~/path/to/project`.
+   >    "scan ~/path/to/project".
    >
    > Pick whichever fits. Connect-first is the fastest start if
    > you don't have a code project handy.
 
-4. **Wait.** Do NOT auto-run scan or auto-install gstack. Typing
-   `/mur scan` (or `/mur scan --no-gh`) is the user's consent —
-   `prompts/scan.md` reads the chosen flag and proceeds without a
-   second consent prompt. The welcome above is the disclosure;
-   the user's verb invocation is the consent. (Direct freeform
-   triggers like "scan my repo" still fall back to scan.md's full
-   §2.0 disclosure since the user may not have seen this welcome.)
+4. **Wait.** Do NOT auto-run scan or auto-install gstack. The
+   user saying "scan my project" / "scan, skip gh" / "scan my
+   repo" / etc. is the consent — `prompts/scan.md` reads the
+   request and proceeds without a second consent prompt. The
+   welcome above is the disclosure; the user's natural-language
+   request is the consent.
+
+**Why we don't tell users to type `/mur <verb>`.** `/mur` is not
+a registered Claude Code slash command. When a user types
+`/mur scan`, Claude Code's parser intercepts the leading slash
+and returns "Unknown command: /mur" before the skill ever sees
+the message. Every CTA across this skill (scan close-the-loop,
+recommend invitation blocks, install confirms, uninstall steps)
+is framed as a yes/no question or a natural-language phrase the
+user answers in chat. Mur (already loaded in this conversation)
+fires the next step itself.
 
 If the user asks "what else can you do?" after that welcome, then
 list the verbs in priority order — read-and-react first, then

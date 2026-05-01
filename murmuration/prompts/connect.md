@@ -189,9 +189,10 @@ to push to last.
      project, user is now connecting an additional source like
      Stripe or Linear): confirm the new source and suggest
      re-invoking recommend to fold the new signal in:
-     > "Got Stripe wired up too — `/mur recommend` to fold the
-     > new signal in (your next morning digest will pull from it
-     > either way once you've set up the digest)."
+     > "Got Stripe wired up too — want me to fold the new signal
+     > into a fresh recommend pass? (Your next morning digest
+     > will pull from Stripe either way once you've set up the
+     > digest.)"
 
 5. On timeout / cancellation: show the latest `/check` status and tell
    the user to retry `/connect <source>`.
