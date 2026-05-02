@@ -184,12 +184,24 @@ Set `install_path` per source:
   this user's stack → `install_path: "/mur install <id>"`
   (no connect step needed).
 - OAuth, not connected →
-  `install_path: "https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>"`.
+  `install_path: "https://usemur.dev/connect/<slug>?install=<id>"`
+  (template — scan.md fills in `&project=<cprj_*>&token=<bridge>`
+  at render time via `mint-bridge-link.mjs`; see
+  `plans/onboarding-flip.md` V1.1 for the deep-link auth bridge).
 - Substrate registry, not connected →
-  `install_path: "https://usemur.dev/dashboard/vault/paste/<slug>?install=<id>&project=<projectId>"`
-  (the `pending=<pendingInstallId>` query param is added server-
-  side when the deep link is clicked — the matcher doesn't know
-  the pending id at scan time).
+  `install_path: "https://usemur.dev/dashboard/vault/paste/<slug>?install=<id>"`
+  (template — scan.md fills in `&project=`, `&pending=`, and
+  `&token=` at render time. The `pending=<pendingInstallId>`
+  segment is added server-side when the deep link is clicked, but
+  the `&token=<bridge>` is baked in by the agent before render so
+  the click works without a login wall).
+
+The matcher emits PLACEHOLDER URLs without `&project=` or
+`&token=`. scan.md is responsible for stitching those in at
+render time. This separation lets the matcher run purely against
+local scan signals (no network) and isolates the
+`POST /api/auth/bridge` and project-register calls to the
+render-time path.
 
 If the slug is in NONE of the three sets, drop the candidate.
 This is what keeps the dual render honest: every "Set up:" CTA

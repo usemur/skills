@@ -340,14 +340,35 @@ silently expand consent, the value is the same string). Leave
 Also: if there's no `.gitignore` entry for `.murmur/`, offer once (after
 the scan completes) to add it. Don't add it without asking.
 
-## No network calls in this verb
+## Network-call contract
 
-Scan is fully local. Do **not** run `prompts/_bootstrap.md` and do
-**not** `POST` anything during scan. Bootstrap (and the first
-`/api/projects` registration) runs lazily inside `connect.md` once the
-user has signed up and chosen to connect a source. Keeping scan
-network-free is what makes the §2.0 disclosure (\"nothing leaves this
-machine during scanning\") true.
+**Scan reads are fully local.** During the read pass — manifests,
+git log, TODOs, CLI scans, env-var sweep — do **not** POST
+anything. Nothing about your code reaches `usemur.dev`. This is
+what makes the §2.0 disclosure ("nothing leaves this machine
+during scanning") true.
+
+**Render-time has two narrow exceptions** when the dev has already
+claimed their Mur account (`~/.murmur/account.json` exists):
+
+1. **`POST /api/projects` (idempotent project register).** Called
+   by `mint-bridge-link.mjs` when the agent renders an automation
+   card with a deep-link URL. Sends the project's identifier
+   metadata (canonicalized git remote URL or fs_path hash, repo
+   basename) so the deep-link URL can carry a real `cprj_*` id.
+   Does NOT send any code, file contents, scan findings, or
+   automation candidates.
+
+2. **`POST /api/auth/bridge` (mint a 10-min bridge token).** One
+   per emitted deep-link URL. The token bakes into the URL so a
+   click on a fresh-browser tab works without a login wall. Single-
+   use, scoped to (slug, automation, project). Does NOT send any
+   scan content.
+
+Both calls authenticate via `Authorization: Bearer <accountKey>`
+from `~/.murmur/account.json`. If account.json is missing, neither
+call happens — the render falls back to a "claim your account
+first" CTA instead of a URL (see "Automation CTA shape" below).
 
 For the project **name** in the summary, derive it locally:
 - If a git remote exists: basename of the normalized remote path
@@ -1164,21 +1185,88 @@ findings") or automations ("show more automations").
 
 **Automation CTA shape (Gate H — grounding contract).** The
 "Set up:" line for each automation reflects whether the connector
-is already available:
+is already available AND whether the user has claimed their Mur
+account:
 
 - `connector_required.status === 'connected'` → render
   `Set up: /mur install <id>` — clean direct path, no OAuth
   needed.
-- `connector_required.status !== 'connected'` (i.e.
-  `'present-unauthed'` or `'inferred-from-manifest'`) → render the
-  deep-link URL inline:
+- `connector_required.status !== 'connected'` AND
+  `~/.murmur/account.json` exists → render the deep-link URL
+  inline, using `mint-bridge-link.mjs` to bake in the auth
+  bridge token and a real cprj_* project id. See "Bridge-token
+  pre-render" below. CTA shape:
   ```
-  Set up: connect <Provider> first → https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>
+  Set up: connect <Provider> first → https://usemur.dev/connect/<slug>?install=<id>&project=<cprj_*>&token=<bridge>
   ```
   When rendering, also run `open <url>` from the agent so the
   user's browser launches automatically. The visible URL is the
   fallback for terminals that don't autoclick. **Do not** type a
   slash command for the user; the URL is the affordance.
+- `connector_required.status !== 'connected'` AND
+  `~/.murmur/account.json` is missing → DO NOT render a deep-link.
+  Instead render:
+  ```
+  Set up: needs your Mur account — say "set up my account" and
+          I'll claim it (~30s browser flow), then re-render the
+          automations with working links.
+  ```
+  When the user says yes, run `claim-connect.mjs` (see SKILL.md
+  first contact), then re-render the automations pillar with
+  bridge-baked URLs. Account claim is a one-time gate; subsequent
+  scans use the cached account.json.
+
+### Bridge-token pre-render (V1.1 deep-link auth bridge)
+
+Plan: `plans/onboarding-flip.md` (V1.1). For each automation card
+whose CTA is a URL (not `/mur install <id>` and not the missing-
+account fallback), the agent calls `mint-bridge-link.mjs` BEFORE
+rendering the line. The script reads `~/.murmur/account.json`,
+POSTs to `/api/auth/bridge` with the slug, automation id, and
+project metadata (identifier-type / identifier-hash / source url
+/ name from the local scan), and prints the full URL on stdout.
+The server-side mint endpoint:
+
+1. Authenticates the dev via the account key in account.json.
+2. Lazily registers the project (idempotent — safe on retry).
+3. Mints a 10-minute, single-use bridge token.
+4. Returns `{bridgeToken, projectId, expiresAt}`.
+
+The agent stitches the token + projectId into the URL and renders.
+Each card gets its own token — clicking card A doesn't burn auth
+for card B. Tokens are bound to the (developer, slug, automation)
+tuple in the `scope` JSON, so a leaked URL within the 10-minute
+window can only consummate THIS one connect operation.
+
+Invocation:
+
+```sh
+node skill-pack/scripts/mint-bridge-link.mjs \
+  --slug stripe \
+  --install stripe-webhook-watcher \
+  --target connect \
+  --project-identifier-type git_remote \
+  --project-identifier-hash <sha256 hex from _bootstrap.md normalize step> \
+  --project-source-url <normalized remote URL from _bootstrap.md> \
+  --project-name <repo basename>
+```
+
+Output (single line on stdout):
+
+```
+https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_abc123&token=mur_bridge_…
+```
+
+If the script fails (account.json missing, server unreachable, mint
+rate-limited), fall back to the missing-account CTA shape above —
+do NOT render a half-formed URL. The user can retry by saying
+"re-render automations" after fixing the underlying issue (claim
+account, network, etc.).
+
+For dashboard-paste connectors (substrate-known slugs), use
+`--target dashboard-paste` instead of `--target connect`. Output
+URL points at `/dashboard/vault/paste/<slug>` instead of
+`/connect/<slug>`.
 
 The connector-status differentiation in the CTA shape IS the
 honesty — never describe a speculative automation as if its
@@ -1275,7 +1363,7 @@ What I'd watch for you (automations)
     Set up: /mur install daily-digest
   · Stripe webhook watcher — flag failing payment webhooks
     Because: STRIPE_* env vars in .env.example, stripe in package.json
-    Set up: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx
+    Set up: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx&token=mur_bridge_…
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1318,10 +1406,10 @@ What we noticed (worth a look)
 What I'd watch for you (automations)
   · Weekly dependency release-note digest — track upgrades + breaking changes
     Because: openai + 14 other npm deps, no current dep-watcher
-    Set up: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx
+    Set up: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx&token=mur_bridge_…
   · Prompt-regression watcher — alert when prompt diff hits production
     Because: OpenAI SDK in src/, multi-line system prompts > 200 chars in lib/summarize.js
-    Set up: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx
+    Set up: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx&token=mur_bridge_…
   (say "show more automations" for the rest)
 
 What I can connect to

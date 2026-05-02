@@ -706,6 +706,11 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > workflow (with a render-confirm-revoke contract before any disk
    > write), or remotely in our TEE.
    >
+   > One-time setup: I'll claim your Mur account in your browser
+   > (~30s) the moment we're about to render automations that need
+   > a connection. That account is what makes the deep-link URLs
+   > clickable without a login wall later. Free.
+   >
    > Ready? Just say **"scan my project"** (or "scan, skip cli
    > checks" if you'd rather not run the local CLI scans). Or ask
    > "what else can you do?" for the full verb list.
@@ -740,6 +745,27 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    the consent — `prompts/scan.md` reads the request and proceeds
    without a second consent prompt. The welcome above is the
    disclosure; the user's natural-language request is the consent.
+
+4. **Account claim is just-in-time, not pre-scan.** scan.md reads
+   the project locally without ever needing the dev's account.
+   When the agent is about to RENDER the automations pillar with
+   deep-link URLs, it checks for `~/.murmur/account.json`:
+
+   - If present: the agent calls
+     `node skill-pack/scripts/mint-bridge-link.mjs ...` for each
+     URL, baking the bridge token + cprj_* id in.
+   - If missing: the agent renders automations with a
+     "claim your account first" CTA (no URL). When the user says
+     yes, the agent runs
+     `node skill-pack/scripts/claim-connect.mjs`, which opens
+     `https://usemur.dev/claim?token=<token>` in the browser, the
+     user signs in + approves, and the script writes
+     `~/.murmur/account.json`. Once that lands, the agent
+     re-renders the automations pillar with working bridge-baked
+     URLs. The findings pillar renders normally either way.
+
+   Account claim is a one-time setup. After the first claim, every
+   subsequent scan can render full deep-link URLs immediately.
 
 **Why we don't tell users to type `/mur <verb>`.** `/mur` is not
 a registered Claude Code slash command. When a user types
