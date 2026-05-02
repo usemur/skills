@@ -122,7 +122,12 @@ curl -s -G --data-urlencode "slug=<slug>" https://usemur.dev/api/flows/by-slug
 
 Check `~/.murmur/account.json`:
 
-- **File exists** → load `apiKey` and `email`. Skip to step 3.
+- **File exists** → load the account key from `accountKey` (the
+  current field name written by the claim/connect flow). For
+  backwards compatibility, fall back to `apiKey` if `accountKey`
+  is missing — older files written by earlier versions of this
+  prompt used that name. Treat whichever is present as the
+  bearer token. Also load `email` if present. Skip to step 3.
 - **File missing** → first install ever from this machine.
 
 For the first-install case, disclose:
@@ -142,10 +147,12 @@ Wait for the user. On paste:
 - Write `~/.murmur/account.json` with `0600` permissions:
   ```json
   {
-    "apiKey": "mur_…",
+    "accountKey": "mur_…",
     "createdAt": "<ISO timestamp>"
   }
   ```
+  (Field name is `accountKey` — same shape the claim/connect flow
+  writes. Older files may use `apiKey`; readers must accept both.)
   (Email is not required — fetch later from `/api/developers/me` if
   needed.) Use Bash + `chmod 600`.
 - Confirm to the user with the masked prefix only:
@@ -158,7 +165,7 @@ On "cancel" or invalid input, exit cleanly:
 
 ```
 curl -s -X POST https://usemur.dev/api/flows/install \
-  -H "Authorization: Bearer <apiKey>" \
+  -H "Authorization: Bearer <accountKey>" \
   -H "Content-Type: application/json" \
   -d '{"slug": "<slug>", "actingAgent": "<agent>"}'
 ```
@@ -195,7 +202,7 @@ new flow. For Claude Code, that means `claude mcp add`:
 
 ```
 claude mcp add <flow.slug> --transport http <flow.mcpUrl> \
-  --header "Authorization: Bearer <apiKey>"
+  --header "Authorization: Bearer <accountKey>"
 ```
 
 Run this via Bash. If the command succeeds (exit 0), report:
@@ -210,7 +217,7 @@ fall back to printing the config block the user can paste:
     "<flow.slug>": {
       "type": "http",
       "url": "<flow.mcpUrl>",
-      "headers": { "Authorization": "Bearer <apiKey>" }
+      "headers": { "Authorization": "Bearer <accountKey>" }
     }
   }
 }
@@ -239,7 +246,7 @@ TEE-hosted marquee flows and local artifacts.
   "actingAgent": "<agent>",
   "serverInstallId": "<install.id>",
   "uninstall_pointer": "https://usemur.dev/dashboard/integrations",
-  "uninstall_curl": "curl -X DELETE -H 'Authorization: Bearer <apiKey>' https://usemur.dev/api/installs/<install.id>"
+  "uninstall_curl": "curl -X DELETE -H 'Authorization: Bearer <accountKey>' https://usemur.dev/api/installs/<install.id>"
 }
 ```
 
