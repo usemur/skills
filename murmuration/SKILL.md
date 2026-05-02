@@ -723,14 +723,19 @@ specific finding calls for a gstack verb.
 
 ## Completion status
 
-Every verb's user-facing render ends with one of these on its own line:
+Every verb's user-facing render ends with an HTML-comment status
+marker on its own line. Markdown renderers strip HTML comments, so
+the user never sees it — but telemetry can grep for it cleanly.
 
-- `DONE — <one-line summary of what just happened>`
-- `BLOCKED — <reason and what was tried>`
-- `NEEDS_CONTEXT — <exactly what's needed to continue>`
+- `<!-- mur:status DONE summary="<one-line summary of what just happened>" -->`
+- `<!-- mur:status BLOCKED reason="<one-line reason and what was tried>" -->`
+- `<!-- mur:status NEEDS_CONTEXT need="<one-line ask of exactly what's needed>" -->`
 
-Gives the user a reliable end-of-turn anchor and unlocks session
-telemetry later. Don't pad. One line.
+Why hidden, not visible: ending every reply with `DONE — …` would
+read like a CI status code and clash with the chief-of-staff voice
+in the Voice block above. The HTML comment keeps the prose clean
+while giving telemetry a reliable end-of-turn anchor. Don't pad.
+One line per marker.
 
 ## First contact — when the user just installed and hasn't picked a verb
 
