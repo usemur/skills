@@ -1,0 +1,37 @@
+slug: "@mur/sentry-autofix"
+display_name: Sentry Autofix Agent
+category: error-tracking
+recommended: true
+wraps_tool: sentry-oss
+
+mcp:
+  endpoint: https://usemur.dev/mcp/mur-sentry-autofix
+  http: https://usemur.dev/api/flows/mur-sentry-autofix/invoke
+
+pricing:
+  unit_price: "$1.00"
+  unit: "per PR opened (no charge when the agent gives up — refund issued)"
+  network: "base"
+  trigger: "Sentry webhook on issue.created (no charge on dedup)"
+
+detection:
+  category_signals:
+    - has_tool: sentry-oss
+    - gh_authed: true
+  presence_signals:
+    - has_keyword: ["sentry-sdk", "@sentry/", "Sentry.init"]
+    - file_glob: "**/sentry.{client,server}.config.{ts,js}"
+
+reason_template: |
+  You're tracking errors with Sentry. When a new issue fires, this flow
+  hands the stack trace to a Claude coding agent that clones the repo,
+  reads the offending code, proposes a fix, runs your tests, and opens
+  a PR — authored by the Mur GitHub App. You only pay when a PR
+  actually lands ($1.00). Hook up the Sentry webhook once; future
+  issues fix themselves while you sleep.
+
+self_host_alternative: null
+
+alternatives:
+  - "Sentry Autofix (managed, separate billing): https://sentry.io/for/autofix/"
+  - "Manual triage + human PR"
