@@ -309,6 +309,7 @@ contains the detailed instructions, examples, and edge cases.
 |----------------------------------------------------------------------------|-------------------------------|
 | Scan the active project: read everything locally first (repo, git log, TODOs, gh CLI), then surface findings | `prompts/scan.md`             |
 | Open the recommend conversation: post-connect chief-of-staff dialogue (probe / propose / co-design / install / defer) over the long tail of automations | `prompts/recommend.md`        |
+| Open the growth conversation: detect-first interview about ICP / lead store / motion / bottleneck → propose content + outreach flows grounded in shipping (also `/mur growth status` for running-flows view + kill-switch) | `prompts/growth.md`           |
 | See what Mur already knows about the project (pages, business cat, connections) | `prompts/whoami.md`           |
 | Show / render the stack view from a previous scan                          | `prompts/stack.md`            |
 | Trigger a fresh daily digest now (free, once/day) — also a candidate inside `/mur recommend` | `prompts/digest.md`           |
@@ -439,6 +440,34 @@ without pitching a managed wrapper.
 If the user asks for recommendations but `.murmur/scan.json` doesn't
 exist yet, `recommend.md` will redirect them to scan first. Don't
 auto-scan — that bypasses the scan-level consent.
+
+Route to **`prompts/growth.md`** when the user says things like:
+
+- `/mur growth` / `/mur growth status`
+- "help me with sales / outbound / leads / customers"
+- "set up outreach" / "draft me content" / "what should I post"
+- "what's running" / "show my growth flows" / "show me what Mur is doing for me" *(routes to status sub-mode)*
+- "pause everything" / "pause email" / "kill switch" *(routes to status sub-mode)*
+- "I need more leads" / "I need more replies" / "I need more demos" / "my customers are churning" *(bottleneck-shaped framing)*
+- "how do I grow this" / "what should I do to get customers"
+- generally: any "I have a GTM problem, help me" framing
+
+`growth.md` runs detect-first (reads `BUSINESS.md` + connected-tools
+state before asking anything), then surfaces ICP / lead-store / motion /
+bottleneck questions one at a time. Cold-start branch fires when
+detection finds nothing. No-repo path covers solo operators and agencies
+who connected Stripe + a CRM with no repo. After the interview writes
+`growth.json`, growth flows surface in scan's pillar #4 ("What I'd watch
+for you") on the next scan. The user installs with `yes A<N>`, the same
+path every other Mur automation uses. Growth doesn't run install itself.
+
+Status sub-mode (`/mur growth status`) lists running growth flows with
+last-fired / pause-resume / per-user kill-switch panic button. Same
+`growth.md` prompt, branched on whether the next token is `status`.
+
+If the user asks for `/mur growth` but `~/.murmur/pages/HEARTBEAT.md`
+shows zero connections, growth.md redirects to `/mur connect` first.
+Detect-first needs at least one connected tool to detect from.
 
 Route to **`prompts/catalog.md`** when the user says things like:
 

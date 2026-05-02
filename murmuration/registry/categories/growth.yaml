@@ -1,0 +1,11 @@
+slug: growth
+display_name: Growth (GTM)
+description: |
+  The go-to-market half of the cofounder. Detects ICP / lead store /
+  motion / bottleneck from already-connected tools, then ships content
+  and outreach grounded in this week's shipping. Closes the loop by
+  writing back to the CRM (log-only in v1) and tracking which shipping-
+  narratives convert. Not another sales-engagement tool — a chief-of-
+  staff that turns shipping into outreach + content.
+canonical_tools: []
+canonical_flows: [flows/mur-growth-content-prompts.yaml]

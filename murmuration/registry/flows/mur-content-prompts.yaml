@@ -1,0 +1,40 @@
+slug: "@mur/content-prompts"
+display_name: Weekly Content Prompts (grounded in shipping)
+category: growth
+recommended: true
+wraps_tool: null
+
+mcp:
+  endpoint: https://usemur.dev/mcp/mur-content-prompts
+  http: https://usemur.dev/api/flows/mur-content-prompts/invoke
+
+pricing:
+  unit_price: "$0.03"
+  unit: "per weekly run"
+  network: "base"
+  schedule: "weekly, configurable"
+  notes: "No connectors required beyond the user's repo. Mur reads recent commits / PRs / issues + the user's voice (calibrated from prior posts in repo or Linear) and drafts 1-3 pieces of content per week — blog post outlines, LinkedIn posts, X threads. Output is drafts only — user copies/edits/ships from there. Filters internal/draft/chore PRs before grounding."
+
+detection:
+  category_signals:
+    - active_git_repo: true
+    - has_recent_commits: ">=3 in last 14 days"
+  presence_signals:
+    - file_glob: ".murmur/automations/growth-content-prompts.json"
+    - has_keyword: ["devtool", "open source", "developer", "platform", "saas"]
+
+reason_template: |
+  You shipped {{recent_pr_count}} PRs in the last 2 weeks. Some of them
+  ({{shipping_highlights}}) are interesting enough to write about — but
+  you won't, because writing takes time and the cold start of "what do
+  I even say?" is the actual blocker. This flow does the cold start for
+  you. Once a week, it scans your shipping activity and drafts 1-3
+  pieces of content in your voice — blog post outlines, LinkedIn posts,
+  X threads — grounded in what you actually built. You review, edit,
+  and ship. Or skip the week. Either way, the cold start is solved.
+
+self_host_alternative: null
+
+alternatives:
+  - "buffer / typefully / hypefury (general scheduling tools — they don't read your repo, so the drafts won't be grounded)"
+  - "manual journaling + weekly writing block (works if you have the discipline; flow exists for users who don't)"
