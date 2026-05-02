@@ -839,7 +839,7 @@ Schema (keep field names stable — downstream prompts depend on them):
         "signals": ["STRIPE_* env vars in .env.example", "stripe in package.json", "stripe CLI present locally (unauthed for server)"]
       },
       "connector_required": {"slug": "stripe", "status": "inferred-from-manifest"},
-      "install_path": "https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx"
+      "install_path": "<from mint-bridge-link.mjs stdout — never hand-construct>"
     }
   ],
   "risky_patterns": {
@@ -1309,35 +1309,40 @@ for card B. Tokens are bound to the (developer, slug, automation)
 tuple in the `scope` JSON, so a leaked URL within the 10-minute
 window can only consummate THIS one connect operation.
 
-Invocation:
+Invocation — exactly this shape, no other args:
 
 ```sh
 node skill-pack/scripts/mint-bridge-link.mjs \
-  --slug stripe \
-  --install stripe-webhook-watcher \
-  --target connect \
-  --project-identifier-type git_remote \
-  --project-identifier-hash <sha256 hex from _bootstrap.md normalize step> \
-  --project-source-url <normalized remote URL from _bootstrap.md> \
-  --project-name <repo basename>
+  --slug <connector-slug> \
+  --install <automation-slug> \
+  --target connect
 ```
 
-Output (single line on stdout):
+The script auto-detects the project metadata from cwd (matching
+`_bootstrap.md`'s normalize logic byte-for-byte), so the agent
+NEVER needs to compute `--project-identifier-hash`,
+`--project-source-url`, or `--project-name` by hand. Doing so
+risks drift from the server's normalize logic and produces
+"Project not found" 404s on click. Trust the script.
 
-```
-https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_abc123&token=mur_bridge_…
-```
+For dashboard-paste connectors (substrate-known slugs), use
+`--target dashboard-paste`. Output URL points at
+`/dashboard/vault/paste/<slug>` instead of `/connect/<slug>`.
+
+**Hard rule: never hand-construct the deep-link URL.** Use the
+script's stdout output verbatim. Strings that look like URL
+components in this prompt (e.g. `<from-helper-stdout>` placeholders
+in the example renders below) are NOT real values — they're
+placeholders showing where the script's output goes. If the URL in
+the rendered card doesn't end in a real `&token=mur_bridge_<64 hex>`
+suffix, something went wrong; fall back to the missing-account CTA
+shape rather than ship a fabricated URL.
 
 If the script fails (account.json missing, server unreachable, mint
 rate-limited), fall back to the missing-account CTA shape above —
 do NOT render a half-formed URL. The user can retry by saying
 "re-render automations" after fixing the underlying issue (claim
 account, network, etc.).
-
-For dashboard-paste connectors (substrate-known slugs), use
-`--target dashboard-paste` instead of `--target connect`. Output
-URL points at `/dashboard/vault/paste/<slug>` instead of
-`/connect/<slug>`.
 
 The connector-status differentiation in the CTA shape IS the
 honesty — never describe a speculative automation as if its

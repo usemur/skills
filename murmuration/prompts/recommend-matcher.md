@@ -147,15 +147,20 @@ local signals only.
     "install_path": "<see below>"
   }
   ```
-  - `install_path` for `connected` candidates: `/mur install <id>`.
-  - `install_path` for non-connected: a fully-qualified
-    `https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>`
-    URL. Use the project's `cprj_*` id (from `_bootstrap.md`'s
-    state.json cache) as the `project` query param. If no
-    `cprj_*` id has been minted yet (no-repo / first-scan), omit
-    the `&project=` segment — the deep-link's
-    `POST /api/installs/pending/start` falls back to the
-    developer's primary project.
+  - `install_path` for `connected` candidates: a marker like
+    `LOCAL:<id>` (matcher metadata; scan.md's render translates
+    this to the user-facing "say yes A<N>" CTA — never a typed
+    `/mur install` slash command, which isn't a real Claude Code
+    command).
+  - `install_path` for non-connected: a marker like
+    `BRIDGE:<slug>:<id>:<connect|dashboard-paste>` indicating
+    "scan.md must call mint-bridge-link.mjs at render time to
+    produce the actual URL." The matcher does NOT emit a literal
+    URL with `<projectId>` placeholders — that pattern caused
+    "Project not found" errors in V1.1 because the agent
+    sometimes substituted the placeholder text verbatim. The
+    matcher emits intent; scan.md's render path mints the real
+    URL via the helper.
 - Top-N: cap at 5 candidates. The dual render shows the top 2
   inline; "show more automations" reveals the rest.
 
@@ -178,30 +183,30 @@ satisfy. The wireable set is the union of three sources:
    Slugs in here have a paste-form definition + verify endpoint
    for the dashboard paste flow.
 
-Set `install_path` per source:
+Set `install_path` per source — these are MARKERS for scan.md's
+render layer, not literal URLs the matcher emits. The matcher
+NEVER emits a literal URL because the agent has historically
+substituted placeholder text (e.g. `cprj_xxx`) verbatim, causing
+"Project not found" errors. Markers force the render layer to
+call `mint-bridge-link.mjs` to mint the real URL.
 
 - OAuth-or-env-already-set AND the slug is connected/exported in
-  this user's stack → `install_path: "/mur install <id>"`
-  (no connect step needed).
+  this user's stack → `install_path: "LOCAL:<id>"` (no connect
+  step needed; scan.md renders this as a "say yes A<N>" CTA).
 - OAuth, not connected →
-  `install_path: "https://usemur.dev/connect/<slug>?install=<id>"`
-  (template — scan.md fills in `&project=<cprj_*>&token=<bridge>`
-  at render time via `mint-bridge-link.mjs`; see
-  `plans/onboarding-flip.md` V1.1 for the deep-link auth bridge).
+  `install_path: "BRIDGE:<slug>:<id>:connect"` (scan.md's render
+  layer calls `mint-bridge-link.mjs --slug <slug> --install <id>
+  --target connect` and uses the stdout URL verbatim; the helper
+  auto-detects project metadata from cwd).
 - Substrate registry, not connected →
-  `install_path: "https://usemur.dev/dashboard/vault/paste/<slug>?install=<id>"`
-  (template — scan.md fills in `&project=`, `&pending=`, and
-  `&token=` at render time. The `pending=<pendingInstallId>`
-  segment is added server-side when the deep link is clicked, but
-  the `&token=<bridge>` is baked in by the agent before render so
-  the click works without a login wall).
+  `install_path: "BRIDGE:<slug>:<id>:dashboard-paste"` (same as
+  above with `--target dashboard-paste`).
 
-The matcher emits PLACEHOLDER URLs without `&project=` or
-`&token=`. scan.md is responsible for stitching those in at
-render time. This separation lets the matcher run purely against
-local scan signals (no network) and isolates the
-`POST /api/auth/bridge` and project-register calls to the
-render-time path.
+The marker shape keeps the matcher purely local (no network) and
+isolates the `POST /api/auth/bridge` + project-register calls to
+the render-time path in scan.md. A consequence: the matcher
+itself doesn't know the cprj_* id or the bridge token; it can't
+emit them, by design.
 
 If the slug is in NONE of the three sets, drop the candidate.
 This is what keeps the dual render honest: every "Set up:" CTA
