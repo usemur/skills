@@ -223,20 +223,32 @@ provenance:            marquee | co-designed | community-template
 confidence:            high | medium | low   # how well does this match signals
 ```
 
-**Render rules.** Per candidate, render 3-4 lines:
-- Bold name (lowercased, descriptive — **never include the `@mur/`
-  prefix in the user-facing line**, even for marquee flows. The
-  prefix is metadata; the prose says "digest" not "@mur/digest-
-  daily." Provenance neutrality requires marquee and co-designed
-  to render identically.)
-- One-line `what`.
-- One-line `why-you` citing a concrete signal.
-- Both install paths when both available, framed as "$X.XX/run if
-  remote, free if local."
+**Render rules.** Render each candidate as an `A<N>:` card —
+visually identical to scan.md's automation card and digest.md's
+item shape so users see one consistent surface. Numbering starts
+at A1 within the propose round; the user references items by
+number ("install A1", "show me A2"). Shape:
+
+```
+A<N>: <bold name — lowercased descriptive title, never the `@mur/`
+prefix. Provenance neutrality requires marquee and co-designed to
+render identically.>
+What it is: <one-line `what` from the candidate>
+Recommendation: Automate: <install path — `/mur install <slug>`
+when local, deep-link URL when a connect is needed first>
+Impact: <one-line user outcome — what they save, stop doing, or
+unlock — derived from `why-you` framed as a user-facing benefit>
+Effort: (you: <setup cost> / Mur: <$X.XX/run remote, free local>)
+```
+
+The `why-you` signal grounding (e.g. "Stripe live in your stack")
+goes inside `What it is:` as "Grounded in: <signal>." — keeps the
+provenance honesty without breaking the card shape.
+
 - **Prereq line if `requires_connections` is non-empty AND any of
   those slugs aren't in HEARTBEAT.md's connections list.** Render
-  the prereq as a yes/no the user answers in chat — never as a
-  typed slash command. Examples:
+  the prereq as a yes/no question on the line *after* the card —
+  never inline, never as a typed slash command. Examples:
   > "Needs `<slug>` connected first (~30s, +$5 credit). Want me
   > to fire that connect now?"
   >

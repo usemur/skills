@@ -112,13 +112,21 @@ lands the chief-of-staff voice from line one. Read `product_summary`
 from `<project>/.murmur/scan.json` if it exists; if not, omit the
 parenthetical gracefully.
 
+Items use the same `F<N>:` card shape as scan.md so the user sees
+one consistent surface across briefings, scans, and recommendations.
+Numbering is global across pillars (F1..FN), so `/mur approve N`
+keeps working — the prefix is visual.
+
 ```
 Your {project name} briefing for {Day, Mon DD}.{ ({product_summary})}
 {N} items. {leading-pillar} leading.
 
 {PILLAR} · {n}
-  {id} ▸ {headline} — {evidence one-liner}
-        {action commands: /murmur approve N | /murmur why N | /murmur ask N}
+  F<N>: {headline}
+  What it is: {evidence one-liner}
+  Recommendation: {Fix: ... / Surface: ... — verb the user can run}
+  Impact: {user-visible outcome — what changes for them}
+  Actions: /mur approve {N} | /mur why {N} | /mur ask {N}
 
 (repeat per pillar that has items)
 

@@ -1152,22 +1152,25 @@ Who's working on it with you
    Linear, your error-reporting surface across Sentry, etc.">
 
 What we noticed (worth a look)
-  · <Finding #1 from the priority sort — concrete with file
-     path, line range, PR number, or issue number. Plain
-     English. End with a verb command the user can run.>
-     Try: <verb command>
-  · <Finding #2 — same shape>
-     Try: <verb command>
+  F1: <one-line title with concrete reference — file path, line
+  range, PR number, or issue number>
+  What it is: <ELI10, names the stakes in plain English>
+  Recommendation: <Fix: ... / Surface: ... — verb the user can run>
+  Impact: <user-visible — time saved, risk avoided, capability unlocked>
+  Effort: (you: ~X min / Mur: free)        ← optional, drop for pure surface
+
+  F2: <same shape>
   (say "show more findings" for the rest)
 
 What I'd watch for you (automations)
-  · <Automation #1 from automation_candidates[0]>
-     <prose line — concrete, references the grounding signals
-      verbatim, never marketing prose>
-     Set up: <CTA — see "Automation CTA shape" below>
-  · <Automation #2 from automation_candidates[1]>
-     <prose line>
-     Set up: <CTA>
+  A1: <flow name — short tagline, no `@mur/` prefix>
+  What it is: <what it watches and what it surfaces. Grounded in:
+  <verbatim signals from automation_candidates[0].grounding.signals>.>
+  Recommendation: Automate: <CTA — see "Automation CTA shape" below>
+  Impact: <user-visible outcome>
+  Effort: (you: <setup cost> / Mur: <$/run or free local>)
+
+  A2: <same shape>
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1346,24 +1349,42 @@ Who's working on it with you
   across Sentry.
 
 What we noticed (worth a look)
-  · src/api/users.ts:42-58 — raw SQL via $queryRawUnsafe with
-    template-string interpolation. Stripe is wired in this
-    project, so SQL injection on user lookups is a money-loss
-    path.
-    Try: "audit this"
-  · PR #142 ("fix: heartbeat reconnect race") — your own, no
-    reviews requested, sitting since yesterday. Self-merge or
-    assign reviewer.
-    Try: "show me PR #142"
+  F1: src/api/users.ts:42-58 — raw SQL via $queryRawUnsafe
+  What it is: Template-string interpolation in a SQL query that
+  takes a user-supplied id. Stripe is wired in this project, so
+  SQL injection on user lookups is a money-loss path.
+  Recommendation: Fix: replace `$queryRawUnsafe` with `$queryRaw`
+  and parameterize. Or say "audit this" for the fuller pass.
+  Impact: You close a money-loss path before someone finds it.
+  Effort: (you: ~10 min review / Mur: free)
+
+  F2: PR #142 ("fix: heartbeat reconnect race")
+  What it is: Your own PR, no reviews requested, sitting since
+  yesterday.
+  Recommendation: Surface: self-merge or assign reviewer. Say
+  "show me PR #142" to see the diff.
+  Impact: One less stale PR on your plate.
   (say "show more findings" for the rest)
 
 What I'd watch for you (automations)
-  · Daily digest — your PRs, failing CI, open issues
-    Because: gh CLI authed, 4 open PRs, 1 failing CI run
-    Set up: /mur install daily-digest
-  · Stripe webhook watcher — flag failing payment webhooks
-    Because: STRIPE_* env vars in .env.example, stripe in package.json
-    Set up: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx&token=mur_bridge_…
+  A1: Daily digest
+  What it is: Overnight roll-up of your PRs, failing CI, and
+  open issues across every connected system. Grounded in: gh CLI
+  authed, 4 open PRs, 1 failing CI run.
+  Recommendation: Automate: /mur install daily-digest. Cadence
+  6am your tz.
+  Impact: You stop hand-rolling the Mon-morning roll-up,
+  ~3 min/morning saved.
+  Effort: (you: 30s confirm / Mur: $0.05/run remote, free local cron)
+
+  A2: Stripe webhook watcher
+  What it is: Flags failing payment webhooks before they hit
+  your inbox. Grounded in: STRIPE_* env vars in .env.example,
+  stripe in package.json.
+  Recommendation: Automate: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx&token=mur_bridge_…
+  Impact: You stop debugging $-loss webhooks at 2am from a
+  customer ticket.
+  Effort: (you: 30s OAuth / Mur: $0.05/run)
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1395,21 +1416,39 @@ Who's working on it with you
   your customers + teams (when you have them).
 
 What we noticed (worth a look)
-  · lib/summarize.js looks publishable — 80 lines, takes text
-    + returns a 3-bullet summary. Self-contained, your commits.
-    Try: "publish lib/summarize.js"
-  · No LLM observability detected despite the OpenAI SDK in
-    deps. Worth knowing if/when you ship.
-    Try: "recommend something here"
+  F1: lib/summarize.js — looks publishable
+  What it is: 80 lines, takes text and returns a 3-bullet
+  summary. Self-contained, all your commits.
+  Recommendation: Surface: say "publish lib/summarize.js" to
+  wrap it as a paid Mur flow.
+  Impact: One of your scripts becomes a paid endpoint with no
+  infra work on your end.
+
+  F2: No LLM observability detected despite the OpenAI SDK in deps
+  What it is: You've got OpenAI calls with no tracing or eval
+  testing — when prompts regress, you'll find out from a user.
+  Recommendation: Surface: say "recommend something here" for
+  options.
+  Impact: You catch prompt regressions before users do.
   (say "show more findings" for the rest)
 
 What I'd watch for you (automations)
-  · Weekly dependency release-note digest — track upgrades + breaking changes
-    Because: openai + 14 other npm deps, no current dep-watcher
-    Set up: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx&token=mur_bridge_…
-  · Prompt-regression watcher — alert when prompt diff hits production
-    Because: OpenAI SDK in src/, multi-line system prompts > 200 chars in lib/summarize.js
-    Set up: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx&token=mur_bridge_…
+  A1: Weekly dependency release-note digest
+  What it is: Tracks upgrades and breaking changes across your
+  npm deps, summarized weekly. Grounded in: openai + 14 other
+  npm deps, no current dep-watcher.
+  Recommendation: Automate: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx&token=mur_bridge_…
+  Impact: You stop shipping with stale dependency notes.
+  Effort: (you: 30s OAuth / Mur: $0.05/run)
+
+  A2: Prompt-regression watcher
+  What it is: Alerts when a prompt diff hits production.
+  Grounded in: OpenAI SDK in src/, multi-line system prompts
+  > 200 chars in lib/summarize.js.
+  Recommendation: Automate: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx&token=mur_bridge_…
+  Impact: You catch silently broken prompts on the same PR
+  that introduced them.
+  Effort: (you: 30s OAuth / Mur: $0.05/run)
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1486,19 +1525,21 @@ this priority order:
      the bootstrap pickup announces on the next /mur run.
 
 2. **"show more findings" / "what else?" / "what else"** —
-   advance `progress.findings.next`. Surface the next finding;
-   append rank to `progress.findings.shown`; increment
-   `progress.findings.next`; write scan.json. Same micro-summary
-   shape: one finding, one action, tail with "say 'show more
-   findings' / 'show more automations' to keep going." If exhausted,
-   reply: "No more findings. (Say 'show more automations' if you
-   want to keep going on those, or 'rescan' to start fresh.)"
+   advance `progress.findings.next`. Surface the next finding as
+   an `F<N>:` card (same shape as Step 2's render — title, What
+   it is, Recommendation, Impact, optional Effort); append rank
+   to `progress.findings.shown`; increment `progress.findings.next`;
+   write scan.json. Tail with "say 'show more findings' / 'show
+   more automations' to keep going." If exhausted, reply: "No
+   more findings. (Say 'show more automations' if you want to
+   keep going on those, or 'rescan' to start fresh.)"
 
 3. **"show more automations"** — advance
-   `progress.automations.next`. Surface the next automation card
-   (same shape as Step 2's render); append rank to shown; write.
-   If exhausted: "No more automation candidates. (Say 'show more
-   findings' to keep going on those, or 'rescan' to start fresh.)"
+   `progress.automations.next`. Surface the next automation as
+   an `A<N>:` card (same shape as Step 2's render); append rank
+   to shown; write. If exhausted: "No more automation candidates.
+   (Say 'show more findings' to keep going on those, or 'rescan'
+   to start fresh.)"
 
 4. **Specific connector slug typed explicitly** ("connect stripe"
    / "let's do sentry") — hand off to `prompts/connect.md` with
