@@ -24,11 +24,18 @@
 //   node skill-pack/scripts/mint-bridge-link.mjs \
 //     --slug stripe \
 //     --install stripe-webhook-watcher \
-//     --target connect              # or "dashboard-paste"
+//     --target connect              # only supported value
 //
 // Optional override: pass `--project-id <cprj_*>` if the agent has
 // already bootstrapped the project and knows the id (e.g. read from
 // ~/.murmur/state.json). Otherwise the script auto-detects from cwd.
+//
+// Substrate (paste-key) connectors use `--target connect` too. The
+// /connect/:slug page calls /api/installs/pending/start, which
+// creates the pending row and redirects to /dashboard/vault/paste
+// with the `pending=` id the paste page needs. Linking straight at
+// the paste page skips that step and lands on "This link is
+// incomplete" — keep the single entry point.
 //
 // What changed in this version: removed the brittle
 // --project-identifier-type / --project-identifier-hash /
@@ -220,8 +227,13 @@ async function main() {
   }
 
   const target = args.target;
-  if (target !== 'connect' && target !== 'dashboard-paste') {
-    process.stderr.write(`mint-bridge-link: --target must be "connect" or "dashboard-paste"\n`);
+  if (target !== 'connect') {
+    // `dashboard-paste` was a previous target value that minted a URL
+    // pointing straight at /dashboard/vault/paste/<slug>. That URL
+    // skipped /api/installs/pending/start, so the paste page rendered
+    // "This link is incomplete" — substrate connectors must go through
+    // /connect/<slug> like OAuth connectors do.
+    process.stderr.write(`mint-bridge-link: --target must be "connect"\n`);
     process.exit(1);
   }
 
@@ -242,7 +254,7 @@ async function main() {
   //   - explicit --project-id (skill already bootstrapped, knows the id)
   //   - auto-detect from cwd (the common case)
   const mintBody = {
-    purpose: target === 'connect' ? 'connect-deep-link' : 'paste-deep-link',
+    purpose: 'connect-deep-link',
     slug: args.slug,
     automationId: args.install,
   };
@@ -282,18 +294,18 @@ async function main() {
     process.exit(1);
   }
 
-  // Build the URL. /connect/:slug?install=&project=&token=
-  // /dashboard/vault/paste/:slug?install=&token= (the `pending=`
-  // segment is added server-side when /api/installs/pending/start
-  // fires; this script doesn't know the pending id yet).
+  // Build the URL. /connect/:slug?install=&project=&token= for both
+  // OAuth and substrate (paste-key) connectors. The /connect page
+  // POSTs to /api/installs/pending/start, which creates the pending
+  // row and — for substrate slugs — redirects the browser to
+  // /dashboard/vault/paste/<slug>?install=&pending=&project=. The
+  // `pending=` segment is generated server-side, not here.
   const urlParams = new URLSearchParams();
   urlParams.set('install', args.install);
   if (mintRes.projectId) urlParams.set('project', mintRes.projectId);
   urlParams.set('token', mintRes.bridgeToken);
 
-  const path = target === 'connect'
-    ? `/connect/${encodeURIComponent(args.slug)}`
-    : `/dashboard/vault/paste/${encodeURIComponent(args.slug)}`;
+  const path = `/connect/${encodeURIComponent(args.slug)}`;
   const fullUrl = `${apiBase}${path}?${urlParams.toString()}`;
 
   process.stdout.write(fullUrl + '\n');

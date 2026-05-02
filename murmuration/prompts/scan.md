@@ -1326,8 +1326,14 @@ risks drift from the server's normalize logic and produces
 "Project not found" 404s on click. Trust the script.
 
 For dashboard-paste connectors (substrate-known slugs), use
-`--target dashboard-paste`. Output URL points at
-`/dashboard/vault/paste/<slug>` instead of `/connect/<slug>`.
+`--target connect` — same as OAuth connectors. The `/connect/:slug`
+route is the single entry point; its server-side handler at
+`/api/installs/pending/start` creates the `PendingInstall` row and
+then redirects the browser to `/dashboard/vault/paste/<slug>?install=…&pending=…&project=…`
+with the `pending=` id the paste page requires. Linking straight at
+`/dashboard/vault/paste/<slug>` skips the pending row creation, so
+the paste page renders "This link is incomplete" — never deep-link
+there from the skill.
 
 **Hard rule: never hand-construct the deep-link URL.** Use the
 script's stdout output verbatim. Strings that look like URL
