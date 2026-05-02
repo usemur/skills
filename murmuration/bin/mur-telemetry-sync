@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# mur-telemetry-sync — flush local Mur telemetry JSONL to the Mur backend.
+#
+# Cursor-based, rate-limited (5 min), backgrounded. Strips local-only fields
+# (any key starting with `_`) and the install ID for tier=anonymous. POSTs a
+# JSON `{events: [...]}` batch to ${MUR_BACKEND_URL}/api/skill/telemetry. On
+# success advances the cursor; on failure leaves it untouched and tries again
+# next time.
+#
+# The backend URL is resolved in this order:
+#   1. $MUR_BACKEND_URL              (env override, used by tests)
+#   2. <skill-root>/bin/backend-url  (file shipped with the skill)
+#   3. https://usemur.dev            (fallback)
+#
+# Telemetry must NEVER fail the caller. set -uo pipefail (no -e); always exits 0.
+set -uo pipefail
+
+SKILL_DIR="${MUR_SKILL_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+STATE_DIR="${MUR_HOME:-$HOME/.mur}"
+ANALYTICS_DIR="$STATE_DIR/analytics"
+JSONL_FILE="$ANALYTICS_DIR/skill-usage.jsonl"
+CURSOR_FILE="$ANALYTICS_DIR/.last-sync-line"
+RATE_FILE="$ANALYTICS_DIR/.last-sync-time"
+CONFIG_CMD="$SKILL_DIR/bin/mur-config"
+BACKEND_URL_FILE="$SKILL_DIR/bin/backend-url"
+
+if [ -z "${MUR_BACKEND_URL:-}" ] && [ -f "$BACKEND_URL_FILE" ]; then
+  MUR_BACKEND_URL="$(cat "$BACKEND_URL_FILE" 2>/dev/null | tr -d '[:space:]' || true)"
+fi
+BACKEND_URL="${MUR_BACKEND_URL:-https://usemur.dev}"
+
+[ -f "$JSONL_FILE" ] || exit 0
+
+# Rate limit: skip if we synced in the last 5 minutes. find -mmin +5 returns the
+# file iff it's older than 5 min, so absent output means "still fresh, bail".
+if [ -f "$RATE_FILE" ]; then
+  STALE=$(find "$RATE_FILE" -mmin +5 2>/dev/null || true)
+  [ -z "$STALE" ] && exit 0
+fi
+
+TIER="$("$CONFIG_CMD" get telemetry 2>/dev/null || true)"
+TIER="${TIER:-off}"
+[ "$TIER" = "off" ] && exit 0
+
+CURSOR=0
+if [ -f "$CURSOR_FILE" ]; then
+  CURSOR="$(cat "$CURSOR_FILE" 2>/dev/null | tr -d ' \n\r\t')"
+  case "$CURSOR" in *[!0-9]*) CURSOR=0 ;; esac
+fi
+
+TOTAL_LINES="$(wc -l < "$JSONL_FILE" | tr -d ' \n\r\t')"
+if [ "$CURSOR" -gt "$TOTAL_LINES" ] 2>/dev/null; then
+  CURSOR=0
+fi
+[ "$CURSOR" -ge "$TOTAL_LINES" ] 2>/dev/null && exit 0
+
+SKIP=$(( CURSOR + 1 ))
+UNSENT="$(tail -n "+$SKIP" "$JSONL_FILE" 2>/dev/null || true)"
+[ -z "$UNSENT" ] && exit 0
+
+BATCH="["
+FIRST=true
+COUNT=0
+while IFS= read -r LINE; do
+  [ -z "$LINE" ] && continue
+  echo "$LINE" | grep -q '^{' || continue
+
+  # Strip local-only fields. Any key starting with `_` is by-convention
+  # never sent. The pattern matches `,"_foo":"bar"` (mid-object) and
+  # also handles the leading-comma case from earlier strips.
+  CLEAN="$(echo "$LINE" | sed -E 's/,"_[a-zA-Z0-9_]+":"[^"]*"//g; s/,"_[a-zA-Z0-9_]+":null//g; s/,"_[a-zA-Z0-9_]+":[0-9.-]+//g')"
+
+  if [ "$TIER" = "anonymous" ]; then
+    CLEAN="$(echo "$CLEAN" | sed 's/,"installation_id":"[^"]*"//g; s/,"installation_id":null//g')"
+  fi
+
+  if [ "$FIRST" = "true" ]; then
+    FIRST=false
+  else
+    BATCH="$BATCH,"
+  fi
+  BATCH="$BATCH$CLEAN"
+  COUNT=$(( COUNT + 1 ))
+  [ "$COUNT" -ge 100 ] && break
+done <<< "$UNSENT"
+BATCH="$BATCH]"
+
+[ "$COUNT" -eq 0 ] && exit 0
+
+PAYLOAD='{"events":'"$BATCH"'}'
+
+RESP_FILE="$(mktemp /tmp/mur-sync-XXXXXX 2>/dev/null || echo "/tmp/mur-sync-$$")"
+HTTP_CODE="$(curl -s -w '%{http_code}' --max-time 10 \
+  -X POST "${BACKEND_URL}/api/skill/telemetry" \
+  -H "Content-Type: application/json" \
+  -o "$RESP_FILE" \
+  --data-binary "$PAYLOAD" 2>/dev/null || echo "000")"
+
+case "$HTTP_CODE" in
+  2*)
+    INSERTED="$(grep -o '"inserted":[0-9]*' "$RESP_FILE" 2>/dev/null | grep -o '[0-9]*' || echo "0")"
+    if [ "${INSERTED:-0}" -gt 0 ] 2>/dev/null; then
+      NEW_CURSOR=$(( CURSOR + COUNT ))
+      echo "$NEW_CURSOR" > "$CURSOR_FILE" 2>/dev/null || true
+    fi
+    ;;
+esac
+
+rm -f "$RESP_FILE" 2>/dev/null || true
+touch "$RATE_FILE" 2>/dev/null || true
+exit 0

@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# mur-update-check — periodic version check for the Mur skill.
+#
+# Output (one line, or nothing):
+#   JUST_UPGRADED <old> <new>       — marker file from a recent mur-upgrade run
+#   UPGRADE_AVAILABLE <old> <new>   — backend's latest version differs from local
+#   (nothing)                       — up to date, snoozed, disabled, or check skipped
+#
+# Cache TTL: 60 min when up-to-date (catch new releases fast), 720 min when an
+# upgrade is available (keep nagging across a workday). Honors `update_check`
+# config key and `~/.mur/update-snoozed` (escalating 24h → 48h → 7d).
+#
+# Env overrides (testing):
+#   MUR_SKILL_DIR    — override auto-detected skill root
+#   MUR_HOME         — override ~/.mur
+#   MUR_BACKEND_URL  — override backend URL (also read from bin/backend-url)
+set -uo pipefail
+
+SKILL_DIR="${MUR_SKILL_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+STATE_DIR="${MUR_HOME:-$HOME/.mur}"
+CACHE_FILE="$STATE_DIR/last-update-check"
+MARKER_FILE="$STATE_DIR/just-upgraded-from"
+SNOOZE_FILE="$STATE_DIR/update-snoozed"
+VERSION_FILE="$SKILL_DIR/VERSION"
+BACKEND_URL_FILE="$SKILL_DIR/bin/backend-url"
+
+if [ -z "${MUR_BACKEND_URL:-}" ] && [ -f "$BACKEND_URL_FILE" ]; then
+  MUR_BACKEND_URL="$(cat "$BACKEND_URL_FILE" 2>/dev/null | tr -d '[:space:]' || true)"
+fi
+BACKEND_URL="${MUR_BACKEND_URL:-https://usemur.dev}"
+
+# --force busts cache + snooze (used by mur-upgrade for standalone invocation).
+if [ "${1:-}" = "--force" ]; then
+  rm -f "$CACHE_FILE" "$SNOOZE_FILE" 2>/dev/null || true
+fi
+
+_UC=$("$SKILL_DIR/bin/mur-config" get update_check 2>/dev/null || true)
+[ "$_UC" = "false" ] && exit 0
+
+# ─── Snooze helper (24h → 48h → 7d escalation) ──────────────
+check_snooze() {
+  local remote_ver="$1"
+  [ -f "$SNOOZE_FILE" ] || return 1
+
+  local snoozed_ver snoozed_level snoozed_epoch
+  snoozed_ver="$(awk '{print $1}' "$SNOOZE_FILE" 2>/dev/null || true)"
+  snoozed_level="$(awk '{print $2}' "$SNOOZE_FILE" 2>/dev/null || true)"
+  snoozed_epoch="$(awk '{print $3}' "$SNOOZE_FILE" 2>/dev/null || true)"
+
+  [ -z "$snoozed_ver" ] || [ -z "$snoozed_level" ] || [ -z "$snoozed_epoch" ] && return 1
+  case "$snoozed_level" in *[!0-9]*) return 1 ;; esac
+  case "$snoozed_epoch" in *[!0-9]*) return 1 ;; esac
+
+  # New version dropped — ignore the prior snooze.
+  [ "$snoozed_ver" != "$remote_ver" ] && return 1
+
+  local duration
+  case "$snoozed_level" in
+    1) duration=86400 ;;
+    2) duration=172800 ;;
+    *) duration=604800 ;;
+  esac
+
+  local now expires
+  now="$(date +%s)"
+  expires=$(( snoozed_epoch + duration ))
+  [ "$now" -lt "$expires" ] && return 0
+  return 1
+}
+
+# ─── Step 1: read local VERSION ──────────────────────────────
+LOCAL=""
+[ -f "$VERSION_FILE" ] && LOCAL="$(cat "$VERSION_FILE" 2>/dev/null | tr -d '[:space:]')"
+[ -z "$LOCAL" ] && exit 0
+
+# ─── Step 2: post-upgrade announcement ──────────────────────
+if [ -f "$MARKER_FILE" ]; then
+  OLD="$(cat "$MARKER_FILE" 2>/dev/null | tr -d '[:space:]')"
+  rm -f "$MARKER_FILE" "$SNOOZE_FILE" 2>/dev/null || true
+  if [ -n "$OLD" ]; then
+    echo "JUST_UPGRADED $OLD $LOCAL"
+  fi
+  # Fall through — there may be ANOTHER upgrade waiting (rare but possible).
+fi
+
+# ─── Step 3: cache replay ───────────────────────────────────
+if [ -f "$CACHE_FILE" ]; then
+  CACHED="$(cat "$CACHE_FILE" 2>/dev/null || true)"
+  case "$CACHED" in
+    UP_TO_DATE*)        CACHE_TTL=60 ;;
+    UPGRADE_AVAILABLE*) CACHE_TTL=720 ;;
+    *)                  CACHE_TTL=0 ;;
+  esac
+  STALE=$(find "$CACHE_FILE" -mmin +$CACHE_TTL 2>/dev/null || true)
+  if [ -z "$STALE" ] && [ "$CACHE_TTL" -gt 0 ]; then
+    case "$CACHED" in
+      UP_TO_DATE*)
+        CACHED_VER="$(echo "$CACHED" | awk '{print $2}')"
+        [ "$CACHED_VER" = "$LOCAL" ] && exit 0
+        ;;
+      UPGRADE_AVAILABLE*)
+        CACHED_OLD="$(echo "$CACHED" | awk '{print $2}')"
+        if [ "$CACHED_OLD" = "$LOCAL" ]; then
+          CACHED_NEW="$(echo "$CACHED" | awk '{print $3}')"
+          check_snooze "$CACHED_NEW" && exit 0
+          echo "$CACHED"
+          exit 0
+        fi
+        ;;
+    esac
+  fi
+fi
+
+# ─── Step 4: slow path — fetch from backend ─────────────────
+mkdir -p "$STATE_DIR" 2>/dev/null
+
+REMOTE="$(curl -sf --max-time 5 "${BACKEND_URL}/api/skill/latest-version" 2>/dev/null || true)"
+REMOTE="$(echo "$REMOTE" | tr -d '[:space:]')"
+
+# Anything that doesn't match a version regex (HTML error page, redirect, ...)
+# is treated as up-to-date. Better to be silent than to panic-prompt on a
+# misconfigured network.
+if ! echo "$REMOTE" | grep -qE '^[0-9]+\.[0-9.]+$'; then
+  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE" 2>/dev/null || true
+  exit 0
+fi
+
+if [ "$LOCAL" = "$REMOTE" ]; then
+  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE" 2>/dev/null || true
+  exit 0
+fi
+
+echo "UPGRADE_AVAILABLE $LOCAL $REMOTE" > "$CACHE_FILE" 2>/dev/null || true
+check_snooze "$REMOTE" && exit 0
+
+# Log upgrade_prompted only on slow-path fetch (not cached replay) — the cache
+# replay path returns the same line without going through the network.
+TEL_CMD="$SKILL_DIR/bin/mur-telemetry-log"
+if [ -x "$TEL_CMD" ]; then
+  "$TEL_CMD" --event-type upgrade_prompted --outcome success \
+    --proposed-version "$REMOTE" \
+    --session-id "update-$$-$(date +%s)" 2>/dev/null &
+fi
+
+echo "UPGRADE_AVAILABLE $LOCAL $REMOTE"

@@ -1,0 +1,5 @@
+# Migration directory.
+#
+# Add `vN.N.N.sh` scripts here to run on upgrades from any older version.
+# Sorted with `sort -V`; only run when the migration's version is strictly
+# greater than the OLD_VERSION at upgrade time. Idempotent. Failures non-fatal.

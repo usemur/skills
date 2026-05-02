@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# mur-telemetry-log — append a Mur telemetry event to local JSONL, then trigger sync.
+#
+# Telemetry must NEVER fail the caller. set -uo pipefail (no -e); every IO is
+# guarded; the script exits 0 even on internal errors. The host SKILL.md preamble
+# only fires this after a verb completes — losing one event is acceptable.
+#
+# Usage (most common shape — verb completion):
+#   mur-telemetry-log --event-type verb_run --verb scan --outcome success \
+#     --duration 12 --session-id "12345-1777680000"
+#
+# All flags (per skill-pack/registry/telemetry-vocab.md):
+#   --event-type        verb_run | flow_run | finding_shown | finding_action |
+#                       connect | consent_change | error | upgrade_prompted |
+#                       upgrade_completed (required)
+#   --outcome           success | error | abort | skipped | unknown (required)
+#   --verb              scan, recommend, digest, etc.
+#   --duration          integer seconds
+#   --session-id        opaque session id (PID + epoch is fine)
+#   --error-class       short error name (e.g. NetworkError)
+#   --error-message     free text — truncated to 200 chars before send
+#   --failed-step       short step identifier
+#   --finding-kind      see telemetry-vocab.md
+#   --finding-action    shown | opened | fixed | snoozed | rejected | automated
+#   --connector         github, stripe, linear, ...
+#   --automation-decision   offered | accepted | declined
+#   --flow-id           marketplace flow id
+#   --flow-source       local | marketplace
+#   --credits-charged   numeric (decimal ok)
+#   --proposed-version  e.g. 0.2.0 (used by upgrade_prompted/upgrade_completed)
+#
+# Env overrides (testing):
+#   MUR_HOME       — override ~/.mur
+#   MUR_SKILL_DIR  — override auto-detected skill root (where VERSION lives)
+set -uo pipefail
+
+SKILL_DIR="${MUR_SKILL_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+STATE_DIR="${MUR_HOME:-$HOME/.mur}"
+ANALYTICS_DIR="$STATE_DIR/analytics"
+JSONL_FILE="$ANALYTICS_DIR/skill-usage.jsonl"
+CONFIG_CMD="$SKILL_DIR/bin/mur-config"
+VERSION_FILE="$SKILL_DIR/VERSION"
+
+EVENT_TYPE=""
+OUTCOME="unknown"
+VERB=""
+DURATION=""
+SESSION_ID=""
+ERROR_CLASS=""
+ERROR_MESSAGE=""
+FAILED_STEP=""
+FINDING_KIND=""
+FINDING_ACTION=""
+CONNECTOR=""
+AUTO_DECISION=""
+FLOW_ID=""
+FLOW_SOURCE=""
+CREDITS_CHARGED=""
+PROPOSED_VERSION=""
+PROJECT_COUNT=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --event-type)          EVENT_TYPE="$2"; shift 2 ;;
+    --outcome)             OUTCOME="$2"; shift 2 ;;
+    --verb)                VERB="$2"; shift 2 ;;
+    --duration)            DURATION="$2"; shift 2 ;;
+    --session-id)          SESSION_ID="$2"; shift 2 ;;
+    --error-class)         ERROR_CLASS="$2"; shift 2 ;;
+    --error-message)       ERROR_MESSAGE="$2"; shift 2 ;;
+    --failed-step)         FAILED_STEP="$2"; shift 2 ;;
+    --finding-kind)        FINDING_KIND="$2"; shift 2 ;;
+    --finding-action)      FINDING_ACTION="$2"; shift 2 ;;
+    --connector)           CONNECTOR="$2"; shift 2 ;;
+    --automation-decision) AUTO_DECISION="$2"; shift 2 ;;
+    --flow-id)             FLOW_ID="$2"; shift 2 ;;
+    --flow-source)         FLOW_SOURCE="$2"; shift 2 ;;
+    --credits-charged)     CREDITS_CHARGED="$2"; shift 2 ;;
+    --proposed-version)    PROPOSED_VERSION="$2"; shift 2 ;;
+    --project-count)       PROJECT_COUNT="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+# Required fields fallback. Drop the call quietly rather than emit garbage.
+if [ -z "$EVENT_TYPE" ]; then exit 0; fi
+
+TIER="$("$CONFIG_CMD" get telemetry 2>/dev/null || true)"
+TIER="${TIER:-off}"
+case "$TIER" in
+  off|anonymous|community) ;;
+  *) TIER="off" ;;
+esac
+
+# tier=off short-circuits the whole pipeline. We don't even append locally — no
+# JSONL build-up means the user can flip telemetry on later without backfill
+# anxiety about events that predate consent.
+if [ "$TIER" = "off" ]; then
+  exit 0
+fi
+
+# ─── Metadata ────────────────────────────────────────────────
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S 2>/dev/null || echo "")"
+MUR_VERSION="$(cat "$VERSION_FILE" 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+HOST_AGENT="${MUR_HOST_AGENT:-unknown}"
+
+INSTALL_ID=""
+if [ "$TIER" = "community" ]; then
+  ID_FILE="$STATE_DIR/installation-id"
+  if [ -f "$ID_FILE" ]; then
+    INSTALL_ID="$(cat "$ID_FILE" 2>/dev/null)"
+  fi
+  if [ -z "$INSTALL_ID" ]; then
+    if command -v uuidgen >/dev/null 2>&1; then
+      INSTALL_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+    elif [ -r /proc/sys/kernel/random/uuid ]; then
+      INSTALL_ID="$(cat /proc/sys/kernel/random/uuid)"
+    else
+      INSTALL_ID="$(od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    fi
+    if [ -n "$INSTALL_ID" ]; then
+      mkdir -p "$STATE_DIR" 2>/dev/null
+      printf '%s' "$INSTALL_ID" > "$ID_FILE" 2>/dev/null
+    fi
+  fi
+fi
+
+# Cap unreasonable durations.
+if [ -n "$DURATION" ] && [ "$DURATION" -gt 86400 ] 2>/dev/null; then DURATION=""; fi
+if [ -n "$DURATION" ] && [ "$DURATION" -lt 0 ] 2>/dev/null; then DURATION=""; fi
+
+# ─── JSON safety ─────────────────────────────────────────────
+# The ingest endpoint truncates server-side, but we cap locally to keep the
+# JSONL file small and to avoid pathological input getting into the network
+# payload at all. Strip quotes, backslashes, control chars.
+json_safe() { printf '%s' "$1" | tr -d '"\\\n\r\t' | head -c 200; }
+
+EVENT_TYPE="$(json_safe "$EVENT_TYPE")"
+OUTCOME="$(json_safe "$OUTCOME")"
+VERB="$(json_safe "$VERB")"
+SESSION_ID="$(json_safe "$SESSION_ID")"
+ERROR_CLASS="$(json_safe "$ERROR_CLASS")"
+FAILED_STEP="$(json_safe "$FAILED_STEP")"
+FINDING_KIND="$(json_safe "$FINDING_KIND")"
+FINDING_ACTION="$(json_safe "$FINDING_ACTION")"
+CONNECTOR="$(json_safe "$CONNECTOR")"
+AUTO_DECISION="$(json_safe "$AUTO_DECISION")"
+FLOW_ID="$(json_safe "$FLOW_ID")"
+FLOW_SOURCE="$(json_safe "$FLOW_SOURCE")"
+PROPOSED_VERSION="$(json_safe "$PROPOSED_VERSION")"
+HOST_AGENT="$(json_safe "$HOST_AGENT")"
+
+field_str() {
+  if [ -z "$1" ]; then printf 'null'; else printf '"%s"' "$1"; fi
+}
+field_num() {
+  if [ -z "$1" ]; then printf 'null'; else printf '%s' "$1"; fi
+}
+
+ERR_MSG_FIELD="null"
+if [ -n "$ERROR_MESSAGE" ]; then
+  _safe_msg="$(printf '%s' "$ERROR_MESSAGE" | head -c 200 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n\r\t' '   ')"
+  ERR_MSG_FIELD="\"${_safe_msg}\""
+fi
+
+# Local-only fields — start with `_` so mur-telemetry-sync strips them.
+REPO_SLUG=""
+BRANCH=""
+if command -v git >/dev/null 2>&1; then
+  REPO_SLUG="$(git remote get-url origin 2>/dev/null | sed 's|.*[:/]\([^/]*/[^/]*\)\.git$|\1|;s|.*[:/]\([^/]*/[^/]*\)$|\1|' | tr '/' '-' 2>/dev/null || true)"
+  BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+fi
+REPO_SLUG="$(json_safe "$REPO_SLUG")"
+BRANCH="$(json_safe "$BRANCH")"
+
+mkdir -p "$ANALYTICS_DIR" 2>/dev/null
+
+printf '{"schema_version":1,"event_timestamp":"%s","event_type":"%s","outcome":"%s","mur_version":"%s","os":"%s","arch":"%s","host_agent":"%s","skill":"mur","verb":%s,"session_id":%s,"installation_id":%s,"duration_s":%s,"error_class":%s,"error_message":%s,"failed_step":%s,"finding_kind":%s,"finding_action":%s,"connector":%s,"automation_decision":%s,"flow_id":%s,"flow_source":%s,"credits_charged":%s,"project_count":%s,"proposed_version":%s,"_repo_slug":"%s","_branch":"%s"}\n' \
+  "$TS" "$EVENT_TYPE" "$OUTCOME" "$MUR_VERSION" "$OS" "$ARCH" "$HOST_AGENT" \
+  "$(field_str "$VERB")" "$(field_str "$SESSION_ID")" "$(field_str "$INSTALL_ID")" \
+  "$(field_num "$DURATION")" "$(field_str "$ERROR_CLASS")" "$ERR_MSG_FIELD" "$(field_str "$FAILED_STEP")" \
+  "$(field_str "$FINDING_KIND")" "$(field_str "$FINDING_ACTION")" "$(field_str "$CONNECTOR")" "$(field_str "$AUTO_DECISION")" \
+  "$(field_str "$FLOW_ID")" "$(field_str "$FLOW_SOURCE")" "$(field_num "$CREDITS_CHARGED")" "$(field_num "$PROJECT_COUNT")" \
+  "$(field_str "$PROPOSED_VERSION")" "$REPO_SLUG" "$BRANCH" \
+  >> "$JSONL_FILE" 2>/dev/null || true
+
+# Trigger sync in background (rate-limited internally to 5min).
+SYNC_CMD="$SKILL_DIR/bin/mur-telemetry-sync"
+if [ -x "$SYNC_CMD" ]; then
+  "$SYNC_CMD" 2>/dev/null &
+fi
+
+exit 0

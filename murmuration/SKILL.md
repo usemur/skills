@@ -12,6 +12,117 @@ recurring work with LLM-in-the-loop flows. Helpful first, automation
 second. Free in chat for scans, fixes, and recommendations; pay only
 for the automations running while you sleep.
 
+## Preamble (run before any verb)
+
+Run this once at the top of the conversation. It checks for a new Mur version,
+asks for telemetry consent on first run, and starts a verb timer. **All steps
+silently no-op when the skill isn't installed at the canonical path** — the
+binaries try `~/.claude/skills/mur/bin/`, then the path relative to this file's
+install location.
+
+```bash
+_MUR_BIN=""
+for _candidate in "$HOME/.claude/skills/mur/bin" "$HOME/.claude/skills/murmuration/bin"; do
+  if [ -d "$_candidate" ]; then _MUR_BIN="$_candidate"; break; fi
+done
+
+# 1. Update check.
+if [ -n "$_MUR_BIN" ] && [ -x "$_MUR_BIN/mur-update-check" ]; then
+  _UPD=$("$_MUR_BIN/mur-update-check" 2>/dev/null || true)
+  [ -n "$_UPD" ] && echo "$_UPD" || true
+fi
+
+# 2. Verb timer.
+MUR_TS_START=$(date +%s)
+MUR_SESSION_ID="$$-$MUR_TS_START"
+
+# 3. First-run consent state — emits "TEL_PROMPTED: yes|no" so the model knows
+#    whether to issue the AskUserQuestion below.
+_MUR_TEL_PROMPTED=$([ -f "$HOME/.mur/.telemetry-prompted" ] && echo "yes" || echo "no")
+echo "TEL_PROMPTED: $_MUR_TEL_PROMPTED"
+```
+
+After running the preamble:
+
+- **If the output contains `UPGRADE_AVAILABLE <old> <new>`**, read
+  `mur-upgrade/SKILL.md` from this skill's directory and run that flow.
+- **If the output contains `JUST_UPGRADED <old> <new>`**, tell the user
+  `Running Mur v<new> (just updated!)` and surface the matching `CHANGELOG.md`
+  entries between the old and new versions.
+- **If `TEL_PROMPTED: no`**, ask the user about telemetry using
+  `AskUserQuestion`. Use this exact framing — short, honest, doesn't oversell
+  data collection:
+
+  > **Help Mur get better?** I can send back which verbs you run, how long they
+  > take, and whether they succeed — so the team can fix what's slow or broken.
+  > **No code, no repo names, no PR titles, no issue bodies ever leave your
+  > machine.** Change anytime via `mur-config set telemetry off`.
+  >
+  > - **A) Yes, with a per-machine install ID** — lets us see retention
+  >   *(recommended)*
+  > - **B) Yes, anonymous** — no install ID, just aggregate counts
+  > - **C) No thanks**
+
+  After the user answers, run **one** of:
+
+  ```bash
+  # A — community
+  "$_MUR_BIN/mur-config" set telemetry community
+
+  # B — anonymous
+  "$_MUR_BIN/mur-config" set telemetry anonymous
+
+  # C — off
+  "$_MUR_BIN/mur-config" set telemetry off
+  ```
+
+  Then **always**:
+
+  ```bash
+  mkdir -p "$HOME/.mur" && touch "$HOME/.mur/.telemetry-prompted"
+  ```
+
+  The marker file pins the answer — Mur never re-asks, even if the user later
+  flips the setting via `mur-config`.
+
+## Telemetry contract
+
+After every verb completes (success, error, or abort), call **once**:
+
+```bash
+"$_MUR_BIN/mur-telemetry-log" \
+  --event-type verb_run \
+  --verb <verb-name> \
+  --outcome <success|error|abort> \
+  --duration $(( $(date +%s) - MUR_TS_START )) \
+  --session-id "$MUR_SESSION_ID"
+```
+
+The binary silently no-ops when `telemetry: off` and never fails the caller.
+The eight high-value touchpoints below extend `verb_run` with structured
+context (finding kind, automation decision, etc.). Vocabulary is defined in
+`registry/telemetry-vocab.md` — values not on the list are coerced to `unknown`
+server-side.
+
+**The eight instrumented touchpoints:**
+
+| Touchpoint | Event |
+|---|---|
+| Verb dispatch (every verb) | `verb_run` with `verb`, `outcome`, `duration_s` |
+| First-contact bootstrap completes | `connect` with `connector=bootstrap` |
+| `connect.md` succeeds for a specific tool | `connect` with `connector=<github\|stripe\|...>` |
+| Daily-digest finding renders | `finding_shown` with `finding_kind=...` |
+| User accepts / snoozes / rejects a finding | `finding_action` with `finding_kind=... finding_action=...` |
+| Automation offered in `recommend.md` | `verb_run verb=recommend automation_decision=offered` |
+| Automation accepted / declined | `verb_run automation_decision=accepted\|declined` |
+| Marketplace flow runs | `flow_run flow_source=marketplace credits_charged=N` |
+| Errors surfaced to the user | `error error_class=... error_message=... failed_step=...` |
+
+Always pass `--session-id "$MUR_SESSION_ID"` so events from the same
+conversation can be reconstructed. Errors emitted from inside a verb should
+**also** emit the verb's own `verb_run outcome=error` — the two events
+correlate via session id.
+
 The flagship paid flow is the **daily digest**: overnight, it ranks
 open issues + TODOs + recent PR activity across every system you've
 connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things

@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# mur-config — read/write ~/.mur/config.yaml
+#
+# Usage:
+#   mur-config get <key>          — read a config value (returns the default for unset keys)
+#   mur-config set <key> <value>  — write a config value
+#   mur-config list               — show all known keys with values + provenance
+#
+# Keys (and defaults):
+#   telemetry      off          # off | anonymous | community
+#   update_check   true         # false suppresses preamble UPGRADE_AVAILABLE prompts
+#   auto_upgrade   false        # true silently upgrades when a new version is published
+#
+# Env overrides (for testing):
+#   MUR_HOME — override ~/.mur state directory.
+set -uo pipefail
+
+STATE_DIR="${MUR_HOME:-$HOME/.mur}"
+CONFIG_FILE="$STATE_DIR/config.yaml"
+
+CONFIG_HEADER='# Mur skill configuration — edit freely, changes take effect on next /mur run.
+# Docs: https://usemur.dev/docs
+#
+# telemetry: off              # off | anonymous | community
+#                             #   off       — no data sent, no local analytics (default)
+#                             #   anonymous — counter only, no install ID
+#                             #   community — usage data + stable per-machine install ID
+#
+# update_check: true          # false suppresses the preamble version check
+# auto_upgrade: false         # true silently upgrades on session start when a new version exists
+'
+
+lookup_default() {
+  case "$1" in
+    telemetry) echo "off" ;;
+    update_check) echo "true" ;;
+    auto_upgrade) echo "false" ;;
+    *) echo "" ;;
+  esac
+}
+
+case "${1:-}" in
+  get)
+    KEY="${2:?Usage: mur-config get <key>}"
+    if ! printf '%s' "$KEY" | grep -qE '^[a-zA-Z0-9_]+$'; then
+      echo "Error: key must contain only alphanumeric characters and underscores" >&2
+      exit 1
+    fi
+    VALUE=""
+    if [ -f "$CONFIG_FILE" ]; then
+      VALUE=$(grep -E "^${KEY}:" "$CONFIG_FILE" 2>/dev/null | tail -1 | awk '{print $2}' | tr -d '[:space:]' || true)
+    fi
+    if [ -z "$VALUE" ]; then
+      VALUE=$(lookup_default "$KEY")
+    fi
+    printf '%s' "$VALUE"
+    ;;
+  set)
+    KEY="${2:?Usage: mur-config set <key> <value>}"
+    VALUE="${3:?Usage: mur-config set <key> <value>}"
+    if ! printf '%s' "$KEY" | grep -qE '^[a-zA-Z0-9_]+$'; then
+      echo "Error: key must contain only alphanumeric characters and underscores" >&2
+      exit 1
+    fi
+    if [ "$KEY" = "telemetry" ] && [ "$VALUE" != "off" ] && [ "$VALUE" != "anonymous" ] && [ "$VALUE" != "community" ]; then
+      echo "Warning: telemetry '$VALUE' not recognized. Valid: off, anonymous, community. Using off." >&2
+      VALUE="off"
+    fi
+    mkdir -p "$STATE_DIR"
+    if [ ! -f "$CONFIG_FILE" ]; then
+      printf '%s' "$CONFIG_HEADER" > "$CONFIG_FILE"
+    fi
+    ESC_VALUE="$(printf '%s' "$VALUE" | head -1 | sed 's/[&/\]/\\&/g')"
+    if grep -qE "^${KEY}:" "$CONFIG_FILE" 2>/dev/null; then
+      _tmpfile="$(mktemp "${CONFIG_FILE}.XXXXXX")"
+      sed "/^${KEY}:/s/.*/${KEY}: ${ESC_VALUE}/" "$CONFIG_FILE" > "$_tmpfile" && mv "$_tmpfile" "$CONFIG_FILE"
+    else
+      echo "${KEY}: ${VALUE}" >> "$CONFIG_FILE"
+    fi
+    ;;
+  list)
+    if [ -f "$CONFIG_FILE" ]; then
+      cat "$CONFIG_FILE"
+    fi
+    echo ""
+    echo "# ─── Active values (including defaults for unset keys) ───"
+    for KEY in telemetry update_check auto_upgrade; do
+      VALUE=""
+      if [ -f "$CONFIG_FILE" ]; then
+        VALUE=$(grep -E "^${KEY}:" "$CONFIG_FILE" 2>/dev/null | tail -1 | awk '{print $2}' | tr -d '[:space:]' || true)
+      fi
+      SOURCE="default"
+      if [ -n "$VALUE" ]; then
+        SOURCE="set"
+      else
+        VALUE=$(lookup_default "$KEY")
+      fi
+      printf '  %-16s %s (%s)\n' "$KEY:" "$VALUE" "$SOURCE"
+    done
+    ;;
+  *)
+    echo "Usage: mur-config {get|set|list} [key] [value]"
+    exit 1
+    ;;
+esac
