@@ -89,6 +89,33 @@ Without the header, the server falls back to primary — fine for
 single-project users, wrong for a 2-repo founder connecting Gmail
 while in repo B.
 
+### Deep-link entry path (Gate H — onboarding flip)
+
+Plan: `plans/onboarding-flip.md` §4. The user does NOT have to type
+"/mur connect github" anymore — scan.md's dual render emits a
+clickable URL of the shape:
+
+```
+https://usemur.dev/connect/<slug>?install=<automationId>&project=<projectId>
+```
+
+When scan.md offers this URL, the agent runs `open <url>` to launch
+the browser AND prints the URL inline as a fallback (for SSH /
+headless / link-shy terminals). The browser handles auth-gating,
+calls `POST /api/installs/pending/start` to create a PendingInstall
+row, and is redirected to the appropriate OAuth provider. After
+OAuth completes, the OAuth callback flips
+`PendingInstall.connectedAt` and redirects to a success page.
+
+The user's next /mur invocation triggers `_bootstrap.md` Step 6
+(announce-and-confirm), which fires the install via
+`prompts/install.md`. **connect.md itself is not invoked on this
+path** — the deep-link entry is server-side; this prompt only runs
+when the user explicitly types "connect <slug>" in chat.
+
+The agent should NOT type `/mur connect github` for the user when a
+deep-link install_path is available. The URL is the affordance.
+
 ### Special case: `app === 'github'`
 
 GitHub uses the **Murmur Cofounder GitHub App** (per-repo install scope).
@@ -280,7 +307,7 @@ If this was the founder's first connect, do these in order:
 
    - **scan.json exists** (the user ran `/mur scan` first, then
      connected): augment in place. Add the `external.*` keys to
-     the existing object. Don't re-run local probes (gh CLI, file
+     the existing object. Don't re-run local CLI scans (gh, file
      reads) — those ran in the original scan and are still valid.
    - **scan.json missing** (no-repo user came in via the helpful
      no-repo ask path, OR connected without scanning first): the

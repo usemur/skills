@@ -1,0 +1,106 @@
+{
+  "_doc": "Dashboard-paste-capable connectors. Plan: plans/onboarding-flip.md §B (dashboard paste flow). Read by recommend-matcher.md (mode: scan-output) and frontend DashboardPastePage. Each entry describes one connector that we can wire via a single user-pasted credential in the dashboard. The matcher uses this registry to decide which non-OAuth connectors are 'wireable' today — anything not listed here gets dropped from automation_candidates rather than emitted with a broken install_path. The frontend uses it to render the paste form (label, validation, verify probe). Add a new connector by adding a new entry here; engineering review per addition.",
+
+  "linear": {
+    "label": "Linear",
+    "envVar": "LINEAR_API_KEY",
+    "shapeGate": "^lin_api_[A-Za-z0-9_-]{32,}$",
+    "shapeGateHint": "Linear keys start with `lin_api_`. Get one from linear.app → Settings → API → Personal API keys.",
+    "verify": {
+      "method": "POST",
+      "url": "https://api.linear.app/graphql",
+      "headers": {
+        "Authorization": "${value}",
+        "Content-Type": "application/json"
+      },
+      "body": "{\"query\":\"{ viewer { id } }\"}"
+    }
+  },
+
+  "openai": {
+    "label": "OpenAI",
+    "envVar": "OPENAI_API_KEY",
+    "shapeGate": "^sk-(proj-)?[A-Za-z0-9_-]{20,}$",
+    "shapeGateHint": "OpenAI keys start with `sk-` (or `sk-proj-` for project keys). Get one from platform.openai.com → API keys.",
+    "verify": {
+      "method": "GET",
+      "url": "https://api.openai.com/v1/models",
+      "headers": {
+        "Authorization": "Bearer ${value}"
+      }
+    }
+  },
+
+  "anthropic": {
+    "label": "Anthropic",
+    "envVar": "ANTHROPIC_API_KEY",
+    "shapeGate": "^sk-ant-[A-Za-z0-9_-]{20,}$",
+    "shapeGateHint": "Anthropic keys start with `sk-ant-`. Get one from console.anthropic.com → API Keys.",
+    "verify": {
+      "method": "POST",
+      "url": "https://api.anthropic.com/v1/messages",
+      "headers": {
+        "x-api-key": "${value}",
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+      },
+      "body": "{\"model\":\"claude-haiku-4-5\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
+    }
+  },
+
+  "stripe": {
+    "label": "Stripe",
+    "envVar": "STRIPE_SECRET_KEY",
+    "shapeGate": "^(sk|rk)_(live|test)_[A-Za-z0-9]{24,}$",
+    "shapeGateHint": "Stripe secret keys start with `sk_live_`, `sk_test_`, `rk_live_`, or `rk_test_`. Publishable keys (`pk_*`) are NOT secret keys — get the right one from dashboard.stripe.com → Developers → API keys.",
+    "verify": {
+      "method": "GET",
+      "url": "https://api.stripe.com/v1/account",
+      "headers": {
+        "Authorization": "Bearer ${value}"
+      }
+    }
+  },
+
+  "supabase": {
+    "label": "Supabase",
+    "envVar": "SUPABASE_SERVICE_ROLE_KEY",
+    "shapeGate": "^eyJ[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}$",
+    "shapeGateHint": "Supabase service role keys are JWTs (three dot-separated base64url segments). Get one from app.supabase.com → Project Settings → API. The service role key bypasses RLS — only paste it if you intend that scope.",
+    "verify": {
+      "method": "GET",
+      "url": "https://api.supabase.com/v1/projects",
+      "headers": {
+        "Authorization": "Bearer ${value}"
+      }
+    }
+  },
+
+  "planetscale": {
+    "label": "PlanetScale",
+    "envVar": "PLANETSCALE_SERVICE_TOKEN",
+    "shapeGate": "^pscale_tkn_[A-Za-z0-9_-]{32,}$",
+    "shapeGateHint": "PlanetScale service tokens start with `pscale_tkn_`. Generate one at app.planetscale.com → Settings → Service tokens.",
+    "verify": {
+      "method": "GET",
+      "url": "https://api.planetscale.com/v1/organizations",
+      "headers": {
+        "Authorization": "${value}"
+      }
+    }
+  },
+
+  "neon": {
+    "label": "Neon",
+    "envVar": "NEON_API_KEY",
+    "shapeGate": "^[A-Za-z0-9]{32,}$",
+    "shapeGateHint": "Neon API keys are alphanumeric. Generate one from console.neon.tech → Account settings → API keys.",
+    "verify": {
+      "method": "GET",
+      "url": "https://console.neon.tech/api/v2/projects",
+      "headers": {
+        "Authorization": "Bearer ${value}"
+      }
+    }
+  }
+}

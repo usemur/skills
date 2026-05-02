@@ -69,12 +69,30 @@ Each template includes:
 # What this does (one short paragraph): {{plain_english_summary}}
 set -euo pipefail
 
+# === Mur env files (onboarding-flip dashboard-paste path) ===
+# Source any ~/.murmur/.env-<slug> files — these are written by the
+# bootstrap pickup after a dashboard paste (plans/onboarding-flip.md §B).
+# Sourcing all of them is intentional: a script may depend on more than
+# one connector. Files are chmod 600 and never touched by the script.
+# Path A users (env already exported in shell rc) skip this gracefully —
+# the loop is a no-op when no .env-<slug> files exist.
+if [ -d "${HOME}/.murmur" ]; then
+  set -a
+  for f in "${HOME}"/.murmur/.env-*; do
+    [ -f "$f" ] || continue
+    # shellcheck disable=SC1090
+    . "$f"
+  done
+  set +a
+fi
+
 # === Required env vars ===
-# These must be set in the shell that runs the script. Cron jobs
-# inherit env from /etc/environment + the user's per-cron-line env;
-# if a var is missing, fail loud here rather than silently 4hr later.
+# These must be set in the shell that runs the script (or via the
+# .env-<slug> sourcing block above). Cron jobs inherit env from
+# /etc/environment + the user's per-cron-line env; if a var is
+# missing, fail loud here rather than silently 4hr later.
 {{#each required_env_vars}}
-: "${{{this}}:?{{this}} must be set (paste into ~/.zshrc or run via a wrapper)}"
+: "${{{this}}:?{{this}} must be set (paste it via /mur connect <slug>, or export in ~/.zshrc)}"
 {{/each}}
 
 # === State directory ===

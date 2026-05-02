@@ -278,6 +278,198 @@ The verb-specific prompts (`automate.md`, `connect.md`, etc.) reference
 this — they say *"include the X-Mur-Project-Id header from the
 bootstrap"* rather than re-deriving it.
 
+## Step 6 — pick up any pending deep-link installs (Gate F)
+
+Plan: `plans/onboarding-flip.md` §4 + Gate F. After a user clicks a
+deep-link from scan output and completes OAuth in the browser, the
+server holds a `PendingInstall` row with `connectedAt` set and
+`firedAt` null. On every /mur invocation, the bootstrap checks for
+ready rows and **announces + confirms** before firing — never silent.
+
+This step runs ONLY when there is an authenticated account
+(account.json present + an account key set). On no-account paths it's
+skipped silently.
+
+```sh
+curl -fsSL "https://usemur.dev/api/installs/pending" \
+  -H "Authorization: Bearer <account key>"
+```
+
+Response shape:
+
+```json
+{
+  "pendingInstalls": [
+    {
+      "id": "cpi_xxx",
+      "slug": "github",
+      "automationId": "daily-digest",
+      "projectId": "cprj_yyy",
+      "projectName": "acme-saas",
+      "projectSlug": "acme-saas",
+      "createdAt": "2026-05-01T...",
+      "connectedAt": "2026-05-01T...",
+      "credentialFetch": null
+    },
+    {
+      "id": "cpi_yyy",
+      "slug": "linear",
+      "automationId": "linear-watcher",
+      "projectId": "cprj_yyy",
+      "projectName": "acme-saas",
+      "projectSlug": "acme-saas",
+      "createdAt": "2026-05-01T...",
+      "connectedAt": "2026-05-01T...",
+      "credentialFetch": {
+        "fetchToken": "<64 hex chars>",
+        "envVar": "LINEAR_API_KEY"
+      }
+    }
+  ]
+}
+```
+
+**Two pickup paths**, dispatched by the `credentialFetch` field:
+
+- `credentialFetch: null` → OAuth path. Bootstrap announces, fires
+  `/api/flows/install` directly on confirm.
+- `credentialFetch: {fetchToken, envVar}` → dashboard-paste path.
+  Bootstrap announces, then BEFORE firing the install, calls
+  `GET /api/credentials/fetch?token=<fetchToken>` to retrieve the
+  plaintext, writes `~/.murmur/.env-<slug>` chmod 600, then fires
+  the install. See "Dashboard-paste pickup steps" below.
+
+If the array is empty, skip this step entirely — no announce, no
+prompt, just continue to whatever verb the user invoked.
+
+If the array is non-empty, **announce and confirm before firing.**
+Pick the oldest `connectedAt` (the FIFO row) and present it inline
+to the user. Three cases:
+
+1. **Same project** — the pending install's `projectId` matches the
+   `projectId` resolved in Step 5. Render:
+   ```
+   ✓ I picked up an install you started: <automationId> (needs
+     <slug>). Fire it now?
+     - "yes" → install
+     - "later" → keep it queued, ask again next time
+     - "cancel" → drop it
+   ```
+
+2. **Different project** — the pending install's `projectId` does
+   NOT match Step 5. Render:
+   ```
+   ✓ I picked up an install you started for <projectName>:
+     <automationId> (needs <slug>). You're currently in
+     <currentProjectName>. What do you want to do?
+     - "fire it" → install for <projectName> from here (uses the
+       pending install's projectId, not the active one)
+     - "switch" → cd into the other project first
+     - "cancel" → drop it
+   ```
+   The "fire it" option is safe: the server-side install fires
+   under the pending install's `projectId`, not the active context,
+   so the data lands where the user originally chose.
+
+3. **Pending project deleted** — the pending install's `projectId`
+   is null OR the project was archived since OAuth. Render the same
+   "Same project" copy but with project context omitted.
+
+Wait for the user's response before firing. On confirm:
+
+**Step A — dashboard-paste pickup (only if `credentialFetch` is non-null).**
+
+**Hard contract: the plaintext value MUST NOT appear in your tool
+calls, your conversation memory, your transcript, or any string
+you construct.** Pipe the fetch response directly into the env-file
+writer with a single shell pipeline so the bytes never cross the
+agent boundary. The pipeline below uses `jq -r` to extract the
+value into stdin of `awk`, which writes the env file in one shot.
+You construct the pipeline; you never see, repeat, or echo the
+value.
+
+Run this exactly. The placeholders `<fetchToken>`, `<account key>`,
+`<envVar>`, and `<slug>` are values you DO know (slug + envVar from
+the GET /api/installs/pending response, fetchToken from the same
+response's `credentialFetch.fetchToken`). The plaintext value is
+the only thing you must not handle directly.
+
+```sh
+mkdir -p ~/.murmur && \
+TARGET=~/.murmur/.env-<slug> && \
+TMP=$(mktemp "$TARGET".XXXXXX) && \
+chmod 600 "$TMP" && \
+ENV_VAR=<envVar> SLUG=<slug> ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+curl -fsSL \
+  -H "Authorization: Bearer <account key>" \
+  "https://usemur.dev/api/credentials/fetch?token=<fetchToken>" \
+| jq -r '.value' \
+| awk -v var="$ENV_VAR" -v slug="$SLUG" -v iso="$ISO" '
+    BEGIN {
+      print "# Generated by /mur (onboarding flip pickup) on " iso
+      print "# Source: ~/.murmur/.env-" slug
+      print "# Uninstall: /mur disconnect " slug
+    }
+    { print "export " var "=" $0 }
+  ' > "$TMP" && \
+mv "$TMP" "$TARGET"
+```
+
+The value's only resting place is `$TARGET` (chmod 600). It never
+lands in shell history (no expansion in the pipeline), never in
+process listing argv (the curl call doesn't include the value), and
+never in your tool output (the pipeline returns nothing on stdout).
+
+If the curl fails (404, 410, network), the pipeline fails; the
+`$TMP` file is left empty and the `mv` is fine — but the env file
+will be missing the export. Surface the failure honestly:
+"Couldn't fetch the credential — the token may have already been
+used. Try `/mur connect <slug>` again." Don't retry on your own —
+the row is single-use, retry would just say "already fetched."
+
+If the system lacks `jq` or `awk` (rare but possible in stripped
+containers), fall back to: pipe curl output into a small Python
+one-liner that does the same JSON extract + write. Never assemble
+the value as a shell argument or string variable in your bash
+invocation.
+
+**Step B — fire the install.**
+
+1. POST `/api/flows/install` with the `automationId` slug
+   (existing install path — see install.md for the full flow).
+2. After install succeeds, mark the pending install fired:
+
+   ```sh
+   curl -fsSL -X POST "https://usemur.dev/api/installs/pending/<id>/mark-fired" \
+     -H "Authorization: Bearer <account key>"
+   ```
+
+3. Continue to the user's original verb (or stop if they came
+   purely to fire the pending install).
+
+On "cancel":
+
+```sh
+curl -fsSL -X DELETE "https://usemur.dev/api/installs/pending/<id>" \
+  -H "Authorization: Bearer <account key>"
+```
+
+Then continue.
+
+On "later": don't call any endpoint — the row stays as-is and the
+next /mur invocation re-prompts. The server-side expiry sweep
+(7 days from connectedAt) eventually clears unfired rows.
+
+**Multiple pending installs.** If the response contains more than
+one row, announce only the oldest. After the user resolves it
+(fire / cancel / later), continue to whatever verb they originally
+invoked. The next /mur run will surface the next-oldest pending row.
+Don't dump a list — the user came here to do something specific.
+
+**Failure mode.** If `/api/installs/pending` 5xx's, log the error
+and continue with the user's original verb. The pending install
+will simply re-surface on the next /mur run; no data is lost.
+
 ## Cache mismatch — repo URL changed since last visit
 
 If `projects[<canonical-repo-root>]` exists but the live

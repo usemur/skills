@@ -28,17 +28,25 @@ Docs: https://usemur.dev/docs.
 ## Getting started — the canonical path
 
 When a user has just installed Mur, the path that gets them from
-"installed" to "Mur is helping me ship" is **scan → connect →
-recommend → install**, in that order:
+"installed" to "Mur is helping me ship" is **scan → propose
+(findings + automations together) → connect (just-in-time, only
+for the specific automation the user picked) → install**, in that
+order. This is the onboarding flip — see `plans/onboarding-flip.md`
+for the full rationale and gates.
 
 1. **Scan** — `/mur scan`. Reads the project locally (repo, git log,
-   TODOs, manifests, gh CLI if present). **Fully local — no network
-   calls during the scan itself** (see `prompts/scan.md` "No network
-   calls in this verb"). Surfaces a four-pillar initial sweep:
-   *what you're building*, *who's working on it with you* (commit
-   collaborators), *what we noticed* (top findings as sub-CTAs),
-   and *what we can connect to* (tools detected locally). One
-   primary CTA at the bottom: connect deeper. Free.
+   TODOs, manifests, locally-authed CLIs: `gh`, `stripe`, `fly`,
+   `vercel`, `railway`, with per-tool consent). **Fully local — no
+   network calls during the scan itself** (see `prompts/scan.md`
+   "No network calls in this verb"). Surfaces a five-pillar dual
+   render:
+   *what you're building*, *who's working on it with you*,
+   *what we noticed* (top 2 findings + "show more findings"),
+   *what I'd watch for you* (top 2 automation candidates +
+   "show more automations"), and *what I can connect to*
+   (factual list, demoted). Findings and automations always
+   co-render — automations are the product surface, never gated.
+   Free.
 
    *No-repo path:* if `git rev-parse` fails, scan.md's "Project
    location check" renders the helpful 3-option ask (connect /
@@ -46,77 +54,69 @@ recommend → install**, in that order:
    for non-developers connecting Stripe + Calendar alone — no
    git project required.
 
-2. **Connect** — `/mur connect github` (and any other relevant
-   source that came up in the scan's "what we can connect to"
-   pillar). This grants server-side OAuth so Mur can watch
-   overnight, find cross-tool patterns, propose automations, AND
-   expand "who you work with" to include external entities (your
-   customers across Stripe, your team across Linear, etc.).
-   Local `gh auth login` is great for foreground reads, but the
-   overnight digest runs on Mur's server with Composio-vaulted
-   OAuth tokens — so `/mur connect` is required for the watching
-   loop to close. The first connect also runs the bootstrap
-   (`POST /api/projects` for repo-anchored projects, primary
-   fallback for no-repo users), credits the developer's $5
-   connection bonus, and triggers a deeper rescan that pulls
-   server-side data into `scan.json` under `external.*`.
+   *Returning users:* steady-state scans render a "since last
+   scan" delta preamble (PRs merged, new failing CI, CLIs newly
+   authed). When both progress cursors are exhausted, the dual
+   render collapses to a minimal "I'm caught up" line — Gate G in
+   the plan. Otherwise the dual render runs every time.
 
-3. **Recommend** — `/mur recommend` (auto-routes from connect's
-   After-connect; also re-invokable anytime). The post-connect
-   *conversation* — Mur turns "you connected things" into "here's
-   what to do with them" using a small toolkit of moves:
-   - **probe** — one pointed question about pain
-   - **propose** — 3 candidates (1-2 marquee + 1-2 co-designed),
-     provenance hidden by default
-   - **co-design** — 2-4 turn polish loop on a chosen candidate
-   - **install** — emit local artifact (with render-confirm-revoke
-     safety contract) OR install remote (TEE-isolated)
-   - **defer** — stash with optional resurface condition
-   - **light** — fallback when probe gets a non-answer
+2. **Pick an automation** (no typed verb required). The user
+   picks an entry from the "What I'd watch for you" pillar by
+   id, by index ("the first one"), or by phrase ("the github
+   one"). scan.md's Step 3 dispatches by `connector_required.status`:
+   - **`connected`** → hand off to `prompts/install.md`
+     directly. No OAuth needed.
+   - **anything else** → render a one-line confirmation, then
+     `open <deep-link URL>` from the agent AND print the URL
+     inline ("If your browser didn't open, click here: …").
+     The browser handles auth-gating, OAuth, and a success page.
 
-   The user picks ONE candidate per session. Co-designed flows
-   cover the ~80% of automation surface area that no marquee
-   flow fits. Provenance neutrality means the user picks based
-   on stack-fit, not "is this branded." See `prompts/recommend.md`
-   for the full move spec.
+3. **Just-in-time connect** — only happens when the user picked
+   a specific automation that needs it. The deep-link URL
+   (`https://usemur.dev/connect/<slug>?install=<id>&project=<id>`)
+   creates a `PendingInstall` row server-side and drives the
+   browser through OAuth (GitHub App or Composio). After OAuth
+   completes, the callback flips `PendingInstall.connectedAt`
+   and redirects to a "switch back to your terminal" page.
+   The $5 first-connect bonus fires here on OAuth completion —
+   independent of whether the install ever fires (Gate E).
 
-4. **Install** — chosen by the user inside recommend. Two paths:
+4. **Install** — fires on the next /mur invocation via
+   `prompts/_bootstrap.md` Step 6 (announce-and-confirm — Gate
+   F). Bootstrap reads `GET /api/installs/pending` and, if any
+   rows are ready, announces with the user before firing
+   ("I picked up the install you started for **acme-saas**:
+   daily-digest. Fire it now? — fire / switch / cancel"). Never
+   silent fire. After install:
    - **Local artifact** (cron / launchd / GH workflow / gstack
      skill): rendered + confirmed before any disk write. Every
      install gets a `/mur uninstall <slug>` revoke command.
      Free.
    - **Remote** (FlowState row + handler in TEE): runs on Mur's
      server with vaulted OAuth tokens. Pricing: ~$0.05/run
-     default. Includes the daily digest, PR review, prompt
-     regression eval, etc. — all "remote installs" the user
-     picked from inside recommend.
+     default.
 
-**The scan output's primary CTA depends on connection state** —
-scan.md's Step 2 conditionally renders the closing line:
-- **No connections yet** (`~/.murmur/pages/HEARTBEAT.md` is missing
-  OR `hasMinConnections` is false): scan closes with the connect-
-  deeper ask ("I need server-side read access on the tools above").
-- **≥1 connection AND no recommend session has fired yet**
-  (HEARTBEAT shows `hasMinConnections: true` AND
-  `.murmur/recommend-history.jsonl` is empty): scan closes with
-  `/mur recommend`.
-- **Recommend has fired before**: same — `/mur recommend` again,
-  with a "since last recommend" delta on re-invocation.
+**Why connect moved from step 2 to step 3.** The old order asked
+for OAuth before the user had seen anything they wanted to
+install — trust before value. The flip puts findings +
+automations in one render so the wow ("you already know my
+stack") lands first; connect becomes earned, not entry-gated.
+Every connect is now in service of an install the user already
+chose. See `plans/onboarding-flip.md` for the CEO-locked gates.
 
-Reading HEARTBEAT.md is a local-mirror file read, not a network
-call — scan stays in its no-network contract.
-
-**At the end of every /mur connect**, route to
-`prompts/recommend.md` with `mode: post-connect`. Recommend's
-default opening is `probe → propose`. The user picks one
-candidate to install (or defer all). Do NOT auto-fire any
-specific install — the user chooses.
+**The "what should I look at next" conversation** stays at
+`/mur recommend` — that's the deeper post-connect co-design
+phase for users who want alternatives, "why this and not that,"
+or want to author co-designed flows. scan.md's "show more
+automations" walks the inline candidate list one card at a
+time; recommend.md is the conversation when the user wants to
+go deeper than the scan output.
 
 This is the canonical path. Mur can do other things (catalog
 browsing standalone, publishing flows, automate this-or-that as
-a recurring job) — but for a new user, the proactive
-read-and-react-then-co-design loop is the product, and scan →
-connect → recommend → install is how it gets activated.
+a recurring job) — but for a new user, the dual-render scan →
+pick automation → just-in-time connect → install loop is the
+product activation moment.
 
 ## How users invoke Mur
 

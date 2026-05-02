@@ -143,69 +143,89 @@ update mtime on every "what else?" and would otherwise refresh
 the staleness window indefinitely.) In this mode:
 
 - Do NOT re-run the scan, do NOT re-prompt for consent, do NOT
-  re-probe gh.
+  re-scan local CLIs.
 - Read the existing `scan.json` and dispatch by phrase:
-  - **"what else?" / "what else"** → advance to the next finding
-    (see "Progress — tracking which findings have been shown"
-    below) and jump to "Step 3" with the next-priority finding.
-    If the list is exhausted, reply: "That's the list. Want me
-    to re-scan? Just say 'rescan' or 'scan again'." (Do NOT
-    include "skip" or bare "next" / "more" as advance triggers
-    — those are used by recommend.md's pagination and including
-    them here would steal turns from a recommend session.)
+  - **"show more findings" / "what else?" / "what else"** →
+    advance `progress.findings` and surface the next finding (see
+    "Progress — tracking what's been shown" below). If
+    `progress.findings.next` is past the last finding, reply:
+    "No more findings. (Say 'show more automations' if you want
+    to keep going on those, or 'rescan' to start fresh.)"
+  - **"show more automations"** → advance
+    `progress.automations` and surface the next automation card.
+    If `progress.automations.next` is past the last automation,
+    reply: "No more automation candidates. (Say 'show more
+    findings' to keep going on those, or 'rescan' to start
+    fresh.)"
+  - Bare **"more"** / **"next"** / **"skip"** are intentionally
+    NOT advance triggers — they collide with `recommend.md`'s
+    pagination, where "skip"/"No" advance to the next
+    recommendation. Use the scan-specific phrases above.
   - **"open #N" / "show me &lt;file&gt;"** → these
     are inspection actions on the **current** finding. Do **NOT**
     advance `progress`. Read the relevant file/PR/issue, surface
-    the relevant chunk to the user, then wait. The next "what
-    else?" still advances from the same position.
+    the relevant chunk to the user, then wait. The next "show
+    more findings" still advances from the same position.
 
 **Steady-state mode** — `consents.json` exists with
 `"scan": "yes@..."` AND the user invoked scan explicitly (via
 `/mur scan`, "scan my repo", etc.) without a continuation phrase.
 
-  - Re-ask the gh-probe question if `gh_probe_last` is missing,
-    `"no@..."`, or older than 14 days. Use the prior answer as
-    sticky default in the re-ask copy ("Last time you said no on
-    the GitHub API calls — same again? [yes/no]"). Update
-    `consents.json.gh_probe_last` with this run's answer before
-    proceeding. Skip the re-ask only when `gh_probe_last` is
-    `"yes@..."` and within 14 days.
-  - After resolving the gh consent, run the full scan (everything
-    below, fresh `scan.json`, `progress` reset to its initial 1-based
-    shape: `{"shown": [], "next": 1}`).
+  - Re-ask scan consent only if `cli_scans` is missing,
+    `"no@..."`, or older than 14 days. The re-ask is one yes/no
+    covering the whole CLI pass, not per-tool — the user's OS-
+    level CLI auth is the per-tool control surface (revoke a
+    CLI's auth to opt out of one tool while keeping others).
+    Update `consents.json.cli_scans` with this run's answer.
+  - **Migration of legacy `gh_scan_last`.** If the file has a
+    top-level `gh_scan_last` value but no `cli_scans` field,
+    copy that value across (`cli_scans` becomes the same
+    `yes@<ISO>` / `no@<ISO>` string) and persist the migrated
+    shape on the next write. Same-value migration: a user who
+    said yes to gh scans presumably wants the same answer for
+    the broader scan pass; we don't silently expand consent.
+  - After resolving consent, run the full scan (fresh
+    `scan.json`, `progress.findings` and `progress.automations`
+    reset to their initial 1-based shape: `{"shown": [], "next": 1}`
+    each).
 
 **First-run mode** — `consents.json` doesn't exist OR the `scan`
 key is missing. Two paths:
 
 - **Welcomed-invocation path.** If the user invoked scan via
-  `/mur scan` or `/mur scan --no-gh` (the explicit verbs the
+  `/mur scan` or `/mur scan --no-scans` (the explicit verbs the
   first-contact welcome documents in SKILL.md), treat the verb
   itself as full consent. The welcome already disclosed what scan
-  reads and where data goes. Skip the §2.0 disclosure block;
+  reads and where data goes. Skip the disclosure block;
   write `.murmur/consents.json` directly:
-  - `/mur scan` → `{"scan": "yes@<ISO>", "gh_probe_last": "yes@<ISO>"}`
-  - `/mur scan --no-gh` → `{"scan": "yes@<ISO>", "gh_probe_last": "no@<ISO>"}`
+  - `/mur scan` → `{"scan": "yes@<ISO>", "cli_scans": "yes@<ISO>"}`
+  - `/mur scan --no-scans` → `{"scan": "yes@<ISO>", "cli_scans": "no@<ISO>"}`
   Then proceed straight to "Run the scan" below.
 - **Freeform path.** If the user typed something like "scan my
   repo" or "audit my stack" without using the explicit `/mur scan`
-  verb, fall back to the §2.0 disclosure (next section) — they
-  may not have seen the welcome. Same 3-option consent applies.
+  verb, fall back to the disclosure block (next section) — they
+  may not have seen the welcome. Per-tool consent applies.
 
-### Progress — tracking which findings have been shown
+### Progress — tracking what's been shown
 
-scan.json carries a small piece of session state so "what else?"
-advances correctly. Add a `progress` field at the top of scan.json:
+scan.json carries session state so the "show more …" continuations
+advance correctly. The plan flipped this from a single cursor
+to two parallel cursors — findings and automations — because both
+sections render every scan and the user can advance them
+independently:
 
 ```json
 "progress": {
-  "shown": [1, 2],
-  "next": 3
+  "findings":    {"shown": [1, 2], "next": 3},
+  "automations": {"shown": [1, 2], "next": 3}
 }
 ```
 
-`shown` is the list of priority ranks already surfaced this
-session. `next` is the rank to surface on the next continuation.
-Reset to `{shown: [], next: 1}` on every fresh scan.
+Each branch is independent: `progress.findings.shown` lists the
+priority ranks of findings already rendered; `progress.findings.next`
+is the next rank to surface on "show more findings". Same shape
+under `progress.automations` for the automations side. Reset both
+to `{shown: [], next: 1}` on every fresh scan.
 
 Persisting this in scan.json (rather than just in conversation
 memory) means continuation works even after a context compaction
@@ -224,12 +244,23 @@ measured against the `scanned_at` field inside the JSON, which is
 set ONCE per fresh scan and never changed by `progress` updates.
 Do not use file mtime for staleness checks. Steady-state mode (a
 fresh `/mur scan` invocation past 24h on `scanned_at`) overwrites
-`scanned_at` with the new scan's timestamp and resets `progress`.
+`scanned_at` with the new scan's timestamp and resets both
+`progress.findings` and `progress.automations`.
+
+### Cursor exhaustion (Gate G in plans/onboarding-flip.md)
+
+When **both** `progress.findings.next > last_finding_rank`
+**and** `progress.automations.next > last_automation_rank`, the
+dual render in Step 2 collapses to a minimal "I'm caught up"
+shape — see Step 2's "Cursor exhausted" subsection. Don't
+render the four-pillar template with empty pillars; that reads
+as a status dump.
 
 ## First-run disclosure
 
-If first-run, send this to the user verbatim (substituting nothing —
-read it back exactly as written, in 1–2 short paragraphs):
+If first-run, send this to the user verbatim (substituting nothing
+beyond which CLIs you actually detected as present-and-authed
+locally). Render it in 1–2 short paragraphs.
 
 > Hi — I'm Mur. First scan on this project, so a quick heads-up
 > before I start.
@@ -251,47 +282,60 @@ read it back exactly as written, in 1–2 short paragraphs):
 > What touches the network:
 > - **Nothing goes to Mur's servers during scanning.** Scan is
 >   local-only. The first time anything reaches `usemur.dev` is
->   when you sign up and tell me to connect a tool (e.g. "connect
->   github") — that's where we register the project and start the
->   digest loop.
-> - If you're already authenticated to GitHub via `gh auth login`,
->   I'll run `gh issue list` / `gh pr list` / `gh repo view` for
->   *this* repo. That hits GitHub's API as you, using your
->   existing auth — it doesn't share data with Mur's servers.
->   (You can opt out below; I'll skip those calls.)
+>   when you sign up and tell me to connect a tool — that's where
+>   we register the project and start the digest loop.
+> - For the CLIs below that you have authed locally, I'd run a
+>   handful of read-only commands (e.g. `gh pr list`, `stripe
+>   webhook_endpoints list`) so my findings are concrete. Those
+>   hit each vendor's API as you, using your existing CLI auth.
+>   No data leaves your machine for Mur's servers.
+>
+> Locally-authed CLIs I detected and would scan (read-only metadata):
+> {comma-separated list of detected-and-authed CLIs from the
+>  list below, e.g. "gh, stripe, vercel". Drop the line entirely
+>  if none detected.}
+>
+> The act of authing each CLI locally is what gates this — if you
+> don't want me reading via one of them, revoke that CLI's auth
+> and I'll skip it automatically next run.
 >
 > Output is cached at `.murmur/scan.json` (you may want to
 > `.gitignore` `.murmur/`).
 >
-> Proceed? Reply with:
-> - "yes" — full scan including the local `gh` calls
-> - "yes, no gh" — scan but skip the GitHub API calls
-> - "no" — don't scan
+> Proceed?
+> - "yes" — full scan including the CLI scan pass
+> - "no scans" — scan but skip the CLI scan pass entirely
+> - "no" — don't scan at all
 
 Then **stop and wait for the user's reply**. Do not start scanning
 until they say yes (or any clear affirmative).
 
-- If "yes" (full): create `.murmur/` if missing, write
+- If "yes": create `.murmur/` if missing, write
   `.murmur/consents.json` with `{"scan": "yes@<ISO>",
-  "gh_probe_last": "yes@<ISO>"}`, proceed to "Run the scan" with
-  the gh probes enabled.
-- If "yes, no gh" (or any clear opt-out from the gh calls): write
-  `{"scan": "yes@<ISO>", "gh_probe_last": "no@<ISO>"}` and proceed
-  with the gh probes skipped this run (`local_resources.github =
-  { authed: null, skipped_by_user: true }`).
-- If "no": write `{"scan": "no@<ISO>"}` and exit cleanly with a
-  one-line "no problem, just say 'scan my project' again when
-  you're ready." Do not push further.
+  "cli_scans": "yes@<ISO>"}`; proceed to "Run the scan" with
+  the scan pass enabled.
+- If "no scans" (or any clear opt-out from the scan pass alone):
+  write `{"scan": "yes@<ISO>", "cli_scans": "no@<ISO>"}` and
+  proceed with the scan pass skipped this run.
+- If "no": write `{"scan": "no@<ISO>"}` and exit cleanly with
+  "no problem, just say 'scan my project' again when you're
+  ready." Do not push further.
 
-**Important — gh consent is per-run, not permanent.** Steady-state
-re-scans (when `consents.json.scan` is already `yes@...`) MUST
-re-ask the gh probe question if the prior `gh_probe_last` was no
-OR if it's been more than 14 days since the last scan. The user
-might not have had `gh auth login` set up the first time but does
-now — locking out the GitHub-driven prioritization permanently
-because of one early opt-out defeats the point of the priority
-sort. Use `gh_probe_last` as a sticky default in the re-ask ("Last
-time you said no — same again?") but re-ask, don't hard-skip.
+**Scan consent is per-run-window, not permanent.** Steady-state
+re-scans MUST re-ask if `cli_scans` is missing, `"no@..."`, or
+older than 14 days. The user might not have had `stripe login`
+set up the first time but does now — locking out scans
+permanently because of one early opt-out defeats the point of
+the priority sort. Use the prior answer as a sticky default in
+the re-ask ("Last time you said no on scans — same again?")
+but re-ask, don't hard-skip.
+
+**Migration of legacy consent.** If `consents.json` has a
+top-level `gh_scan_last` value but no `cli_scans` field, copy
+that value across (a user who consented to gh scans presumably
+wants the same answer for the broader scan pass — we don't
+silently expand consent, the value is the same string). Leave
+`gh_scan_last` in place for one release cycle for safety.
 
 Also: if there's no `.gitignore` entry for `.murmur/`, offer once (after
 the scan completes) to add it. Don't add it without asking.
@@ -441,7 +485,7 @@ file contents beyond what's needed to confirm the signal type.
 
 Apply the privacy filters from the top of this prompt before flagging.
 
-### Local-resource probe (read what's already on the user's machine before asking them to connect)
+### Local-resource scan (read what's already on the user's machine before asking them to connect)
 
 Mur is proactive. Before the summary asks the user about
 connecting GitHub, try to read what's already available
@@ -450,43 +494,83 @@ GitHub auth via `gh`, Stripe CLI auth, AWS creds, etc. If those exist,
 Mur can surface real findings on the first scan instead of dead-ending
 at "go connect things in the webapp."
 
-For each probe below: best-effort, non-blocking, swallow errors. None
+For each scan below: best-effort, non-blocking, swallow errors. None
 of these failing should fail the scan.
 
-**1. GitHub via `gh` CLI** — the biggest win. **Gated on the
-   current run's gh-probe consent** (`consents.json.gh_probe_last`,
-   set in §2.0 for first-run or in the steady-state re-ask). If the
-   user opted out for this run, set `local_resources.github =
-   { authed: null, skipped_by_user: true }` and skip ahead to
-   probe 2. The opt-out is per-run — next scan asks again.
+**1. CLI scans via the harness** — the biggest win, and the
+   bulk of what makes scan output concrete. **Gated on per-tool
+   consent** (`consents.json.cli_scans.<tool>`, set during the
+   first-run disclosure or steady-state re-ask). The harness handles
+   gating, parallel exec, 5s per-scan timeout, 12s total
+   wall-clock cap, and stdin redirection so a CLI that prompts for
+   re-auth can't hang the scan.
 
-   Otherwise: if `command -v gh` succeeds AND `gh auth status` exits
-   0, the user is authenticated. Pull lightweight read-only data
-   scoped to this repo's remote:
+   Run the harness with the project root passed in:
 
-   - `gh issue list --state open --limit 10 --json number,title,labels,updatedAt,author`
-   - `gh pr list --state open --limit 10 --json number,title,isDraft,reviewDecision,updatedAt,author,reviewRequests`
-   - `gh repo view --json description,defaultBranchRef,visibility`
-   - `gh api user --jq .login` *(once, to record `local_resources.github.login` so the priority sort can filter the user's own PRs and check whether the user is in each PR's `requested_reviewers` list)*
+   ```sh
+   node skill-pack/scripts/cli-scans.mjs --repo-root "$(git rev-parse --show-toplevel)"
+   ```
 
-   **Field-name transform.** `gh` returns camelCase keys
-   (`isDraft`, `reviewDecision`, `updatedAt`, `reviewRequests`,
-   `defaultBranchRef`). The priority rules and `scan.json` schema
-   use snake_case (`is_draft`, `review_decision`, `updated_at`,
-   `requested_reviewers`, `default_branch`) for consistency with
-   the rest of scan.json. **Transform during write:** when
-   recording `local_resources.github.open_prs`, rewrite each PR
-   object's keys to snake_case. For `reviewRequests` (an array of
-   `{login: ...}` objects), flatten to a list of login strings
-   under `requested_reviewers`. For `defaultBranchRef.name`, store
-   the bare string under `default_branch`. The priority rules read
-   the snake_case field names — without this transform, every PR
-   rule will silently miss.
+   The harness writes `<repoRoot>/.murmur/scan-cli.jsonl` (one row
+   per scan) and prints a single-line JSON summary. Read the JSONL
+   and translate each tool's rows into `local_resources.<tool>`
+   shape. Tools and what to populate:
 
-   Record as `local_resources.github = { authed: true, login: "<user>",
-   open_issues: [...], open_prs: [...], repo: {...} }`. If `gh` is
-   present but not authed, set `authed: false` and don't run the
-   listing calls.
+   - **gh** (scans: `gh pr list --author @me`, `gh pr list --search review-requested:@me`, `gh issue list --assignee @me`, `gh run list --status failure`)
+     - Populate `local_resources.github = { authed: true, open_prs: [...], review_requested_prs: [...], open_issues: [...], failing_runs: [...] }`.
+     - **Field-name transform.** `gh --json` returns camelCase
+       (`isDraft`, `reviewDecision`, `updatedAt`,
+       `reviewRequests`, `defaultBranchRef`); snake_case in
+       scan.json (`is_draft`, `review_decision`, `updated_at`,
+       `requested_reviewers`, `default_branch`). When recording,
+       rewrite each PR object's keys; flatten `reviewRequests`
+       (`{login: ...}` array) into a flat list of login strings
+       under `requested_reviewers`; store
+       `defaultBranchRef.name` as the bare string under
+       `default_branch`. The priority rules read snake_case —
+       without this transform every PR rule silently misses.
+   - **stripe** (scan: `stripe webhook_endpoints list`)
+     - Populate `local_resources.stripe = { authed: true, failing_webhooks: [...] }`. Filter to enabled-but-failing endpoints.
+   - **fly** (scan: `fly status --json`)
+     - Populate `local_resources.fly = { authed: true, app_status: [...] }`.
+   - **vercel** (scan: `vercel ls --json`)
+     - Populate `local_resources.vercel = { authed: true, recent_deployments: [...] }`.
+   - **railway** (scan: `railway status --json`)
+     - Populate `local_resources.railway = { authed: true, status: {...} }`.
+
+   For any tool whose JSONL row has `error: "skipped: …"`, set
+   `local_resources.<tool> = { authed: null, skipped_by_user: true }`
+   (when the skip reason is "no per-tool consent in cli_scans")
+   or `{ authed: false }` (when the skip reason is "tool not on
+   PATH" or "tool not authenticated"). Failed-with-error rows
+   record `{ authed: false, last_error: "<error string>" }` so
+   the steady-state re-ask copy can mention it.
+
+   **User-extensible scans.** The harness merges built-in scan
+   definitions with anything in `~/.murmur/scans/<slug>.json`. Same
+   JSON shape: `{tool, authCheck, commands}`. A user can teach Mur
+   about a CLI we don't ship a built-in for by dropping a single
+   file. User-defined slugs override built-ins on conflict.
+
+   **Unknown-CLI hint at scan tail.** After translating the JSONL
+   into `local_resources.*`, look at remaining `command -v` hits in
+   the user's PATH for well-known dev CLI names that don't appear
+   in `local_resources.*` AND don't have a `~/.murmur/scans/<slug>.json`
+   file. Common slugs to check (no scan command issued, just
+   `command -v` for presence): `linear`, `replicate`, `lovable`,
+   `cursor-cli`, `wrangler`, `doctl`, `heroku`, `gcloud`, `aws`,
+   `kubectl`. For any present-but-not-defined slug, append a
+   single-line hint to the scan output (after the four pillars,
+   before the close):
+
+   > Heads up: I see `linear` is on your PATH but I don't have
+   > scans for it yet. Say "connect linear" and I'll set up a
+   > paste-via-dashboard flow plus add a scan definition so I can
+   > see Linear data on next run.
+
+   Cap at 3 hints. Skip the line entirely if zero unknown CLIs
+   found. Don't auto-prompt or block the scan render — this is a
+   discoverability nudge, not a forcing question.
 
 **2. In-repo issue/todo files** — many projects keep status as
    plain text. Glob for any of these at the repo root:
@@ -549,20 +633,61 @@ of these failing should fail the scan.
 
    Record as `local_resources.recent_commits = [{sha, subject, ts}, ...]`.
 
-Privacy contract for local-resource probes:
+**5. Shell env vars (Path A discovery).** Most users have API keys
+   exported in their shell rc — `STRIPE_SECRET_KEY`,
+   `LINEAR_API_KEY`, `OPENAI_API_KEY`, etc. When that's true, no
+   paste flow is needed; the local cron job just sources their
+   existing env. Detect by reading the canonical env vars from
+   `process.env` (the agent's environment inherits the user's
+   shell):
+
+   ```sh
+   # Read each var via printenv (avoids quoting issues with values).
+   for VAR in STRIPE_SECRET_KEY LINEAR_API_KEY OPENAI_API_KEY \
+              ANTHROPIC_API_KEY SUPABASE_SERVICE_ROLE_KEY \
+              PLANETSCALE_SERVICE_TOKEN NEON_API_KEY; do
+     if [ -n "$(printenv "$VAR" 2>/dev/null)" ]; then
+       echo "$VAR=set"
+     fi
+   done
+   ```
+
+   For each `<VAR>=set` line, look up the matching connector slug
+   (mapping below) and record `local_resources.local_env[<slug>] =
+   { envVar: "<VAR>", source: "shell" }`. **NEVER record the
+   value** — only the env var name. Mapping (env var → connector
+   slug):
+
+   - `STRIPE_SECRET_KEY` → `stripe`
+   - `LINEAR_API_KEY` → `linear`
+   - `OPENAI_API_KEY` → `openai`
+   - `ANTHROPIC_API_KEY` → `anthropic`
+   - `SUPABASE_SERVICE_ROLE_KEY` → `supabase`
+   - `PLANETSCALE_SERVICE_TOKEN` → `planetscale`
+   - `NEON_API_KEY` → `neon`
+
+   The recommend-matcher in `mode: scan-output` reads
+   `local_resources.local_env` and scores any connector with an
+   already-set env var as `connector_required.status:
+   'env-already-set'` — those candidates render
+   `Set up: /mur install <id>` (no OAuth, no paste). This is the
+   highest-wow path: zero-friction install grounded in something
+   the user already did.
+
+Privacy contract for local-resource scans:
 
 - **Never run `gh auth token`, `aws configure list`, or any command
   that prints credentials.** We're checking presence + reading public
-  metadata only. If a probe needs to read auth headers or tokens, it's
+  metadata only. If a scan needs to read auth headers or tokens, it's
   out of scope for this phase.
 - **Never read the contents of `~/.netrc`, `~/.aws/credentials`,
   `~/.docker/config.json`.** Use `test -f` / directory existence only.
-- **Don't probe paths outside `$HOME` and the repo.** No `/etc/`,
+- **Don't scan paths outside `$HOME` and the repo.** No `/etc/`,
   no `/var/`, no system-wide config.
 
-The local-resource probe runs even on first-run (after the §2.0
+The local-resource scan runs even on first-run (after the §2.0
 disclosure) — it's part of "I read your project's files." If the user
-declines the scan in §2.0, none of these probes run.
+declines the scan in §2.0, none of these scans run.
 
 ### Risky-pattern detection (powers the bug-hunt offer)
 
@@ -596,7 +721,10 @@ Schema (keep field names stable — downstream prompts depend on them):
   "scanned_at": "<ISO 8601>",
   "scanner_version": "1.0",
   "repo_root": "<absolute path>",
-  "progress": {"shown": [], "next": 1},
+  "progress": {
+    "findings":    {"shown": [], "next": 1},
+    "automations": {"shown": [], "next": 1}
+  },
   "product": {
     "summary": "<one sentence>",
     "keywords": ["<kw1>", "<kw2>", "<kw3>"]
@@ -652,8 +780,14 @@ Schema (keep field names stable — downstream prompts depend on them):
       "login": "octocat",
       "repo": {"description": "...", "default_branch": "main", "visibility": "private"},
       "open_issues": [{"number": 42, "title": "...", "labels": [], "updated_at": "...", "author": {"login": "..."}}],
-      "open_prs": [{"number": 17, "title": "...", "is_draft": false, "review_decision": "REVIEW_REQUIRED", "updated_at": "...", "author": {"login": "..."}, "requested_reviewers": ["alice", "bob"]}]
+      "open_prs": [{"number": 17, "title": "...", "is_draft": false, "review_decision": "REVIEW_REQUIRED", "updated_at": "...", "author": {"login": "..."}, "requested_reviewers": ["alice", "bob"]}],
+      "review_requested_prs": [{"number": 91, "title": "...", "url": "https://github.com/..."}],
+      "failing_runs": [{"name": "ci", "createdAt": "...", "url": "https://github.com/.../actions/runs/..."}]
     },
+    "stripe":  {"authed": true, "failing_webhooks": [{"id": "we_...", "url": "https://...", "enabled_events": ["payment_intent.failed"]}]},
+    "fly":     {"authed": true, "app_status": [{"app": "acme-prod", "status": "running"}]},
+    "vercel":  {"authed": true, "recent_deployments": [{"name": "acme-web", "url": "...", "createdAt": "..."}]},
+    "railway": {"authed": false},
     "in_repo_files": [
       {"path": "TODOS.md", "preview": "first 500 chars...", "last_touched_ts": "2026-04-22T..."}
     ],
@@ -665,6 +799,28 @@ Schema (keep field names stable — downstream prompts depend on them):
       {"sha": "abc1234", "subject": "wip: pricing fix", "ts": "2026-04-29T..."}
     ]
   },
+  "automation_candidates": [
+    {
+      "id": "daily-digest",
+      "title": "Daily digest of your PRs + failing CI + open issues",
+      "prose": "Watches your GitHub activity overnight; surfaces 3 things to look at each morning.",
+      "grounding": {
+        "signals": ["gh CLI authed", "open PRs detected: 4", "1 failing CI run"]
+      },
+      "connector_required": {"slug": "github", "status": "connected"},
+      "install_path": "/mur install daily-digest"
+    },
+    {
+      "id": "stripe-webhook-watcher",
+      "title": "Flag failing payment webhooks",
+      "prose": "Pings you when an enabled Stripe webhook starts failing — the kind of thing you only see during reconciliation today.",
+      "grounding": {
+        "signals": ["STRIPE_* env vars in .env.example", "stripe in package.json", "stripe CLI present locally (unauthed for server)"]
+      },
+      "connector_required": {"slug": "stripe", "status": "inferred-from-manifest"},
+      "install_path": "https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx"
+    }
+  ],
   "risky_patterns": {
     "total_hits": 12,
     "by_pattern": {
@@ -770,7 +926,7 @@ wins:
    - `null` / empty `review_decision` → ambiguous; usually CI or
      a reviewer not yet assigned. Don't surface as actionable.
 
-   To populate the fields above, the gh probe call MUST include
+   To populate the fields above, the gh scan call MUST include
    both `author` and `reviewRequests`:
    `gh pr list --state open --limit 10 --json number,title,
    isDraft,reviewDecision,updatedAt,author,reviewRequests`. The
@@ -882,33 +1038,72 @@ say "I've already done that" and we move on; the cost of asking
 once is far smaller than the cost of leaving the canonical path
 uncompleted for a brand-new user.
 
-### Step 2 — print the four-pillar initial sweep
+### Step 2 — print the dual-render initial sweep
 
 This is the chief-of-staff hand-off after a local scan. The user
 hasn't connected anything yet; this is what local-only data can
-surface, framed as a structured read with one primary CTA
-(connect deeper) and many secondary sub-CTAs (act on findings).
+surface. Findings earn trust — concrete things to look at right
+now. Automations are the product — what Mur would watch for them
+once connected. Both render every time. The order is intentional:
+findings first (what to look at *now*), automations second (what
+to set up to *keep* watching).
 
-Render four pillars in order: **What you're building**, **Who's
-working on it with you**, **What we noticed**, **What I can
-connect to**. Then a separator, then the connect-deeper ask.
+Render five pillars in order:
+1. **What you're building** (product_summary + business_profile)
+2. **Who's working on it with you** (collaborators + forward-looking note)
+3. **What we noticed (worth a look)** — top 2 findings + "show more findings"
+4. **What I'd watch for you (automations)** — top 2 candidates + "show more automations"
+5. **What I can connect to** (factual list, demoted)
 
-**Update `progress` before printing.** `progress.shown` = the
-priority-ranked indices of every finding included in the "What we
-noticed" section (typically [1..5]). `progress.next` = the next rank
-not yet shown. Write scan.json to disk. Without this, "what else?"
-would re-surface what we already rendered.
+Then a separator, then the soft close.
 
-**Cap "What we noticed" at 5 items.** Show the priority-sort
-top-5; "what else?" reveals the next batch on continuation.
+**Update `progress.findings` and `progress.automations` before
+printing.** `progress.findings.shown` = the priority-ranked indices
+of findings rendered (typically [1, 2]); `progress.findings.next` =
+the next rank not yet shown. Same shape under
+`progress.automations`. Write scan.json to disk before printing —
+without it, "show more …" re-surfaces what we already rendered.
 
-Format. Length is whatever the data warrants — typically 20-30
+**Cap each rendered section at 2 items** (down from 5 in the
+single-pillar legacy shape). The "show more …" continuations
+reveal the next batch one at a time.
+
+**Returning users — "since last scan" preamble.** Steady-state mode
+(scan.json existed prior to this run) prepends a one-paragraph
+delta line above the first pillar. Use the deterministic helper
+rather than computing in-prompt:
+
+```sh
+# Save the prior scan before overwriting it, then call the helper:
+cp .murmur/scan.json .murmur/scan.prior.json   # only on the first
+                                                # write of this run;
+                                                # skip if already done
+node skill-pack/scripts/scan-delta.mjs \
+  .murmur/scan.prior.json .murmur/scan.json
+```
+
+The helper emits a single line on stdout (or empty when nothing
+changed worth surfacing). Render it verbatim above the pillars.
+Don't fabricate clauses; if the helper returns empty, drop the
+preamble entirely.
+
+Render shape:
+
+```
+✓ scanned <project name> (last scan: <relative time, e.g. "4 days ago">)
+<helper output if non-empty, e.g. "Since then: 3 PRs closed/merged
+and 1 new failing CI run.">
+```
+
+Then the dual-render layout below.
+
+Format. Length is whatever the data warrants — typically 25-35
 lines for a feature-rich repo, shorter for thin ones. Don't
 compress to save lines; this output IS the wow moment.
 
 ```
 ✓ scanned <project name>
-
+{since-last-scan preamble if applicable, otherwise:}
 I just reviewed what you've been working on here on your computer.
 Nothing left your machine.
 
@@ -939,32 +1134,64 @@ What we noticed (worth a look)
   · <Finding #1 from the priority sort — concrete with file
      path, line range, PR number, or issue number. Plain
      English. End with a verb command the user can run.>
-     Try: `<verb command>`
+     Try: <verb command>
   · <Finding #2 — same shape>
-     Try: `<verb command>`
-  · <Finding #3 — same shape>
-     Try: `<verb command>`
-  (Cap at 5; say "what else?" for the rest if N > 5.)
+     Try: <verb command>
+  (say "show more findings" for the rest)
+
+What I'd watch for you (automations)
+  · <Automation #1 from automation_candidates[0]>
+     <prose line — concrete, references the grounding signals
+      verbatim, never marketing prose>
+     Set up: <CTA — see "Automation CTA shape" below>
+  · <Automation #2 from automation_candidates[1]>
+     <prose line>
+     Set up: <CTA>
+  (say "show more automations" for the rest)
 
 What I can connect to
-  <comma-separated list from local_resources.* probes — gh
-   authed, Stripe CLI, Sentry SDK, Langfuse SDK, AWS creds, etc.
-   Plain-English, factual, no inference. Drop this pillar
-   entirely if zero tools observed.>
+  <comma-separated list from local_resources.* — gh authed,
+   Stripe CLI, Vercel CLI, Sentry SDK, etc. Plain-English,
+   factual, no inference. Drop this pillar entirely if zero
+   tools observed.>
 
 ────
 
-To go deeper — watch these while you sleep, find the cross-tool
-patterns (the PR + the Sentry error + the Stripe customer all
-touching the same surface), propose automations, expand "who
-you work with" to your customers and teams across all of them
-— I need server-side read access on the tools above.
-
-Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
-$15 across three connects). Want me to fire that now?
-
-Or pick one of the items above first — just say which.
+Pick an automation above to set up, or "show me <PR/issue/file>"
+for any finding. Or just keep going on findings ("show more
+findings") or automations ("show more automations").
 ```
+
+**Automation CTA shape (Gate H — grounding contract).** The
+"Set up:" line for each automation reflects whether the connector
+is already available:
+
+- `connector_required.status === 'connected'` → render
+  `Set up: /mur install <id>` — clean direct path, no OAuth
+  needed.
+- `connector_required.status !== 'connected'` (i.e.
+  `'present-unauthed'` or `'inferred-from-manifest'`) → render the
+  deep-link URL inline:
+  ```
+  Set up: connect <Provider> first → https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>
+  ```
+  When rendering, also run `open <url>` from the agent so the
+  user's browser launches automatically. The visible URL is the
+  fallback for terminals that don't autoclick. **Do not** type a
+  slash command for the user; the URL is the affordance.
+
+The connector-status differentiation in the CTA shape IS the
+honesty — never describe a speculative automation as if its
+connector is already wired. Provenance neutrality (marquee vs.
+co-designed) still applies to the prose; connector status is a
+separate axis and must be honest.
+
+**Render contract — grounding required.** Any candidate from
+`automation_candidates` with an empty `grounding.signals` array
+MUST NOT render. The recommend-matcher rejects them at generation
+time, but if one slipped through (e.g. legacy scan.json on
+upgrade), drop it from the render rather than fabricating
+grounding.
 
 **Pillar contracts**:
 
@@ -979,33 +1206,32 @@ Or pick one of the items above first — just say which.
 - **What we noticed.** Honest absence: if rules 1-9 produce
   nothing, render "Nothing screaming for attention from what I
   can read locally — repo's in good shape." Don't pad with
-  lower-tier findings.
+  lower-tier findings. **Both pillars (findings + automations)
+  always render** — automations are the product, see Gate G for
+  the cursor-exhausted edge case.
+- **What I'd watch for you (automations).** If
+  `automation_candidates` is empty (no marquee match, no
+  speculative candidate), render: "No automations to suggest yet
+  — when there's more here, I'll have ideas." Don't drop the
+  pillar; the absence itself is honest signal.
 - **What I can connect to.** Drop the pillar if zero local tools
   detected. Don't render "Detected: nothing" — silence is more
   honest.
 
-**Closing connect-deeper line.** This is the primary CTA. The
-mechanism-honest framing names exactly what unlocks: server-side
-read, cross-tool pattern detection, automations, expanded
-"who you work with." Don't soften with "would you like to" — but
-DO frame it as a yes/no the user answers in chat, NOT as a
-typed slash command.
+**Cursor exhausted (Gate G).** When BOTH `progress.findings.next
+> last_finding_rank` AND `progress.automations.next >
+last_automation_rank`, the dual render collapses to:
 
-**Why this matters.** `/mur` is not a registered Claude Code
-slash command. When a user types `/mur connect github`, Claude
-Code's parser intercepts the leading slash and returns
-"Unknown command: /mur" before the skill ever sees the message.
-Every CTA that asks the user to type `/mur <verb>` fails. The
-chief-of-staff pattern fixes this: we ASK in chat, the user
-answers "yes" / "go ahead" / "do it" / "next" in natural
-language, and Mur (already loaded in this conversation) fires
-the next step itself. No typed verb required.
+```
+✓ scanned <project name> (last scan: <relative time>)
+{since-last-scan preamble line if any}
 
-If the user has zero tools detected locally (rare but possible
-for new projects), the connect-deeper line still fires but
-re-frames: "I don't see any tools wired locally. When you do —
-GitHub at minimum, Stripe / Linear / Sentry as relevant — say
-'connect github' and I'll fire it + re-scan with the new data."
+I'm caught up — nothing new since last scan. Anything you want
+me to dig into?
+```
+
+No empty pillars. No padded findings. The closing line invites
+the user to drive.
 
 Three examples to anchor the voice (generic — substitute the
 user's real data when scanning):
@@ -1036,41 +1262,31 @@ What we noticed (worth a look)
     template-string interpolation. Stripe is wired in this
     project, so SQL injection on user lookups is a money-loss
     path.
-    Say "audit this" and I'll deep-dive.
+    Try: "audit this"
   · PR #142 ("fix: heartbeat reconnect race") — your own, no
     reviews requested, sitting since yesterday. Self-merge or
     assign reviewer.
-    Say "show me PR #142" for the diff.
-  · Issue #98 ("Test authority model end-to-end") — open since
-    March 25, not labeled, easy to lose.
-    Say "show me issue #98".
-  · TODOS.md updated 2 days ago: "build the export feature."
-    Sounds like the next project.
-    Try `/office-hours` if you have gstack installed — scope
-    the surface before writing.
+    Try: "show me PR #142"
+  (say "show more findings" for the rest)
+
+What I'd watch for you (automations)
+  · Daily digest — your PRs, failing CI, open issues
+    Because: gh CLI authed, 4 open PRs, 1 failing CI run
+    Set up: /mur install daily-digest
+  · Stripe webhook watcher — flag failing payment webhooks
+    Because: STRIPE_* env vars in .env.example, stripe in package.json
+    Set up: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx
+  (say "show more automations" for the rest)
 
 What I can connect to
   gh authed, Stripe CLI, Sentry SDK, OpenAI SDK
 
 ────
 
-To go deeper — watch these while you sleep, find the cross-tool
-patterns (the PR + the Sentry error + the Stripe customer all
-touching the same surface), propose automations, expand "who
-you work with" to your customers and teams across all of them
-— I need server-side read access on the tools above.
-
-Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
-$15 across three connects). Want me to fire that now?
-
-Or pick one of the items above first — say which (e.g.
-"audit this", "show me PR #142") and I'll do it.
+Pick an automation above to set up, or "show me PR #142" /
+"audit this" for any finding. Or just keep going on findings
+("show more findings") or automations ("show more automations").
 ```
-
-(In a real run, swap "GitHub" for whichever connector the
-top scan signals point at — Sentry first if errors are the
-named pain, Stripe first if churn is the worry. Either way,
-keep it as a yes/no ask, not a typed-verb instruction.)
 
 **Example B — pre-product / utility scripts shape:**
 
@@ -1093,30 +1309,29 @@ Who's working on it with you
 What we noticed (worth a look)
   · lib/summarize.js looks publishable — 80 lines, takes text
     + returns a 3-bullet summary. Self-contained, your commits.
-    Say "publish lib/summarize.js" to walk through it.
-  · lib/chunk-pdf.js similar shape — also publishable.
-    Say "show me lib/chunk-pdf.js" for the body.
+    Try: "publish lib/summarize.js"
   · No LLM observability detected despite the OpenAI SDK in
     deps. Worth knowing if/when you ship.
-    Say "recommend something here" and I'll surface options
-    (managed Langfuse-host, etc).
+    Try: "recommend something here"
+  (say "show more findings" for the rest)
+
+What I'd watch for you (automations)
+  · Weekly dependency release-note digest — track upgrades + breaking changes
+    Because: openai + 14 other npm deps, no current dep-watcher
+    Set up: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx
+  · Prompt-regression watcher — alert when prompt diff hits production
+    Because: OpenAI SDK in src/, multi-line system prompts > 200 chars in lib/summarize.js
+    Set up: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx
+  (say "show more automations" for the rest)
 
 What I can connect to
   gh authed, OpenAI SDK
 
 ────
 
-To go deeper — watch these while you sleep, find the cross-tool
-patterns, propose automations, expand "who you work with" once
-you have customers — I need server-side read access on the tools
-above.
-
-Easiest start: GitHub (`~30s`, +$5 first-connect bonus, max
-$15 across three connects). Want me to fire that now?
-
-Or — for a repo this shape, publishing one of the utility
-scripts is the fastest wow. Say "publish lib/summarize.js" or
-whichever you'd actually want to ship.
+Pick an automation above to set up, or for a repo this shape,
+publishing one of the utility scripts is the fastest wow.
+"publish lib/summarize.js" — or any verb above.
 ```
 
 **Example C — empty / unknown / sparse:**
@@ -1136,6 +1351,10 @@ What we noticed (worth a look)
   — there's not much here yet. Scan back once you've shipped
   some structure.
 
+What I'd watch for you (automations)
+  No automations to suggest yet — when there's more here, I'll
+  have ideas.
+
 What I can connect to
   gh authed
 
@@ -1147,9 +1366,8 @@ then say "scan again" and I'll re-read.
 
 (Note in Example C: "Who's working on it with you" pillar
 dropped because it would render as "Just you so far" with no
-team and no customers — the connect-deeper pitch alone carries
-the forward-looking framing. Keep pillars only when they have
-something to say.)
+team and no customers. Findings + automations both stay — even
+empty, because automations always render.)
 
 ### Step 3 — handle the user's response
 
@@ -1159,73 +1377,76 @@ now?"). Most user responses bind to that primary ask; sub-CTAs
 in "What we noticed" require an explicit verb phrase. Match in
 this priority order:
 
-1. **Affirmative to the connect-deeper ask** — bare "yes" /
-   "yeah" / "do it" / "go ahead" / "fire it" / "ok" / "let's do
-   it" / "go" / "sure" / "please" / "yes please" / "y" / "kick
-   it off" / "let's go".
+1. **User picks an automation by id or by index** — "set up
+   daily-digest" / "the first automation" / "yes, daily digest" /
+   "daily digest" / "1" / "the github one" / "watch my webhooks".
 
-   Bind to the primary CTA, which is the connector named in the
-   most recent "Easiest start: <X>" line. Read scan.json's
-   `local_resources.*` to confirm the slug (e.g. if "Easiest
-   start: GitHub", slug = `github`). Hand off immediately to
-   `prompts/connect.md` with that slug — same code path the user
-   would have hit by saying "connect github" directly. Do NOT
-   re-ask, do NOT pause for further confirmation: the user just
-   answered the question Mur asked.
+   Resolve to a specific entry in `automation_candidates`:
+   - "1", "first", "top one" → `automation_candidates[0]`
+   - "2", "second" → `automation_candidates[1]`
+   - Bare slug or distinctive phrase from the title/prose → fuzzy match.
 
-   Edge case: if there's no scan.json yet (impossible — Step 2
-   wrote it) or no clear "Easiest start: <X>" in the rendered
-   close, default to `github` and say so explicitly: "Going
-   with GitHub by default — say which other source if I read
-   that wrong."
+   Then dispatch by `connector_required.status`:
+   - **`connected`** → hand off to `prompts/install.md` with the
+     candidate's `id`. Same code path as `/mur install <id>`.
+   - **anything else** → render a one-line confirmation
+     ("Setting up <title> — needs <Provider>"), then run
+     `open <install_path>` (the deep-link URL) so the user's
+     browser launches, AND print the URL inline as fallback:
+     "If your browser didn't open, click here: <install_path>".
+     Then stop and wait — the OAuth completes server-side and
+     the bootstrap pickup announces on the next /mur run.
 
-2. **Negative to the connect-deeper ask** — bare "no" / "not
-   now" / "later" / "skip" / "skip for now" / "not yet" / "n".
+2. **"show more findings" / "what else?" / "what else"** —
+   advance `progress.findings.next`. Surface the next finding;
+   append rank to `progress.findings.shown`; increment
+   `progress.findings.next`; write scan.json. Same micro-summary
+   shape: one finding, one action, tail with "say 'show more
+   findings' / 'show more automations' to keep going." If exhausted,
+   reply: "No more findings. (Say 'show more automations' if you
+   want to keep going on those, or 'rescan' to start fresh.)"
 
-   Acknowledge once and stay in scan: "No problem — pick from
-   the items above whenever (e.g. 'audit this', 'show me PR
-   #142'), or come back to the connect ask anytime by saying
-   'connect github' or 'what should I do next'." Don't push
-   further. `progress` stays where it is.
+3. **"show more automations"** — advance
+   `progress.automations.next`. Surface the next automation card
+   (same shape as Step 2's render); append rank to shown; write.
+   If exhausted: "No more automation candidates. (Say 'show more
+   findings' to keep going on those, or 'rescan' to start fresh.)"
 
-3. **Specific connector other than the suggested one** — "connect
-   stripe" / "let's do sentry instead" / "what about linear" /
-   "actually do stripe first".
+4. **Specific connector slug typed explicitly** ("connect stripe"
+   / "let's do sentry") — hand off to `prompts/connect.md` with
+   the named slug. Bypasses the deep-link path; useful for users
+   who know exactly which provider they want.
 
-   Hand off to `prompts/connect.md` with the named slug. Same
-   path as bullet 1, just with a different provider.
-
-4. **"what else?" / "what else"** — advance to the next finding — read
-   `scan.json.progress.next`, surface the finding at that rank
-   (recompute the priority sort against scan.json's data, take the
-   Nth item), append that rank to `progress.shown`, increment
-   `progress.next`, write scan.json. Same summary shape: one thing,
-   one action, "what else?" tail. If `progress.next` is past the
-   last finding, reply "That's the list. Want me to re-scan? Just
-   say 'rescan' or 'scan again'."
-
-5. **An action verb a sub-CTA offered** ("open #142", "audit
-   this", "show me PR #142", "publish lib/retry.ts", "show me
-   issue #98"): hand off to the appropriate prompt or run the
+5. **An action verb a finding sub-CTA offered** ("open #142",
+   "audit this", "show me PR #142", "publish lib/retry.ts", "show
+   me issue #98"): hand off to the appropriate prompt or run the
    suggested action. `progress` stays where it is.
 
-6. **Anything else:** treat as a normal verb routing, the scan is
+6. **Bare "no" / "skip" / "not now"** — acknowledge once and stay
+   in scan: "No problem — pick from the items above whenever, or
+   come back any time. 'show more findings' / 'show more
+   automations' if you want to keep browsing." Don't push further.
+   `progress` stays where it is.
+
+7. **Anything else:** treat as a normal verb routing, the scan is
    done. `progress` stays where it is for the next continuation.
 
 ### What NOT to do
 
 - **No "also: bug-hunt." No "also: security-audit." No "also: recommend tools."** Those used to stack as 3+ separate offers at the end of the scan. They're now sub-cases of the priority sort — only one surfaces, and only when it's the actual top thing.
-- **Don't list automations.** Automations are a follow-up, not a first-scan output. The user came here to find what's broken, not to set up cron jobs. Once they've worked through findings, then we can ask "want this watched while you sleep?" — that's a separate conversation.
 - **Don't ask about `.gitignore` in the same turn as the summary.** Save it for after the user's response, only if they didn't already gitignore `.murmur/`.
+- **Don't suppress automations.** Both pillars (findings + automations) always render. Automations are the product; the user wants to see them. The cursor-exhausted state (Gate G) is the only minimal render.
 
 ## Hand-off to other prompts
 
-- User says "what else?" / "what else" — keep going through the
-  priority list, one finding at a time. Cap at 5 unless the user
-  asks for a full list. (Bare "next" / "more" / "skip" are
-  intentionally NOT in this trigger set — they collide with
-  recommend.md's pagination, where "skip"/"No" advance to the
-  next recommendation. Use the scan-specific phrase only.)
+- User says "show more findings" / "what else?" / "what else" —
+  advance `progress.findings`, render the next finding (one at a
+  time). (Bare "next" / "more" / "skip" are intentionally NOT in
+  this trigger set — they collide with recommend.md's pagination,
+  where "skip"/"No" advance to the next recommendation. Use the
+  scan-specific phrase only.)
+- User says "show more automations" — advance
+  `progress.automations`, render the next automation card.
 - User says "show my stack" / "what's in my stack" → read
   `prompts/stack.md`.
 - User says "open #N" / "show me PR X" / "show me issue X" — if

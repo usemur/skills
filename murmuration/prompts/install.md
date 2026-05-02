@@ -41,12 +41,47 @@ exactly what to do next. Never silently retry a paid call.
 ## Hard contracts (re-stated from SKILL.md)
 
 - **No installs without an explicit "yes"** in the previous turn — or
-  the user typing `install <slug>` directly. This prompt is invoked by
-  `recommend.md` after consent, OR by direct user invocation.
+  the user typing `install <slug>` directly, or the user confirming a
+  pending-install pickup announced by `_bootstrap.md` Step 6. This
+  prompt is invoked by `recommend.md` after consent, by direct user
+  invocation, OR by `_bootstrap.md`'s deep-link pickup flow (Gate F
+  in plans/onboarding-flip.md).
 - **No silent account creation** — see "First-run branch" below.
 - **No raw credentials echoed back** — when the user pastes their API
   key, write it straight to `~/.murmur/account.json` and confirm with
   the masked prefix only (e.g. `mur_xxxxx…`).
+
+## Pending-install resume path (Gate F)
+
+When invoked from `_bootstrap.md`'s Step 6 with a pending-install
+context, the input shape is:
+
+```
+{ "pendingInstallId": "cpi_xxx", "automationId": "<slug>",
+  "projectId": "<cprj_yyy or null>" }
+```
+
+The user has ALREADY confirmed via the bootstrap announce step —
+do not re-ask. Proceed to the install flow below using the
+`automationId` as the slug. After success, mark the pending row
+fired:
+
+```sh
+curl -fsSL -X POST "https://usemur.dev/api/installs/pending/<pendingInstallId>/mark-fired" \
+  -H "Authorization: Bearer <account key>"
+```
+
+If the install fails (account missing, flow no longer published,
+network error), do NOT mark the pending row fired — surface the
+failure to the user and let them retry. The pending row stays
+ready until the 7-day expiry kicks in or the user "cancel"s it
+explicitly via the bootstrap.
+
+If `projectId` is set on the pending install, include
+`X-Mur-Project-Id: <projectId>` on the `/api/flows/install` call
+so the install lands in the project the user originally picked,
+not the current cwd. The bootstrap's announce-and-confirm step
+already explained the cross-project case to the user.
 
 ## Inputs
 

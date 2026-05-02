@@ -46,6 +46,15 @@ because:
   `hasMinConnections: true` AND no recommend session has fired
   yet on this project. Scan's close-the-loop suggests `/mur
   recommend` instead of `/mur connect github`.
+- **From `scan.md` "show more automations"** (onboarding-flip
+  entry — `plans/onboarding-flip.md`). The dual-render scan
+  output already shows the top 2 automation candidates inline.
+  When the user wants more, scan.md walks
+  `progress.automations` through the rest of
+  `scan.json.automation_candidates`. The matcher already ran in
+  `mode: scan-output` at scan time, so the candidates exist
+  pre-connect; this prompt picks up if the user wants the
+  deeper "why this and not that" conversation.
 - **From the no-repo helpful ask** (post-#175). When the user
   picked "connect a tool" and connect succeeded, recommend fires
   even without a project — it works on vault state + connector

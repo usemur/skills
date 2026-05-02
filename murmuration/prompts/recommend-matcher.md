@@ -85,6 +85,121 @@ candidate for the connector set (e.g. user connected only an
 unusual SaaS we don't have any marquee for), return an empty
 list and let recommend.md handle the all-co-designed edge case.
 
+### `mode: scan-output` caller (scan.md dual-render — onboarding flip)
+
+scan.md calls this matcher inline to populate the
+`automation_candidates` array shown in the dual render's "What I'd
+watch for you" pillar. The user has NOT connected anything yet —
+the goal is to produce a small handful of candidates grounded in
+local signals only.
+
+- **scan.json exists** (always true in this mode — scan.md just
+  wrote it). Read it AND `~/.murmur/pages/HEARTBEAT.md` if
+  present.
+- Treat all of these as one combined connector-signal set:
+  - **Already connected:** any slug listed in HEARTBEAT's
+    `connectors` frontmatter. Annotate
+    `connector_required.status: 'connected'`.
+  - **Locally authed CLI:** any slug whose corresponding
+    `local_resources.<tool>.authed === true` (e.g. gh auth →
+    "github" connector for local-readable signals). Annotate
+    `connector_required.status: 'present-unauthed'` (the user
+    has the CLI but the server-side OAuth grant doesn't exist
+    yet).
+  - **Inferred from manifest / env vars:** any slug whose
+    presence shows up in `signals.third_party_apis[].via`
+    (e.g. `package_import:stripe` → "stripe") or
+    `signals.payments` / `signals.auth` etc. arrays.
+    Annotate `connector_required.status: 'inferred-from-manifest'`.
+- Run Step 0 (recommended-filter), Step 1 (presence skip), Step 2
+  (category match), Step 2.5 (conjunctive guards) as normal —
+  every guard above interprets the combined connector set + the
+  scan signals.
+- **Hard reject candidates without grounding (Gate H in
+  plans/onboarding-flip.md).** Each emitted candidate MUST carry
+  a `grounding.signals` array that names the specific scan or
+  connector signals the matcher used to score it. Examples:
+  ```json
+  "grounding": {
+    "signals": ["gh CLI authed", "open PRs detected: 4", "1 failing CI run"]
+  }
+  ```
+  ```json
+  "grounding": {
+    "signals": ["STRIPE_* env vars in .env.example", "stripe in package.json"]
+  }
+  ```
+  If the matcher can't articulate a specific grounding line for a
+  candidate (e.g. it scored on a generic "active_git_repo" signal
+  alone), DROP the candidate. Don't render scaffolding. The render
+  contract in scan.md will refuse to display anything without
+  populated grounding anyway — better to filter here than to leak
+  half-formed candidates to scan.md.
+- Output shape — each candidate emitted into
+  `automation_candidates`:
+  ```json
+  {
+    "id": "<flow slug, e.g. daily-digest>",
+    "title": "<short user-facing title from the YAML>",
+    "prose": "<one-line description from the YAML, customized to the user's stack>",
+    "grounding": {"signals": [...]},
+    "connector_required": {"slug": "<connector slug>", "status": "<one of: connected | present-unauthed | inferred-from-manifest>"},
+    "install_path": "<see below>"
+  }
+  ```
+  - `install_path` for `connected` candidates: `/mur install <id>`.
+  - `install_path` for non-connected: a fully-qualified
+    `https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>`
+    URL. Use the project's `cprj_*` id (from `_bootstrap.md`'s
+    state.json cache) as the `project` query param. If no
+    `cprj_*` id has been minted yet (no-repo / first-scan), omit
+    the `&project=` segment — the deep-link's
+    `POST /api/installs/pending/start` falls back to the
+    developer's primary project.
+- Top-N: cap at 5 candidates. The dual render shows the top 2
+  inline; "show more automations" reveals the rest.
+
+#### Connector wireability filter (no broken-link cliff)
+
+Before emitting a candidate, the matcher MUST confirm
+`connector_required.slug` is wireable today. If not, drop the
+candidate — don't render an `install_path` the deep link can't
+satisfy. The wireable set is the union of three sources:
+
+1. **OAuth catalog.** `github` (the native Cofounder App) + every
+   slug returned by `GET /api/connections/apps` (Composio's
+   supported list — gmail, slack, linear, notion, etc.).
+2. **`local_env` set** — slugs where the user has the canonical
+   env var already exported (e.g. `STRIPE_SECRET_KEY` set →
+   `stripe` is wireable as `connector_required.status:
+   'env-already-set'`). Read from `local_resources.local_env`
+   (populated by the env-var sweep in scan.md).
+3. **Substrate registry** — `skill-pack/substrate/connectors.json`.
+   Slugs in here have a paste-form definition + verify endpoint
+   for the dashboard paste flow.
+
+Set `install_path` per source:
+
+- OAuth-or-env-already-set AND the slug is connected/exported in
+  this user's stack → `install_path: "/mur install <id>"`
+  (no connect step needed).
+- OAuth, not connected →
+  `install_path: "https://usemur.dev/connect/<slug>?install=<id>&project=<projectId>"`.
+- Substrate registry, not connected →
+  `install_path: "https://usemur.dev/dashboard/vault/paste/<slug>?install=<id>&project=<projectId>"`
+  (the `pending=<pendingInstallId>` query param is added server-
+  side when the deep link is clicked — the matcher doesn't know
+  the pending id at scan time).
+
+If the slug is in NONE of the three sets, drop the candidate.
+This is what keeps the dual render honest: every "Set up:" CTA
+leads somewhere that works today.
+
+The matcher returns the candidate list to scan.md, which writes
+it into `scan.json.automation_candidates`. scan.md is responsible
+for the render; this prompt is responsible only for honest
+candidate generation.
+
 ## Branch on registry-match consent
 
 The scan-level consent in `.murmur/consents.json` is a separate decision
