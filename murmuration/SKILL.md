@@ -758,38 +758,40 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch A — repo present:**
 
-   > Mur installed. Here's what's about to happen.
+   > Mur installed. Two things first.
    >
-   > Say **"scan my project"** and I'll read this folder locally —
-   > manifests, git log, TODOs, plus read-only checks against any
-   > local CLIs you've authed (gh, stripe, fly, vercel, linear,
-   > etc. — only the ones you have). Nothing leaves your machine
-   > during scan.
+   > **1. One-time account setup (~30s, free).** Claim your Mur
+   > account in your browser. That unlocks one-click automation
+   > installs later — no login wall when you click a connect link.
+   > Want me to fire that now?
    >
-   > The output is two things in one render: **what to look at right
-   > now** (concrete findings — your open PRs, failing CI runs,
-   > broken Stripe webhooks if you've got the CLI) and **what I'd
-   > watch for you** (automations grounded in your stack — daily
-   > digest, dependency-release watcher, prompt-regression eval,
-   > and so on).
+   > **2. Then say "scan my project"** and I'll read this folder
+   > locally — manifests, git log, TODOs, plus read-only checks
+   > against any local CLIs you've authed (gh, stripe, fly, vercel,
+   > linear, etc. — only the ones you have). Nothing leaves your
+   > machine during scan.
    >
-   > Pick an automation and I'll get the connector wired right then
-   > — GitHub via OAuth, Linear / OpenAI / Stripe via a one-time
-   > paste in our dashboard. Connect is earned by what you picked,
-   > never asked for upfront.
+   > Output is two things in one render: **what to look at right
+   > now** (your open PRs, failing CI runs, broken Stripe webhooks
+   > if you've got the CLI) and **the 1-2 automations I'd actually
+   > run for you** (daily digest, dependency-release watcher,
+   > prompt-regression eval — grounded in your stack, not a generic
+   > list).
    >
-   > Install lands the automation locally as cron / launchd / GH
-   > workflow (with a render-confirm-revoke contract before any disk
+   > When you pick an automation, I get any required connector
+   > wired right then — GitHub via OAuth, Linear / OpenAI / Stripe
+   > via a one-time paste in our dashboard. Connect is earned by
+   > what you picked, never asked for upfront.
+   >
+   > Install lands locally as cron / launchd / GH workflow (free,
+   > runs on your machine, render-confirm-revoke before any disk
    > write), or remotely in our TEE.
    >
-   > One-time setup: I'll claim your Mur account in your browser
-   > (~30s) the moment we're about to render automations that need
-   > a connection. That account is what makes the deep-link URLs
-   > clickable without a login wall later. Free.
-   >
-   > Ready? Just say **"scan my project"** (or "scan, skip cli
-   > checks" if you'd rather not run the local CLI scans). Or ask
-   > "what else can you do?" for the full verb list.
+   > Ready? Reply with one of:
+   > - **"yes"** — claim my account, then we'll scan.
+   > - **"skip claim, just scan"** — scan now, claim later when an
+   >   automation needs it.
+   > - **"what else can you do?"** — see the full verb list.
 
    **Branch B — no repo (cwd is `$HOME`, `~/Desktop`,
    `~/Documents`, or `~/Downloads`; or `git rev-parse` fails
@@ -816,32 +818,43 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    >
    > Pick whichever fits.
 
-3. **Wait.** Do NOT auto-run scan. The user saying "scan my
-   project" / "scan, skip cli checks" / "scan my repo" / etc. is
-   the consent — `prompts/scan.md` reads the request and proceeds
-   without a second consent prompt. The welcome above is the
-   disclosure; the user's natural-language request is the consent.
+3. **Handle the user's reply.** Three paths:
 
-4. **Account claim is just-in-time, not pre-scan.** scan.md reads
-   the project locally without ever needing the dev's account.
-   When the agent is about to RENDER the automations pillar with
-   deep-link URLs, it checks for `~/.murmur/account.json`:
+   - **"yes" / "claim it" / "set up my account" / etc.** — run
+     `node skill-pack/scripts/claim-connect.mjs`. The script opens
+     `https://usemur.dev/claim?token=<token>` in the browser, user
+     signs in and approves, the script writes
+     `~/.murmur/account.json`. After it returns, ask:
+     "Account claimed. Want me to scan now?" On user yes, fire
+     scan. (Don't auto-fire scan after the claim — the claim flow
+     can take 30+ seconds and the user may want a beat.)
+   - **"skip claim, just scan" / "skip" / "scan now" / "scan my
+     project" / etc.** — fire scan immediately. Account claim
+     becomes lazy (see Step 4 below).
+   - **"what else can you do?"** — list verbs, then re-offer the
+     yes/skip/list options.
 
-   - If present: the agent calls
-     `node skill-pack/scripts/mint-bridge-link.mjs ...` for each
-     URL, baking the bridge token + cprj_* id in.
-   - If missing: the agent renders automations with a
-     "claim your account first" CTA (no URL). When the user says
-     yes, the agent runs
-     `node skill-pack/scripts/claim-connect.mjs`, which opens
-     `https://usemur.dev/claim?token=<token>` in the browser, the
-     user signs in + approves, and the script writes
-     `~/.murmur/account.json`. Once that lands, the agent
-     re-renders the automations pillar with working bridge-baked
-     URLs. The findings pillar renders normally either way.
+   Do NOT auto-run scan or auto-claim without user consent. The
+   welcome above is the disclosure; the user's natural-language
+   reply is the consent.
+
+4. **Account claim is preferred-pre-scan, but lazy works too.**
+   The pre-scan claim path (Step 3 path 1) is the happy path: by
+   the time scan renders automations, account.json exists, project
+   registers, deep-link URLs work first try. Skip-claim is the
+   fallback:
+
+   - **account.json present at render time** → agent calls
+     `node skill-pack/scripts/mint-bridge-link.mjs` for each URL
+     and renders fully clickable cards.
+   - **account.json missing at render time** → agent renders
+     automations with a "claim your account first" CTA (no URL).
+     When the user says yes, run
+     `node skill-pack/scripts/claim-connect.mjs`, then re-render.
+     Findings pillar renders normally either way.
 
    Account claim is a one-time setup. After the first claim, every
-   subsequent scan can render full deep-link URLs immediately.
+   subsequent scan renders full deep-link URLs immediately.
 
 **Why we don't tell users to type `/mur <verb>`.** `/mur` is not
 a registered Claude Code slash command. When a user types

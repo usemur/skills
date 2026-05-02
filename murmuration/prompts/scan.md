@@ -1181,43 +1181,111 @@ What I can connect to
 
 ────
 
-Pick an automation above to set up, or "show me <PR/issue/file>"
-for any finding. Or just keep going on findings ("show more
-findings") or automations ("show more automations").
+If I were you, I'd start with **A1**. <impact line from A1's card,
+verbatim>.
+
+Want me to set it up? Or pick a different card (A2, F1, F2),
+say "show more findings" / "show more automations" to keep
+browsing, or "skip" to keep just the read.
 ```
 
-**Automation CTA shape (Gate H — grounding contract).** The
-"Set up:" line for each automation reflects whether the connector
-is already available AND whether the user has claimed their Mur
-account:
+**Close-the-loop voice contract.** The chief-of-staff close has an
+opinion. Per SKILL.md's Voice section: "Mur recommends. The user
+decides." When you have an opinion, state it as a recommendation
+with one line of reasoning. Don't render a flat options list.
 
-- `connector_required.status === 'connected'` → render
-  `Set up: /mur install <id>` — clean direct path, no OAuth
-  needed.
+Pick A1 to recommend BY DEFAULT — it's the highest-priority
+candidate from the matcher. Override only when:
+
+- A1's `connector_required.status` is `'inferred-from-manifest'`
+  AND A2's status is `'env-already-set'` or `'connected'`. In
+  that case recommend A2 (faster path to running automation).
+- A1 is paid-remote and A2 is free-local with comparable Impact.
+  Recommend A2 — easier first commit, the user can upgrade later.
+- The user has already declined A1 in a prior session
+  (`recommend-history.jsonl` shows it). Recommend A2 instead.
+
+The recommended card's Impact line goes in the close verbatim — no
+re-paraphrasing. Same words = the user trusts you said the same
+thing twice for a reason.
+
+**Automation CTA shape (Gate H — grounding contract).** The
+`Recommendation:` line for each automation card describes the
+ACTION in builder voice — never a slash command the user has to
+type. `/mur install <slug>` is NOT a real Claude Code slash
+command; typing it produces "Unknown command." The agent owns
+the verb. The user just says "yes A1" / "yes A2" / etc. The
+shape varies by `connector_required.status` and account state:
+
+- `connector_required.status === 'connected'` (OAuth done OR env
+  var already exported) → render:
+  ```
+  Recommendation: Wire it as a <cadence> local cron (free) or in
+  our TEE (~$<monthly>/mo, fires automatically). Either way: say
+  "yes A<N>" and I'll set it up.
+  ```
+  See "Monthly cost framing" below for how to compute `<monthly>`
+  from `<cadence>`.
+
 - `connector_required.status !== 'connected'` AND
-  `~/.murmur/account.json` exists → render the deep-link URL
-  inline, using `mint-bridge-link.mjs` to bake in the auth
-  bridge token and a real cprj_* project id. See "Bridge-token
-  pre-render" below. CTA shape:
+  `~/.murmur/account.json` exists → mint a bridge-baked URL via
+  `mint-bridge-link.mjs` (see "Bridge-token pre-render" below)
+  and render:
   ```
-  Set up: connect <Provider> first → https://usemur.dev/connect/<slug>?install=<id>&project=<cprj_*>&token=<bridge>
+  Recommendation: Open your browser to OAuth <Provider> (~30s).
+  When you switch back, I'll fire the install automatically. Say
+  "yes A<N>" to start.
   ```
-  When rendering, also run `open <url>` from the agent so the
-  user's browser launches automatically. The visible URL is the
-  fallback for terminals that don't autoclick. **Do not** type a
-  slash command for the user; the URL is the affordance.
+  When the user says yes, the agent runs `open <url>`. The URL
+  itself is NOT shown in the rendered card — the verb is the
+  affordance. (Contrast with V1: we used to inline the URL. The
+  click-the-URL pattern caused confusion because users didn't
+  know whether to click the URL or type a verb. Naming the verb
+  removes the ambiguity. The URL still exists; it just lives in
+  the agent's working memory between "yes A<N>" and `open`.)
+
 - `connector_required.status !== 'connected'` AND
-  `~/.murmur/account.json` is missing → DO NOT render a deep-link.
-  Instead render:
+  `~/.murmur/account.json` is missing → DO NOT mint a bridge URL.
+  Render:
   ```
-  Set up: needs your Mur account — say "set up my account" and
-          I'll claim it (~30s browser flow), then re-render the
-          automations with working links.
+  Recommendation: Needs your Mur account first (~30s browser
+  claim, free). Say "yes A<N>" and I'll claim then OAuth in one
+  go.
   ```
-  When the user says yes, run `claim-connect.mjs` (see SKILL.md
-  first contact), then re-render the automations pillar with
-  bridge-baked URLs. Account claim is a one-time gate; subsequent
-  scans use the cached account.json.
+  When the user says yes, run `claim-connect.mjs`, then re-mint
+  the bridge URL, then `open` it. One yes, two scripts.
+
+### Monthly cost framing
+
+The card's `Effort:` line and the `Recommendation:` line both
+reference cost. Per SKILL.md voice contract: "be concrete, real
+numbers." Raw `$0.05/run` is opaque — the user can't compute the
+monthly bill in their head. Always frame as monthly cost grounded
+in the candidate's `cadence` field.
+
+Conversion table (pre-compute at render time from the cadence the
+matcher emits):
+
+| Cadence pattern | Per month | Render shape |
+|---|---|---|
+| Every N hours / "hourly" | (24/N × 30) × $0.05 | "~$<X>/mo (every N hours, fires automatically)" |
+| "Daily" / "every morning" / "6am tz" | 30 × $0.05 | "~$1.50/mo (daily, fires automatically)" |
+| "Weekly" / "every Monday" / "Sunday recap" | 4.3 × $0.05 | "~$0.20/mo (weekly, fires automatically)" |
+| "On every PR" / "per PR" / per-event | depends on volume | "scales with PR volume (~$<X>/wk at your pace)" — use `git_activity.last_30d` to estimate the user's PR rate |
+| "Per webhook" / "per Stripe failure" | depends on volume | "scales with <event> volume (~$<X>/wk at your pace)" |
+
+When monthly compute is impractical (per-event flows where
+volume varies wildly), fall back to a conservative "scales with
+<X> volume" line — never show raw `$0.05/run`. Cost should always
+parse as a known commitment OR an explicit "depends on you" framing.
+
+For local-cron candidates, still show monthly TEE cost as the
+alternative — it's how the user understands what they're saving:
+
+> Effort: 30s setup + free local cron, or ~$1.50/mo for the
+> hands-off TEE version.
+
+The "or" framing makes the choice salient. Don't hide one path.
 
 ### Bridge-token pre-render (V1.1 deep-link auth bridge)
 
@@ -1371,20 +1439,24 @@ What I'd watch for you (automations)
   What it is: Overnight roll-up of your PRs, failing CI, and
   open issues across every connected system. Grounded in: gh CLI
   authed, 4 open PRs, 1 failing CI run.
-  Recommendation: Automate: /mur install daily-digest. Cadence
-  6am your tz.
+  Recommendation: Wire it as a 6am local cron (free) or in our
+  TEE (~$1.50/mo, fires automatically). Either way: say "yes A1"
+  and I'll set it up.
   Impact: You stop hand-rolling the Mon-morning roll-up,
   ~3 min/morning saved.
-  Effort: (you: 30s confirm / Mur: $0.05/run remote, free local cron)
+  Effort: 30s setup + free local cron, or $1.50/mo for the
+  hands-off TEE version.
 
   A2: Stripe webhook watcher
   What it is: Flags failing payment webhooks before they hit
   your inbox. Grounded in: STRIPE_* env vars in .env.example,
   stripe in package.json.
-  Recommendation: Automate: connect Stripe first → https://usemur.dev/connect/stripe?install=stripe-webhook-watcher&project=cprj_xxx&token=mur_bridge_…
+  Recommendation: Open your browser to OAuth Stripe (~30s).
+  When you switch back, I'll fire the install automatically. Say
+  "yes A2" to start.
   Impact: You stop debugging $-loss webhooks at 2am from a
   customer ticket.
-  Effort: (you: 30s OAuth / Mur: $0.05/run)
+  Effort: 30s OAuth + ~$1.50/mo (daily check cadence).
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1392,9 +1464,12 @@ What I can connect to
 
 ────
 
-Pick an automation above to set up, or "show me PR #142" /
-"audit this" for any finding. Or just keep going on findings
-("show more findings") or automations ("show more automations").
+If I were you, I'd start with **A1**. You stop hand-rolling the
+Mon-morning roll-up, ~3 min/morning saved.
+
+Want me to set it up? Or pick A2 (Stripe webhook watcher), F1
+(audit the SQL), F2 (show me PR #142), say "show more findings"
+/ "show more automations", or "skip" to keep just the read.
 ```
 
 **Example B — pre-product / utility scripts shape:**
@@ -1437,18 +1512,22 @@ What I'd watch for you (automations)
   What it is: Tracks upgrades and breaking changes across your
   npm deps, summarized weekly. Grounded in: openai + 14 other
   npm deps, no current dep-watcher.
-  Recommendation: Automate: connect GitHub first → https://usemur.dev/connect/github?install=dep-release-digest&project=cprj_xxx&token=mur_bridge_…
+  Recommendation: Open your browser to OAuth GitHub (~30s).
+  When you switch back, I'll fire the install automatically. Say
+  "yes A1" to start.
   Impact: You stop shipping with stale dependency notes.
-  Effort: (you: 30s OAuth / Mur: $0.05/run)
+  Effort: 30s OAuth + ~$0.20/mo (weekly cadence).
 
   A2: Prompt-regression watcher
   What it is: Alerts when a prompt diff hits production.
   Grounded in: OpenAI SDK in src/, multi-line system prompts
   > 200 chars in lib/summarize.js.
-  Recommendation: Automate: connect GitHub first → https://usemur.dev/connect/github?install=prompt-regression&project=cprj_xxx&token=mur_bridge_…
+  Recommendation: Open your browser to OAuth GitHub (~30s).
+  When you switch back, I'll fire the install automatically. Say
+  "yes A2" to start.
   Impact: You catch silently broken prompts on the same PR
   that introduced them.
-  Effort: (you: 30s OAuth / Mur: $0.05/run)
+  Effort: 30s OAuth + scales with PR volume (~$0.50/wk at your pace).
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1456,9 +1535,12 @@ What I can connect to
 
 ────
 
-Pick an automation above to set up, or for a repo this shape,
-publishing one of the utility scripts is the fastest wow.
-"publish lib/summarize.js" — or any verb above.
+For a repo this shape, the fastest wow is publishing one of the
+utility scripts as a paid Mur flow — that gets you a paid endpoint
+with zero infra work. Want me to walk through **F1: lib/summarize.js**?
+
+Or set up A1 / A2 if you'd rather wire a watcher first, or "skip"
+to keep just the read.
 ```
 
 **Example C — empty / unknown / sparse:**

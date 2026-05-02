@@ -30,7 +30,23 @@ Each template includes:
   see recommend.md's "Local-install safety contract" section.
   The render in plain language + the literal artifact bytes both
   surface BEFORE any `Write` / `crontab -` / `launchctl load` /
-  `chmod` happens. User must say "yes" / "install it" / "go ahead."
+  `chmod` happens. The user must have already said "yes A<N>"
+  (or "install it" / "go ahead") IN THE PRIOR TURN — that's the
+  pick. Render the artifact, then auto-fire after a 3-second
+  grace window with a stop-out clause:
+
+  > Wiring **<slug>**. Here's what lands:
+  > [artifact bytes]
+  > Writing in 3s — say "stop" if anything looks off.
+  > (`uninstall <slug>` reverses it any time.)
+
+  If the user says "stop" / "wait" / "cancel" within the grace
+  window, back off. Otherwise the write proceeds. This applies
+  ONLY when the user already explicitly picked the install via
+  "yes A<N>" in the previous turn. If the user pivoted (e.g.
+  "actually try a different cadence"), drop back to render-then-
+  confirm: render the new artifact, ask "Proceed?", wait for an
+  explicit yes before writing.
 - **Every script begins with `set -euo pipefail`** (bash) or
   equivalent strict-mode header. Silent failures in scheduled
   scripts compound — strict mode surfaces them in stderr.
@@ -380,6 +396,10 @@ description: {{one_line_description}}
 
 ## Render order during install (mandatory)
 
+This applies AFTER the user has already said "yes A<N>" — that's
+the pick. The render is showing the work, not asking permission
+again.
+
 1. **Plain-language summary** of what the artifact does. Three to
    five lines. Reference the persona's `why-you` from the propose
    schema.
@@ -395,8 +415,20 @@ description: {{one_line_description}}
    <100 lines). For long artifacts, show the header + a
    representative excerpt + offer "say 'show me the full body' for
    the rest."
-5. **Confirm prompt** — `Proceed? (yes / no / show me the full
-   body / edit <field>)`.
+5. **Stop-window line** — `Writing in 3s — say "stop" if
+   anything looks off.`
+6. **Auto-fire after 3 seconds.** If the user said "stop" /
+   "wait" / "cancel" / "hold on" within the window, back off and
+   ask what to change. Otherwise write to disk + crontab/launchctl,
+   then confirm: `Wired. First run <when>. (uninstall <slug> to
+   revert.)`
 
-Write to disk only after explicit "yes." Bare silence → cancel.
-"Yes" alone after a different prompt → ambiguous → re-ask.
+Pivot rule: if the user changes scope mid-render ("actually let's
+do weekly not daily", "swap Slack for Discord webhook", "no email
+alert"), drop the auto-fire grace and re-enter from step 1 with
+the new artifact. The grace is for "yes, ship the thing I picked"
+— not for "yes, ship the thing after I just changed it."
+
+Bare silence during the grace window → write proceeds (silence is
+implicit consent for the artifact the user already explicitly
+picked). User-initiated message during the window → cancel + ask.

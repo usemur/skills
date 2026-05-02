@@ -117,15 +117,33 @@ because:
   ("I don't have a pre-built flow that fits — these are all
   custom designs, longer to set up but tailored to what you're
   building").
-- **Local-install safety: render-confirm-revoke.** Co-designed
-  flows that emit local artifacts (cron entry, launchd plist,
-  GH workflow, bash script, gstack skill) MUST go through:
+- **Local-install safety: render-confirm-revoke (auto-fire after
+  grace).** Free local artifacts (cron entry, launchd plist, GH
+  workflow, bash script, gstack skill) go through:
   1. **Render** — show the artifact in plain language ("This
      adds a cron entry that runs every Sunday at 11pm and writes
      to `~/.local/share/mur-churn-watch.log`") AND raw form (the
-     literal bytes that will land on disk) on user ask.
-  2. **Confirm** — never write to crontab / disk without an
-     explicit user "yes, install."
+     literal bytes that will land on disk).
+  2. **Auto-fire after a 3-second grace.** Once the user has
+     said "yes A<N>" (the explicit pick), the agent renders the
+     artifact AND immediately announces the write with a
+     stop-window. Voice = showing my work, not asking
+     permission again:
+     > Wiring **<slug>** as a local cron. Here's what lands:
+     > [artifact bytes]
+     > Writing in 3s — say "stop" if anything looks off.
+     > (`uninstall <slug>` reverses it any time.)
+
+     If the user says "stop" / "wait" / "cancel" within those
+     3 seconds (or before the agent finishes the artifact write),
+     the agent backs off and asks what they want changed.
+     Otherwise the write proceeds and the agent confirms:
+     > Wired. First run <when>. (`uninstall <slug>` to revert.)
+
+     This applies ONLY to free local installs the user explicitly
+     picked via "yes A<N>". Doesn't apply when the user pivoted
+     mid-conversation (e.g. "actually try a different cadence")
+     — those re-enter render-then-confirm.
   3. **Revoke** — every install registers in
      `~/.murmur/installs.jsonl` with the slug, install path, raw
      artifact, and undo command. The user says "uninstall
@@ -134,8 +152,14 @@ because:
      `/mur uninstall <slug>` — `/mur` isn't a registered slash
      command in Claude Code.
 
-  No exceptions. Remote installs (TEE-isolated) skip
-  render-confirm but still appear in `installs.jsonl` for parity.
+  **Paid-remote installs ALWAYS get explicit confirm**
+  (no auto-fire grace). The budget context warrants a clear
+  "yes, charge me" moment. Voice:
+  > Installing **<slug>** in our TEE. Cost: ~$<monthly>/mo at
+  > <cadence>. Your balance: $<X>, runway: ~<Y> months. Confirm?
+
+  No exceptions on the paid side. Remote installs still appear
+  in `installs.jsonl` for parity.
 
 - **Never dismiss the user.** No "come back when you have a
   project" / "Mur isn't for you yet" / "cd into a repo first"
@@ -227,23 +251,45 @@ confidence:            high | medium | low   # how well does this match signals
 visually identical to scan.md's automation card and digest.md's
 item shape so users see one consistent surface. Numbering starts
 at A1 within the propose round; the user references items by
-number ("install A1", "show me A2"). Shape:
+number ("yes A1", "show me A2"). Shape:
 
 ```
 A<N>: <bold name — lowercased descriptive title, never the `@mur/`
 prefix. Provenance neutrality requires marquee and co-designed to
 render identically.>
-What it is: <one-line `what` from the candidate>
-Recommendation: Automate: <install path — `/mur install <slug>`
-when local, deep-link URL when a connect is needed first>
+What it is: <one-line `what` from the candidate. Grounded in:
+<verbatim signal from `why-you`>.>
+Recommendation: <action in builder voice — never a slash
+command. The agent owns the verb. The user just says "yes A<N>".
+See "Recommendation line shape" below for the three variants.>
 Impact: <one-line user outcome — what they save, stop doing, or
 unlock — derived from `why-you` framed as a user-facing benefit>
-Effort: (you: <setup cost> / Mur: <$X.XX/run remote, free local>)
+Effort: <setup cost> + <monthly cost grounded in cadence —
+NEVER raw $/run. See scan.md's "Monthly cost framing" section.>
 ```
 
-The `why-you` signal grounding (e.g. "Stripe live in your stack")
-goes inside `What it is:` as "Grounded in: <signal>." — keeps the
-provenance honesty without breaking the card shape.
+**Recommendation line shape** (three variants, mirroring
+scan.md's automation CTA):
+
+- **Connector connected (or env-already-set)** →
+  > Wire it as a <cadence> local cron (free) or in our TEE
+  > (~$<monthly>/mo, fires automatically). Either way: say
+  > "yes A<N>" and I'll set it up.
+
+- **Connector needs OAuth/paste, account.json present** →
+  > Open your browser to OAuth <Provider> (~30s). When you
+  > switch back, I'll fire the install automatically. Say
+  > "yes A<N>" to start.
+
+- **account.json missing** →
+  > Needs your Mur account first (~30s browser claim, free).
+  > Say "yes A<N>" and I'll claim then OAuth in one go.
+
+The verb to say is uniform across cards: "yes A<N>". The user
+learns it once, applies it everywhere. NEVER render `/mur
+install <slug>` or `/mur connect <slug>` as something the user
+types — those aren't real Claude Code slash commands and would
+error.
 
 - **Prereq line if `requires_connections` is non-empty AND any of
   those slugs aren't in HEARTBEAT.md's connections list.** Render
