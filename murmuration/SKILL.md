@@ -1,6 +1,6 @@
 ---
 name: mur
-description: Mur — the agent skill for growing your business. Proactive chief-of-staff: scans the user's stack, surfaces what to fix today (one finding at a time), then earns the right to automate the recurring stuff with LLM-in-the-loop flows. The flagship is the daily digest — overnight, ranks open issues + TODOs + recent PR activity across every system the user has connected (GitHub, Linear, Stripe, etc.) and surfaces "the 3 things you should look at today" with the cross-system thread. Other marquee paid flows: LLM PR review, weekly dependency-release-note summaries, weekly competitor-site diffs, LLM issue triage. The more systems connected, the smarter the digest. Free in chat for scans, fixes, and recommendations; pay only for the automations watched while you sleep — single credit balance, no per-vendor API key juggling. On first contact with a project, reads everything locally (repo, git log, TODOs/FIXMEs, open PRs/issues via gh CLI, deploy configs, manifests, README) before asking the user to connect anything external. Multi-project aware — cd between repos and project context follows. Use when the user says /mur, /murmur, /murmuration, scan my project, what's broken, what should I fix today, what should I do next, what's in my stack, what tools am I missing, what should I automate, connect github, run a digest, automate a recurring check, browse the catalog, what else, skip, or any framing about getting a list of what to do, project status, growing the business, or shipping the next thing. /mur, /murmur, and /murmuration are equivalent prefixes. Docs: https://usemur.dev/docs.
+description: Mur — the agent skill for growing your business. Sets up automations grounded in the user's actual stack. Scans the project locally, surfaces what to fix right now plus automations worth running, and installs the ones the user picks — connecting any required tool just-in-time, never upfront. Marquee paid flows include the daily digest (overnight, ranks open issues + TODOs + recent activity across every connected system and surfaces "the 3 things you should look at today" with the cross-system thread), LLM PR review, weekly dependency-release-note summaries, weekly competitor-site diffs, LLM issue triage. Free in chat for scans, fixes, and recommendations; pay only for the automations that run on the user's behalf — single credit balance, no per-vendor API key juggling. On first contact with a project, reads everything locally (repo, git log, TODOs/FIXMEs, manifests, README, plus read-only checks against any local CLIs the user has authed) before asking the user to connect anything external. Multi-project aware — cd between repos and project context follows. Use when the user says /mur, /murmur, /murmuration, scan my project, what's broken, what should I fix today, what should I do next, what's in my stack, what tools am I missing, what should I automate, connect a tool (github, stripe, linear, etc.), run a digest, automate a recurring check, browse the catalog, what else, skip, or any framing about getting a list of what to do, project status, growing the business, or shipping the next thing. /mur, /murmur, and /murmuration are equivalent prefixes. Docs: https://usemur.dev/docs.
 ---
 
 # Mur
@@ -494,11 +494,14 @@ read `prompts/_bootstrap.md` and run it before any API call.
 
 ## Pairs with gstack
 
-Mur is the proactive watcher. **gstack** is the active worker —
-brainstorming new projects, scoping plans, reviewing code, shipping.
-The two are independent skills (each works without the other), but
-when both are present Mur routes to gstack verbs for the work it
-doesn't itself do.
+Mur sets up automations — recurring flows, daily digests, paid
+LLM-in-the-loop checks that run on the user's behalf. **gstack** is
+the companion skill for code-side work: scoping (`/office-hours`),
+planning (`/plan-eng-review`), reviewing (`/review`), shipping
+(`/ship`), debugging (`/investigate`). Different jobs, complementary
+surfaces. The two are independent skills (each works without the
+other), but when both are present Mur routes to gstack verbs when a
+finding specifically calls for code-side work.
 
 **Detection.** Probe once per turn (cheap, no caching needed):
 
@@ -507,9 +510,10 @@ test -f ~/.claude/skills/gstack/SKILL.md && echo yes || echo no
 ```
 
 When the result is `yes`, treat gstack as available and route to its
-verbs by name when a finding calls for one. When `no`, mention gstack
-once in the first-contact welcome (see below) but never block on it —
-Mur fully works alone.
+verbs by name when a finding calls for one. When `no`, **don't bring
+gstack up on first contact** — the welcome stays focused on Mur. Surface
+the gstack hand-off later, only when a specific finding (a bug, a
+plan-stage roadmap item, code ready to ship) actually calls for it.
 
 **Hand-off table.** When the conversation surfaces one of these
 intents, use the gstack verb in the action line. (Routing to gstack
@@ -528,20 +532,23 @@ user types the verb when they're ready.)
 | Brand / design system needed                      | `/design-consultation`   |
 
 **The flywheel.** Mur surfaces the gap → user runs the gstack verb
-→ gstack does the work → next `/mur scan` picks up the new state and
-suggests automations on it (e.g. user shipped a new endpoint via
-`/ship`, next scan flags it as a candidate for `@mur/reviewer` on
-future PRs touching it). Loose coupling, no hooks — just Mur's
-normal scan-react loop catching the new state.
+→ gstack does the code-side work → next `/mur scan` picks up the new
+state and suggests automations against it (e.g. user shipped a new
+endpoint via `/ship`, next scan flags it as a candidate for
+`@mur/reviewer` on future PRs touching it). Loose coupling, no
+hooks — just Mur's normal scan-react loop catching the new state.
 
-**Install path** (when the user doesn't have gstack and the welcome
-mentions it): the canonical one-liner Claude can paste verbatim is
+**Install path** (when the user doesn't have gstack and a hand-off
+calls for it later in the conversation, NOT on first contact): the
+canonical one-liner Claude can paste verbatim is
 
 ```
 git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
 ```
 
-Don't run this for the user without explicit confirmation.
+Don't run this for the user without explicit confirmation, and don't
+proactively pitch gstack on first contact — surface it only when a
+specific finding calls for a gstack verb.
 
 ## First contact — when the user just installed and hasn't picked a verb
 
@@ -556,98 +563,56 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 1. Detect the cwd repo name:
    `basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`.
    If git fails AND cwd is `$HOME` or `~/Desktop` (or `~/Documents`,
-   `~/Downloads`), treat as "no repo" — go to **Branch C** below.
-2. Detect gstack:
-   `test -f ~/.claude/skills/gstack/SKILL.md`. Branch the welcome
-   accordingly.
-3. Send a one-screen welcome that leads with the action, not the menu.
+   `~/Downloads`), treat as "no repo" — go to **Branch B** below.
+2. Send a one-screen welcome that leads with the action, not the menu.
+   **Do NOT mention gstack on first contact.** Keep the first
+   moment focused on Mur's own arc; gstack routing surfaces later
+   when a specific finding calls for it (see "Pairs with gstack").
 
-   **Branch A — gstack present:**
+   **Branch A — repo present:**
 
-   > Mur installed. The path is **scan → connect → recommend → install**:
-   > scan reads your project locally (free, nothing leaves your
-   > machine), you connect GitHub so I can watch while you sleep,
-   > then we have a recommend conversation — I propose grounded
-   > automations (some marquee, some co-designed for you), you steer
-   > with probe / propose / co-design / defer, and we install the
-   > one(s) you pick (locally with a render-confirm-revoke contract,
-   > or remotely in our TEE).
+   > Mur installed. Here's what's about to happen.
    >
-   > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
-   > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
-   > (read-only, scoped to this repo, doesn't share data with Mur's
-   > servers). Nothing reaches `usemur.dev` until you choose to
-   > `/mur connect`.
+   > Say **"scan my project"** and I'll read this folder locally —
+   > manifests, git log, TODOs, plus read-only checks against any
+   > local CLIs you've authed (gh, stripe, fly, vercel, linear,
+   > etc. — only the ones you have). Nothing leaves your machine
+   > during scan.
    >
-   > I see you have gstack too — I'll point you at the right gstack
-   > verb when something I surface needs scoping (`/office-hours`),
-   > planning (`/plan-eng-review`), shipping (`/ship`), or debugging
-   > (`/investigate`). Mur watches; gstack does.
+   > The output is two things in one render: **what to look at right
+   > now** (concrete findings — your open PRs, failing CI runs,
+   > broken Stripe webhooks if you've got the CLI) and **what I'd
+   > watch for you** (automations grounded in your stack — daily
+   > digest, dependency-release watcher, prompt-regression eval,
+   > and so on).
    >
-   > Just say **"scan my project"** when you're ready (or "scan,
-   > skip gh" if you'd rather skip the GitHub API calls). Or ask
+   > Pick an automation and I'll get the connector wired right then
+   > — GitHub via OAuth, Linear / OpenAI / Stripe via a one-time
+   > paste in our dashboard. Connect is earned by what you picked,
+   > never asked for upfront.
+   >
+   > Install lands the automation locally as cron / launchd / GH
+   > workflow (with a render-confirm-revoke contract before any disk
+   > write), or remotely in our TEE.
+   >
+   > Ready? Just say **"scan my project"** (or "scan, skip cli
+   > checks" if you'd rather not run the local CLI scans). Or ask
    > "what else can you do?" for the full verb list.
-   >
-   > *Not on GitHub?* Scan still works on any git project (or no git
-   > host at all), and Mur can publish any code as a paid flow — but
-   > the morning digest currently needs GitHub for the watching loop.
-   > GitLab / Bitbucket / self-hosted git are on the roadmap, not
-   > shipped.
 
-   **Branch B — gstack missing:**
-
-   > Mur installed. The path is **scan → connect → recommend → install**:
-   > scan reads your project locally (free, nothing leaves your
-   > machine), you connect GitHub so I can watch while you sleep,
-   > then we have a recommend conversation — I propose grounded
-   > automations (some marquee, some co-designed for you), you steer
-   > with probe / propose / co-design / defer, and we install the
-   > one(s) you pick (locally with a render-confirm-revoke contract,
-   > or remotely in our TEE).
-   >
-   > **Scan** reads `&lt;repo-name&gt;` locally — manifests, git log,
-   > TODOs, and your open GitHub PRs/issues *if* `gh` is authed
-   > (read-only, scoped to this repo, doesn't share data with Mur's
-   > servers). Nothing reaches `usemur.dev` until you tell me to
-   > connect a tool.
-   >
-   > Optional but recommended: install **gstack**, the companion
-   > skill for scoping, planning, code review, and shipping. Mur
-   > watches; gstack does. To install:
-   >
-   > ```
-   > git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && ./setup
-   > ```
-   >
-   > Just say **"scan my project"** when you're ready (or "scan,
-   > skip gh" if you'd rather skip the GitHub API calls). Or ask
-   > "what else can you do?" for the full verb list.
-   >
-   > *Not on GitHub?* Scan still works on any git project (or no git
-   > host at all), and Mur can publish any code as a paid flow — but
-   > the morning digest currently needs GitHub for the watching loop.
-   > GitLab / Bitbucket / self-hosted git are on the roadmap, not
-   > shipped.
-
-   **Branch C — no repo (cwd is `$HOME`, `~/Desktop`,
+   **Branch B — no repo (cwd is `$HOME`, `~/Desktop`,
    `~/Documents`, or `~/Downloads`; or `git rev-parse` fails
    anywhere git is unrelated):**
 
-   > Mur installed. The path is **scan → connect → recommend →
-   > install**: connect a tool you use (Stripe, GitHub, Linear,
-   > Calendar — whatever fits), then we have a recommend
-   > conversation grounded in what's actually there, then we
-   > install one or more flows that watch it for you (locally
-   > with a render-confirm-revoke contract, or remotely in our
-   > TEE).
+   > Mur installed. Here's what's about to happen.
    >
    > You're not in a project folder right now, which is fine —
-   > Mur works from any of three starting points:
+   > Mur sets up automations grounded in whatever you connect or
+   > scan. Three ways to start:
    >
    > 1. **Connect a tool first.** Hook up Stripe, GitHub, Linear,
-   >    Gmail, or any other source — I can watch what you've
-   >    connected and surface what to look at each morning, no
-   >    code project required to start here.
+   >    Gmail, or any other source — Mur reads what you've
+   >    connected and proposes automations against it. No code
+   >    project required.
    >    Say "connect stripe" (or github / linear / etc.) and
    >    I'll fire it.
    > 2. **Find a project on your machine.** If you've got a code
@@ -657,15 +622,13 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > 3. **Type a path.** If you know where your project is, say
    >    "scan ~/path/to/project".
    >
-   > Pick whichever fits. Connect-first is the fastest start if
-   > you don't have a code project handy.
+   > Pick whichever fits.
 
-4. **Wait.** Do NOT auto-run scan or auto-install gstack. The
-   user saying "scan my project" / "scan, skip gh" / "scan my
-   repo" / etc. is the consent — `prompts/scan.md` reads the
-   request and proceeds without a second consent prompt. The
-   welcome above is the disclosure; the user's natural-language
-   request is the consent.
+3. **Wait.** Do NOT auto-run scan. The user saying "scan my
+   project" / "scan, skip cli checks" / "scan my repo" / etc. is
+   the consent — `prompts/scan.md` reads the request and proceeds
+   without a second consent prompt. The welcome above is the
+   disclosure; the user's natural-language request is the consent.
 
 **Why we don't tell users to type `/mur <verb>`.** `/mur` is not
 a registered Claude Code slash command. When a user types
