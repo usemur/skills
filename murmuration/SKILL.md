@@ -787,12 +787,30 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
 
    **Branch A — repo present:**
 
+   **Before rendering the welcome:** if `~/.murmur/account.json`
+   doesn't already exist, fire `node <skill>/scripts/claim-connect.mjs`
+   in the background (Bash with `run_in_background: true`). Read the
+   first ~2 seconds of stdout and grab the line that starts with
+   `  https://usemur.dev/claim?token=mur_claim_…` — that's the URL.
+   Substitute it for `<CLAIM_URL>` in the welcome below. If stdout
+   instead emits `RESULT {"ok": false, "reason": "init_failed"}`,
+   surface that error and offer to retry. The script keeps polling in the background and will write
+   `~/.murmur/account.json` once the user approves; surface that result
+   when it lands. Skip this entire step if `account.json` already exists
+   — the user is already claimed and the welcome should drop point #1.
+
    > Mur installed. Two things first.
    >
-   > **1. One-time account setup (~30s, free).** Claim your Mur
-   > account in your browser. That unlocks one-click automation
-   > installs later — no login wall when you click a connect link.
-   > Want me to fire that now?
+   > **1. Claim your Mur account (~30s, free).** I generated a
+   > one-time link and opened it in your browser:
+   >
+   >   <CLAIM_URL>
+   >
+   > Sign in (or sign up) and click "Approve connection." I'll see
+   > it land here. Link expires in 10 minutes if unused; if your
+   > browser didn't open, click the URL above. This unlocks
+   > one-click automation installs later — no login wall when you
+   > click a connect link.
    >
    > **2. Then say "scan my project"** and I'll read this folder
    > locally — manifests, git log, TODOs, plus read-only checks
@@ -816,11 +834,9 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > runs on your machine, render-confirm-revoke before any disk
    > write), or remotely in our TEE.
    >
-   > Ready? Reply with one of:
-   > - **"yes"** — claim my account, then we'll scan.
-   > - **"skip claim, just scan"** — scan now, claim later when an
-   >   automation needs it.
-   > - **"what else can you do?"** — see the full verb list.
+   > Want to scan now while the claim approves in another tab, or
+   > wait for the claim first? Either works — say **"scan now"** or
+   > **"wait"**. (Or **"what else can you do?"** for the full verb list.)
 
    **Branch B — no repo (cwd is `$HOME`, `~/Desktop`,
    `~/Documents`, or `~/Downloads`; or `git rev-parse` fails
@@ -847,25 +863,33 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    >
    > Pick whichever fits.
 
-3. **Handle the user's reply.** Three paths:
+3. **Handle the user's reply.** The claim script is already polling
+   in the background (fired before the welcome rendered). Three paths:
 
-   - **"yes" / "claim it" / "set up my account" / etc.** — run
-     `node skill-pack/scripts/claim-connect.mjs`. The script opens
-     `https://usemur.dev/claim?token=<token>` in the browser, user
-     signs in and approves, the script writes
-     `~/.murmur/account.json`. After it returns, ask:
-     "Account claimed. Want me to scan now?" On user yes, fire
-     scan. (Don't auto-fire scan after the claim — the claim flow
-     can take 30+ seconds and the user may want a beat.)
-   - **"skip claim, just scan" / "skip" / "scan now" / "scan my
-     project" / etc.** — fire scan immediately. Account claim
-     becomes lazy (see Step 4 below).
+   - **"scan now" / "scan my project" / "go" / "yes scan" / etc.** —
+     fire scan immediately. The background claim keeps polling; if
+     the user approves while scan runs, account.json lands and the
+     next render uses it. If the user hasn't approved by the time
+     scan renders automations, fall through to the lazy fallback in
+     Step 4 (claim-first CTA on automation cards).
+   - **"wait" / "let me claim first" / etc.** — pause and let the
+     background claim resolve. When the script's `RESULT
+     {"ok": true, …}` lands in stdout (or the user pastes "done"),
+     ack with "Account claimed — say 'scan' when you're ready."
+     If `RESULT {"ok": false, "reason": "expired" | "timeout"}`,
+     surface the reason and offer to re-fire claim-connect.mjs.
    - **"what else can you do?"** — list verbs, then re-offer the
-     yes/skip/list options.
+     scan-now / wait choices.
 
-   Do NOT auto-run scan or auto-claim without user consent. The
-   welcome above is the disclosure; the user's natural-language
-   reply is the consent.
+   If `~/.murmur/account.json` already existed at welcome time, skip
+   the claim line entirely — render only point #2 and ask "scan now?"
+
+   Do NOT auto-run scan without user consent. The welcome above is
+   the disclosure; the user's natural-language reply is the consent.
+   The background claim script is consent-bounded too — it only
+   *generates a URL and opens a tab*; nothing is registered against
+   the user's account until they explicitly click Approve in the
+   browser.
 
 4. **Account claim is preferred-pre-scan, but lazy works too.**
    The pre-scan claim path (Step 3 path 1) is the happy path: by
