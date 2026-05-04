@@ -163,8 +163,14 @@ On "cancel" or invalid input, exit cleanly:
 
 ## Step 3 — call the install endpoint
 
+Read the Mur API base from `~/.murmur/account.json`'s `apiBase`
+field (the same source as the rest of the install path). Fall
+back to `https://usemur.dev` only if the file or that field is
+missing. Use the same `<apiBase>` for every subsequent call so
+self-hosted deployments don't split state across two backends.
+
 ```
-curl -s -X POST https://usemur.dev/api/flows/install \
+curl -s -X POST <apiBase>/api/flows/install \
   -H "Authorization: Bearer <accountKey>" \
   -H "Content-Type: application/json" \
   -d '{"slug": "<slug>", "actingAgent": "<agent>"}'
@@ -182,19 +188,171 @@ Decode the response:
   the local state is consistent.
 - **400 / 500** → surface the error message verbatim, suggest trying
   again or browsing https://usemur.dev/explore.
+- **403** → the install was refused. Some flows are operator-only
+  on a given Mur deployment (e.g. `sentry-autofix` while it's
+  single-tenant). Surface the response's `error` and `detail`
+  fields verbatim to the user. **Stop the workflow here** — do
+  NOT continue to step 4 or step 5. Nothing was installed; there's
+  nothing to wire and nothing to record locally.
+- **503** → the deployment hasn't finished configuring this flow
+  yet (e.g. `sentry-autofix` when `SENTRY_DEFAULT_DEVELOPER_ID` is
+  unset on the backend). Surface the `error` and `detail` fields
+  verbatim. **Stop the workflow here** — the operator needs to
+  finish setup on the backend first; nothing was installed.
 
 ## Step 4 — wire the flow's MCP endpoint into the user's agent
 
-**Native cofounder flows skip this step.** The install endpoint
+**Native cofounder flows skip MCP wiring.** The install endpoint
 returns `flow.flowType: "cofounder"` (or `flow.mcpRequired: false`
 explicitly) for handlers that fire on platform-side
 webhooks/cron — `@mur/issue-triage`, `@mur/reviewer`,
 `@mur/dep-release-digest`, etc. There's no MCP server to wire;
-the flow runs server-side once enabled. Skip directly to step 5
-when either flag indicates a cofounder flow. Tell the user:
-`<flow.name> is now active for this project. The handler fires
-automatically on the trigger described in the registry; no MCP
-wiring needed.`
+the flow runs server-side once enabled.
+
+For cofounder flows, the order is:
+1. Run any per-slug post-install setup from the section below
+   (some flows need extra config like webhooks or repo maps).
+2. Tell the user: `<flow.name> is now active for this project.
+   The handler fires automatically on the trigger described in
+   the registry; no MCP wiring needed.`
+3. Continue to step 5 (record locally).
+
+If `flow.slug` has no entry in the per-slug section below, skip
+straight to the "now active" message + step 5.
+
+### Cofounder-flow post-install setup (per-slug)
+
+Some cofounder flows need additional one-time configuration after
+the `enabled` gate is flipped. Run these blocks based on `flow.slug`
+BEFORE the "now active" message above and step 5.
+
+#### `sentry-autofix`
+
+You only reach this block on a 201 install (the operator path).
+Non-operator installs already returned 403 in step 3 and stopped
+the workflow there — see the 403 handler above.
+
+The flow needs (a) Sentry's webhook signed and pointed at us, and
+(b) a Sentry-project → GitHub-repo mapping so the agent knows
+which repo to clone. Walk through both. Don't ask the user to
+read docs — guide them inline. The full README lives at
+`examples/sentry-autofix/README.md`.
+
+**1. Sentry-side setup.** First, figure out the webhook URL the
+user should register in Sentry. Read the Mur API base URL from
+the `apiBase` field in `~/.murmur/account.json` (the same file
+`claim-connect.mjs` writes). Fall back to `https://usemur.dev`
+only if the file or that field is missing. The webhook URL is
+`<apiBase>/api/webhooks/sentry`.
+
+Tell the user verbatim, substituting `<webhook-url>`:
+
+> To finish setting up sentry-autofix, you'll create a Sentry
+> Internal Integration that signs webhooks pointed at Mur:
+>
+> 1. Open your Sentry org → **Settings → Custom Integrations**
+> 2. Click **Create New Integration → Internal**
+> 3. Name it "Mur Autofix" (or anything)
+> 4. **Webhook URL:** `<webhook-url>`
+> 5. **Permissions:** at minimum `Issue & Event: Read`
+> 6. **Webhooks:** subscribe to **Issues**
+> 7. Save the integration
+> 8. Copy the **Client Secret** at the top of the integration
+>    page — you'll need it in the next step.
+
+The Client Secret is **operator-side configuration**, not
+something this skill can set for you. The Mur backend reads it
+from the `SENTRY_CLIENT_SECRET` env var, which only the deployment
+operator can change. Do NOT ask the user to paste the secret to
+the agent — pasting it accomplishes nothing.
+
+Tell the user verbatim:
+
+> The Client Secret needs to land in the Mur backend's
+> `SENTRY_CLIENT_SECRET` env var. If you ARE the operator
+> (running your own Mur deployment), set it now:
+>
+> ```
+> # On your deployment:
+> SENTRY_CLIENT_SECRET="<paste from Sentry>"
+> # then restart the Mur server
+> ```
+>
+> If you're using a hosted Mur deployment that someone else runs,
+> send the Client Secret to that operator out-of-band (Slack, DM,
+> etc.) — they'll set the env var. Webhooks won't verify until it
+> lands.
+
+**2. Repo mapping.** Ask the user:
+
+> Which Sentry projects should map to which GitHub repos? Format:
+> `<sentry-project-slug> → <owner>/<repo>`. You can map several.
+>
+> Example: `my-app-backend → acme/api`
+
+The Sentry project slug is what shows in Sentry URLs (e.g.
+`sentry.io/organizations/<org>/issues/?project=my-app-backend`).
+The repo must be one the Mur GitHub App is installed on with
+`pull_requests:write`. If they're not sure which repos qualify,
+list the ones from `installation.repoFullNames` (read it from
+the GitHub App context if available, otherwise tell them to
+check at https://github.com/settings/installations).
+
+Once you have the mappings, POST them. Use the same `<apiBase>`
+you derived above for the webhook URL — for self-hosted Mur
+deployments this MUST hit the local backend, not the hosted one,
+or the mapping lands on a server that won't see your webhooks:
+
+```bash
+curl -X POST <apiBase>/api/flows/sentry-autofix/config \
+  -H "Authorization: Bearer <accountKey>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repos": {
+      "<sentry-slug-1>": "<owner>/<repo>",
+      "<sentry-slug-2>": "<owner>/<repo>"
+    }
+  }'
+```
+
+Expected response on success: `{ "projectId": "...", "repos": {...}, "mappingCount": N }`
+
+If the response is non-200, the repo map was NOT saved and the
+flow cannot fire (the handler will skip every webhook with
+`no_repo_mapping:<sentry-slug>`). Do NOT proceed to step 3
+("Test it") in that case — sending the user into a smoke test
+that's guaranteed to fail wastes their time.
+
+Handle each failure shape:
+- **400 (validation error)** → re-prompt the user with the exact
+  error message (probably a malformed slug or `owner/repo` value)
+  and re-POST when they correct it.
+- **403** → the requester isn't the operator. Surface `error` +
+  `detail` and stop.
+- **503** → the deployment isn't configured (`SENTRY_DEFAULT_DEVELOPER_ID`
+  unset). Surface `error` + `detail` and stop.
+- **500 / network** → tell the user "Couldn't save the mapping
+  right now — try again in a minute, or set it manually from the
+  dashboard later." Stop here.
+
+**3. Test it.** Tell the user:
+
+> sentry-autofix is wired up. To test it end-to-end, throw a real
+> error in your app, let Sentry capture it, and within 5–10 minutes
+> a PR should appear on the mapped repo authored by the Mur GitHub
+> App bot.
+>
+> One catch: Sentry only fires `issue.created` on a **new
+> grouped** issue — replaying an error you've already seen
+> won't trigger anything (Sentry groups by stack-trace
+> fingerprint). Use a unique error message like
+> `throw new Error('mur autofix smoke test ' + Date.now())`
+> so each run lands as a fresh issue.
+>
+> If a PR doesn't appear, check the Sentry integration's webhook
+> log (Settings → Custom Integrations → your integration → Webhooks)
+> for delivery status, and check the GitHub App's installation page
+> for permission errors.
 
 For TEE-hosted flows (the default — `flow.flowType` other than
 `cofounder`), the user's agent needs to know how to reach the
