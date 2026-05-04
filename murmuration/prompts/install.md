@@ -354,6 +354,157 @@ Handle each failure shape:
 > for delivery status, and check the GitHub App's installation page
 > for permission errors.
 
+#### `welcome-flow`
+
+This flow needs four pieces of one-time founder input — captured in
+chat, sent to the setup endpoint, and confirmed via a verification
+email round-trip. Walk the founder through it conversationally; do
+not show a numbered picker.
+
+**1. Collect inputs.** Ask each in turn, wait for the answer, save:
+
+> "What name should appear on the From line of these emails? Most
+> founders use something like 'Chris' or 'Chris from Lit Protocol'
+> — whatever feels like the voice you'd reply in."
+
+[Save as `$founderName`.]
+
+> "What email should replies go to? When customers hit reply, it
+> goes straight to your normal inbox — Mur never reads it. Usually
+> this is the email your Stripe account is registered under."
+
+[Validate it has `@` and a `.` after the `@`. Save as `$replyToEmail`.]
+
+> "Subject line? Keep it short and human. 'thanks for signing up'
+> works; so does 'thanks for trying $YOUR_PRODUCT'. Avoid anything
+> that sounds like marketing — these need to read like a real email
+> from you."
+
+[Save as `$subject`.]
+
+> "Now the body. Write it the way you'd write a real email to one
+> customer — same exact bytes go to every customer, no template
+> variables, no personalization. Open with 'Hey,' (Stripe rarely
+> has a clean first name). Sign it with your name. Want to draft
+> something now together, or paste in copy you've already written?"
+
+[Either way, end up with `$body`. Show it back to the founder
+formatted as the actual email and ask "send this verbatim to every
+new Stripe customer? Yes/no/edit." Iterate on edits until they say
+yes.]
+
+**2. POST `/api/welcome-flow/setup`.** Read the API base from
+`apiBase` in `~/.murmur/account.json`, fall back to
+`https://usemur.dev`. Use the account key from the same file as
+the bearer token.
+
+```sh
+curl -fsSL -X POST "<apiBase>/api/welcome-flow/setup" \
+  -H "Authorization: Bearer <accountKey>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "<projectId>",
+    "founderName": "<founderName>",
+    "replyToEmail": "<replyToEmail>",
+    "subject": "<subject>",
+    "body": "<body>"
+  }'
+```
+
+Response handling — branch on the HTTP status first, then the
+optional `code` field on the JSON body:
+
+- **200 `{"ok": true, "emailSent": true}`** — verification email
+  is on its way. Tell the founder verbatim:
+
+  > A verification email is on its way to `<replyToEmail>`. Click
+  > the link in the next hour. The flow goes into dry-run mode after
+  > you click — tomorrow morning's cron will collect the list of
+  > customers it would have emailed, and you can review that
+  > preview before any real send goes out.
+
+- **200 with `emailSent: false`** — same flow, but warn: "Heads up,
+  Resend isn't configured on this Mur deployment so the verification
+  email didn't actually send. The operator needs to set
+  `RESEND_API_KEY` on the backend before this flow can work end-to-end."
+
+- **400** — read the JSON body. Two flavors:
+
+  - If the body has `code: cross_project_collision`, surface the
+    `error` field verbatim and add: "Pause the other project's
+    welcome-flow first (it'd send duplicate emails to the same
+    Stripe customers), then re-run setup here."
+  - Otherwise (zod validation, `code: invalid_input`, etc.) the
+    body is `{ error, details? }`. Surface `error` verbatim. If
+    `details` is present, also show the field-level issues
+    (typically `replyToEmail not an email` or `body too long`).
+
+- **403** — "Forbidden. The project doesn't belong to your
+  developer account, or you're not signed in. Make sure you're
+  in the right project directory and the Mur API key in
+  `~/.murmur/account.json` is current."
+
+- **404** — "I can't find that project. Either the projectId is
+  wrong, or the project was archived. Run `/mur scan` to refresh
+  project context."
+
+- **500 / network** — "Couldn't reach the setup endpoint right
+  now. Try again in a minute. If it keeps failing, check the
+  Mur deployment status."
+
+**3. After the founder clicks the verify link.** Status flips
+SETUP → DRY_RUN automatically — the link's confirmation page tells
+them what's next. They don't need to come back to chat for that
+step. Their next interaction with you is when they say they've
+reviewed the preview and want to go live.
+
+**4. Preview + go-live handoff.** When the founder asks what's
+queued, fetch the preview:
+
+```sh
+curl -fsSL "<apiBase>/api/welcome-flow/preview?projectId=<projectId>" \
+  -H "Authorization: Bearer <accountKey>"
+```
+
+The response is `{ preview: <DryRunPreview | null> }`. Two cases:
+
+- `preview` is `null` — the dry-run cron tick hasn't run yet (or
+  there were no eligible candidates last run). Tell the founder:
+  "No preview yet. The dry-run cron fires at 03:00 local each day;
+  if it's already past that and you still see nothing, either no
+  new Stripe customers showed up or your verification link wasn't
+  clicked yet."
+- `preview` is an object — render its `candidates` array (each
+  has `customerId`, `email`, `triggeringPaymentId`) as a numbered
+  list. If `preview.truncated === true`, mention
+  `preview.totalCandidates` so they know the full size: "Showing
+  50 of N candidates; the cron caps the preview to fit FlowState's
+  64 KiB limit."
+
+When they say "go live" / "send for real" / similar:
+
+```sh
+curl -fsSL -X POST "<apiBase>/api/welcome-flow/confirm-active" \
+  -H "Authorization: Bearer <accountKey>" \
+  -H "Content-Type: application/json" \
+  -d '{"projectId": "<projectId>"}'
+```
+
+Response handling:
+
+- **200 `{"ok": true}`** — "You're live. Tomorrow's 03:00 local
+  cron is the first real send. `pause` any time to stop sends,
+  `resume` to restart."
+- **409 with `code: wrong_status`** — surface the `error`
+  verbatim. Common cause: the founder hasn't clicked the
+  verification email yet (status is still `SETUP`), or someone
+  paused the flow in between (`PAUSED`/`ERRORED`). Direction
+  depends on the status — clicking the verify email moves
+  `SETUP → DRY_RUN`; for `PAUSED`/`ERRORED`, suggest `resume`.
+- **404 with `code: config_missing`** — setup never completed.
+  Re-run `setup`.
+- **403 / 500 / network** — same vocabulary as setup above.
+
 For TEE-hosted flows (the default — `flow.flowType` other than
 `cofounder`), the user's agent needs to know how to reach the
 new flow. For Claude Code, that means `claude mcp add`:
