@@ -550,6 +550,23 @@ of these failing should fail the scan.
        `defaultBranchRef.name` as the bare string under
        `default_branch`. The priority rules read snake_case —
        without this transform every PR rule silently misses.
+   - **eng-pulse** (synthesized post-scan from `gh-merged` and `git`
+     rows by `skill-pack/scripts/eng-pulse.mjs`)
+     - The harness emits a single synthesized row with
+       `tool: "eng-pulse"`, `command: "synthesized"`, and an `output`
+       field containing JSON: `{card, localResources}`.
+     - Parse `output` and populate
+       `local_resources.eng_pulse = { authed: localResources.authed,
+       card: <verbatim card string>, yesterday_pr_count, this_week_pr_count,
+       last_week_pr_count, week_delta_pct, ci_footer_shown }`.
+     - Do **not** re-derive the card text from raw counts — the
+       eng-pulse helper handles solo-repo collapsing, bot exclusion,
+       TZ-windowed partitioning, and CI-footer dedupe. Splat the
+       `card` field verbatim into the F1 finding render.
+     - When the `gh-merged` row is `ok: false` (timeout, unauthed) or
+       the synth row is missing, set
+       `local_resources.eng_pulse = { authed: false }` and skip
+       surfacing F1 — fall back to the next-priority finding.
    - **stripe** (scan: `stripe webhook_endpoints list`)
      - Populate `local_resources.stripe = { authed: true, failing_webhooks: [...] }`. Filter to enabled-but-failing endpoints.
    - **fly** (scan: `fly status --json`)
@@ -805,6 +822,15 @@ Schema (keep field names stable — downstream prompts depend on them):
       "review_requested_prs": [{"number": 91, "title": "...", "url": "https://github.com/..."}],
       "failing_runs": [{"name": "ci", "createdAt": "...", "url": "https://github.com/.../actions/runs/..."}]
     },
+    "eng_pulse": {
+      "authed": true,
+      "card": "F1: Eng pulse — 3 PRs shipped yesterday, 14 this week (+55% vs last week)\n- Shipped yesterday: 3 PRs, 28 commits in 14d — brendon (2), chris (1)\n- This week: 14 PRs merged vs 9 last week (+55% vs last week)\n- Top ships: #481 \"stripe SIWE\", #480 \"deep-link fix\", #479 \"claim retry\"",
+      "yesterday_pr_count": 3,
+      "this_week_pr_count": 14,
+      "last_week_pr_count": 9,
+      "week_delta_pct": 55,
+      "ci_footer_shown": false
+    },
     "stripe":  {"authed": true, "failing_webhooks": [{"id": "we_...", "url": "https://...", "enabled_events": ["payment_intent.failed"]}]},
     "fly":     {"authed": true, "app_status": [{"app": "acme-prod", "status": "running"}]},
     "vercel":  {"authed": true, "recent_deployments": [{"name": "acme-web", "url": "...", "createdAt": "..."}]},
@@ -958,20 +984,40 @@ wins:
    If 1+ PR survives the filter, the top one (most recently
    updated, with their-PR-changes-requested taking precedence over
    their-review-requested when both exist) is the priority.
-4. **Open GitHub issues with high-signal labels.** Issues labeled
+4. **Eng pulse (replaces "GitHub CI failures").** When
+   `local_resources.eng_pulse.authed === true` AND the card has any
+   signal worth surfacing — `yesterday_pr_count > 0` OR
+   `this_week_pr_count > 0` OR `ci_footer_shown === true`.
+
+   The render is the verbatim `local_resources.eng_pulse.card` string
+   — splat it as the F-finding body. Do NOT re-derive shape from
+   the raw counts; the helper at `skill-pack/scripts/eng-pulse.mjs`
+   handles solo-repo collapsing, bot exclusion, TZ-windowed
+   partitioning, and CI-footer dedupe. Action line for this finding:
+
+   > Say "show this in tomorrow's digest" and I'll keep this card
+   > on the morning brief.
+
+   Skip when `authed: false` (gh-merged scan was unauthed or timed
+   out, or git scan failed). Treat the empty-state card ("0 PRs
+   shipped, quiet week") as low-priority — surface only if no other
+   rule (1–3 or 5–9) produces a finding; in that case the card
+   substitutes for the empty "nothing screaming" branch.
+
+5. **Open GitHub issues with high-signal labels.** Issues labeled
    `bug`, `security`, `regression`, `customer`, `p0`, `p1`. If the
    user just merged something, especially relevant.
-5. **Hotspot file from risky patterns.** A path that appears in
+6. **Hotspot file from risky patterns.** A path that appears in
    `risky_patterns.hotspot_paths` AND in `git_activity.last_7d`
    — that's where the work has been and where the patterns
    accumulated. (`hotspot_paths` is a flat list — paths only land
    there when their pattern hits exceeded the hotspot threshold
    during scan, so any membership is enough; recency is what makes
    it actionable.)
-6. **In-repo `TODOS.md` / `ROADMAP.md` updated recently.** If
+7. **In-repo `TODOS.md` / `ROADMAP.md` updated recently.** If
    `local_resources.in_repo_files` includes one, surface its top
    line as "you wrote this yourself."
-7. **LLM observability gap on an LLM-using product.** When
+8. **LLM observability gap on an LLM-using product.** When
    `signals.llm.providers` is non-empty (the product calls Claude
    / GPT / etc.) AND `signals.llm_obs` is empty, surface the gap.
    This is the only LLM-in-the-loop gap that scan.json reliably
@@ -989,7 +1035,7 @@ wins:
    paid flow. Helpful first; treat marquee LLM automations as
    things to recommend after a quick gap-confirm conversation,
    not as findings inferred from absence in `scan.json`.
-8. **Stack gap that affects payments, public surface, or auth.**
+9. **Stack gap that affects payments, public surface, or auth.**
    Missing error tracking on a Stripe-using product, missing
    uptime monitoring on a public deployed service, etc. — concrete,
    not generic. When this wins, point at OSS options
@@ -1002,24 +1048,24 @@ wins:
    `cloudflare-pages`} captures stdout into a searchable logs UI
    by default, so a separate logging library is noise. `docker`
    alone does NOT count.
-9. **Publishable outbound candidate.** Lowest priority — this is
-   nice-to-have monetization, not a "you should do this today"
-   item. Still surface it as the top finding *only* when rules 1–8
-   produced nothing AND `outbound_candidates` is non-empty. When
-   rule 9 wins, the action is "publish &lt;path&gt;" (`publish-flow.md`)
-   and the framing is "nothing urgent — but this is a candidate
-   when you're ready."
+10. **Publishable outbound candidate.** Lowest priority — this is
+    nice-to-have monetization, not a "you should do this today"
+    item. Still surface it as the top finding *only* when rules 1–9
+    produced nothing AND `outbound_candidates` is non-empty. When
+    rule 10 wins, the action is "publish &lt;path&gt;" (`publish-flow.md`)
+    and the framing is "nothing urgent — but this is a candidate
+    when you're ready."
 
-Rules 7 and 8 are peers in helpfulness — both surface real gaps.
-Rule 7 takes precedence when an LLM is present in the stack
+Rules 8 and 9 are peers in helpfulness — both surface real gaps.
+Rule 8 takes precedence when an LLM is present in the stack
 because that's where Mur's automation moat is strongest *and* the
-gap is highest-leverage. Rule 8 wins when no LLM is present but
+gap is highest-leverage. Rule 9 wins when no LLM is present but
 other infra is missing.
 
-If rules 1–9 ALL produce nothing — no security risk, no
-supply-chain cooldown gap, no waiting PR, no labeled issue, no
-hotspot, no recent in-repo TODO, no LLM gap, no infra gap, no
-outbound candidate — the project is in good shape.
+If rules 1–10 ALL produce nothing — no security risk, no
+supply-chain cooldown gap, no waiting PR, no eng pulse signal, no
+labeled issue, no hotspot, no recent in-repo TODO, no LLM gap, no
+infra gap, no outbound candidate — the project is in good shape.
 The "What we noticed" pillar in Step 2 below renders honestly empty
 ("Nothing screaming for attention from what I can read locally").
 The connect-deeper ask still fires — that's the primary CTA
@@ -1373,7 +1419,7 @@ grounding.
   on this repo. After connect this expands to your customers +
   teams." Keep the forward-looking note even when the local team
   is solo — the connect pitch is the same.
-- **What we noticed.** Honest absence: if rules 1-9 produce
+- **What we noticed.** Honest absence: if rules 1-10 produce
   nothing, render "Nothing screaming for attention from what I
   can read locally — repo's in good shape." Don't pad with
   lower-tier findings. **Both pillars (findings + automations)

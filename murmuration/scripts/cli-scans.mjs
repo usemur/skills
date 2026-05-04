@@ -59,10 +59,26 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { buildEngPulse } from './eng-pulse.mjs';
 
 const SCAN_TIMEOUT_MS = 5_000;
-const TOTAL_BUDGET_MS = 12_000;
+// Bumped from 12s → 15s to accommodate the gh-merged search (8s) plus
+// presence + auth checks. Other scans still run in parallel under their
+// own 5s caps, so this only matters for the slow tail.
+const TOTAL_BUDGET_MS = 15_000;
 const KILL_GRACE_MS = 500;
+
+/**
+ * `gh pr list --search 'merged:>=YYYY-MM-DD'` accepts a UTC date.
+ * The 14d window covers yesterday + this week + last week partitions
+ * computed client-side in eng-pulse.mjs (which is TZ-aware). Slight
+ * over-fetch is fine: a PR merged 14d ago and 1 minute is dropped by
+ * the partitioner.
+ */
+function isoDateNDaysAgo(n) {
+  const d = new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
 
 // ─── Built-in scan definitions ───────────────────────────────────────
 //
@@ -81,7 +97,32 @@ export const BUILTIN_SCANS = [
       { cmd: 'gh', args: ['pr', 'list', '--author', '@me', '--state', 'open', '--json', 'number,title,url'] },
       { cmd: 'gh', args: ['pr', 'list', '--search', 'review-requested:@me', '--state', 'open', '--json', 'number,title,url'] },
       { cmd: 'gh', args: ['issue', 'list', '--assignee', '@me', '--state', 'open', '--json', 'number,title,url'] },
-      { cmd: 'gh', args: ['run', 'list', '--status', 'failure', '--limit', '5', '--json', 'name,createdAt,url'] },
+      { cmd: 'gh', args: ['run', 'list', '--status', 'failure', '--limit', '5', '--json', 'name,databaseId,createdAt,url'] },
+    ],
+  },
+  {
+    // F1 Eng pulse — split from the main gh scan so it has its own 5s
+    // budget. The 14d window of merged PRs covers yesterday + this
+    // week + last week partitions done client-side in eng-pulse.mjs.
+    // Single list call only — plan §3 forbids per-PR `gh pr view`
+    // (would blow the latency budget).
+    tool: 'gh-merged',
+    authCheck: { cmd: 'gh', args: ['auth', 'status'] },
+    commands: [
+      // 8s timeout (vs default 5s). The merged-PR search hits GitHub's
+      // search API which is noticeably slower than the simple PR list
+      // endpoints used by the main gh scan. Still fits under the 12s
+      // total budget (scans run in parallel).
+      { cmd: 'gh', args: ['pr', 'list', '--state', 'merged', '--search', `merged:>=${isoDateNDaysAgo(14)}`, '--limit', '100', '--json', 'number,title,author,mergedAt'], timeoutMs: 8_000 },
+    ],
+  },
+  {
+    // F1 Eng pulse: per-author commit volume in the 14d window. Local
+    // git, no auth required beyond being inside a git work tree.
+    tool: 'git',
+    authCheck: { cmd: 'git', args: ['rev-parse', '--is-inside-work-tree'] },
+    commands: [
+      { cmd: 'git', args: ['log', '--since=14.days', '--pretty=%H%x09%ae%x09%aI%x09%s', '--shortstat'] },
     ],
   },
   {
@@ -387,7 +428,10 @@ async function runScan(scan, repoRoot, deadline) {
       continue;
     }
     const remainingMs = Math.max(0, deadline - Date.now());
-    const timeoutMs = Math.min(SCAN_TIMEOUT_MS, remainingMs);
+    // Per-command timeout override (used by slow scans like gh-merged
+    // which hits GitHub's search API). Capped by the total budget.
+    const cmdCap = typeof cmd.timeoutMs === 'number' ? cmd.timeoutMs : SCAN_TIMEOUT_MS;
+    const timeoutMs = Math.min(cmdCap, remainingMs);
     if (timeoutMs <= 0) {
       rows.push({
         tool: scan.tool,
@@ -462,6 +506,36 @@ export async function runAllCliScans({ repoRoot, now = () => Date.now() } = {}) 
       });
     }
   }
+
+  // Post-process: synthesize the F1 Eng pulse card from the gh + git
+  // rows we just collected. Emitting it as a synthesized row keeps the
+  // aggregation in tested JS (eng-pulse.mjs) and lets scan.md splat the
+  // card verbatim instead of re-deriving shape from raw JSON. Skipped
+  // silently if both gh-merged and git-log rows are unavailable.
+  try {
+    const { localResources, card } = buildEngPulse(rows, {
+      now: new Date(now()),
+      tz: 'UTC',
+    });
+    rows.push({
+      tool: 'eng-pulse',
+      command: 'synthesized',
+      ok: true,
+      durationMs: 0,
+      output: JSON.stringify({ card, localResources }),
+      error: null,
+    });
+  } catch (err) {
+    rows.push({
+      tool: 'eng-pulse',
+      command: 'synthesized',
+      ok: false,
+      durationMs: 0,
+      output: '',
+      error: `eng-pulse synth failed: ${err && err.message ? err.message : String(err)}`,
+    });
+  }
+
   return rows;
 }
 
