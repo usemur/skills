@@ -19,7 +19,7 @@ to primary when the header is absent.
 
 **Before any verb that calls `usemur.dev/api/...`.** That includes:
 
-- `connect.md` (`POST /api/connections/start`, `GET /api/connections/check`) — this is typically where bootstrap runs for the first time on a repo, since `scan.md` is fully local.
+- `connect.md` (`POST /api/connections/start`, `GET /api/connections/check`) — this is typically where bootstrap runs for the first time on a repo, since `triage.md` is fully local.
 - `automate.md` (`POST/GET/PATCH/DELETE /api/automations`, `POST /api/automations/quote`)
 - `digest.md`, `morning-check.md`, `digest-deep.md` (`POST /api/digest/run`, `GET /api/sync/pages/*`)
 - `approve.md`, `later.md`, `ask.md`, `why.md` (sync API calls)
@@ -522,7 +522,7 @@ different remote), don't silently re-register. Prompt the user with
   This replaces the prior "refuse to register, tell the user to
   cd into a project directory first" behavior, which assumed
   every Mur user is a developer standing in a repo. They aren't.
-  See `prompts/scan.md` "Helpful no-repo ask" for the user-facing
+  See `prompts/triage.md` "Helpful no-repo ask" for the user-facing
   copy that leads with connect.
 
 ## Why repo root, not raw cwd

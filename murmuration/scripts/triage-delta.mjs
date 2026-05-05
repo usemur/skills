@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// scan-delta.mjs — compute the "since last scan" delta line.
+// triage-delta.mjs — compute the "since last scan" delta line.
 //
 // Plan: plans/onboarding-flip.md §5. Returning-user scans render a
 // one-paragraph preamble naming what changed since the prior scan.
@@ -7,7 +7,7 @@
 // it emits a single line of plain English.
 //
 // Usage:
-//   node skill-pack/scripts/scan-delta.mjs <prior.json> <new.json>
+//   node skill-pack/scripts/triage-delta.mjs <prior.json> <new.json>
 //
 // Output: a single line on stdout (or empty string if no deltas).
 
@@ -96,7 +96,7 @@ function displayName(tool) {
 async function main() {
   const [, , priorPath, nextPath] = process.argv;
   if (!priorPath || !nextPath) {
-    process.stderr.write('usage: scan-delta.mjs <prior.json> <new.json>\n');
+    process.stderr.write('usage: triage-delta.mjs <prior.json> <new.json>\n');
     process.exit(1);
   }
   let prior, next;

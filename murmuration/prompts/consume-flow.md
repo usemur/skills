@@ -135,7 +135,7 @@ This sub-prompt is for **calling** paid flows. If the user wants to:
 - **Publish** their own JS file as a paid flow → read
   `prompts/publish-flow.md` instead.
 - **Scan** their repo for missing infra or publishable artifacts → read
-  `prompts/scan.md`.
+  `prompts/triage.md`.
 - **See their stack** from a previous scan → read `prompts/stack.md`.
 - **Get recommendations** on missing infra → read `prompts/recommend.md`.
 - Mention automated install, the morning digest, or agent-driven publish

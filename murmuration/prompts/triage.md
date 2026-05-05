@@ -1,17 +1,22 @@
-# Scan the user's repo (bidirectional: inbound gaps + outbound candidates)
+# Triage the user's repo (bidirectional: inbound gaps + outbound candidates)
 
 > Sub-prompt of the unified `murmuration` skill. The user said something
-> like "scan my repo," "what tools am I missing," "what's in my stack,"
-> or "anything here worth publishing." This prompt walks Claude through
-> producing `.murmur/scan.json` — the substrate every other proactive
-> verb (stack, recommend, install, publish) reads.
+> like "triage my project," "scan my repo" (legacy phrasing — same
+> verb), "what's worth my time," "what tools am I missing," "what's
+> in my stack," or "anything here worth publishing." This prompt walks
+> Claude through producing the triage output — the substrate every
+> other proactive verb (stack, recommend, install, publish) reads.
 
 ## What this prompt produces
 
 Two outputs, every run:
 
-1. A JSON file at `<project>/.murmur/scan.json` — structured snapshot of
-   the repo (signals + product summary + outbound candidates).
+1. A JSON file at `<project>/.murmur/scan.json` — structured snapshot
+   of the repo (signals + product summary + outbound candidates +
+   atoms). The filename stays `scan.json` for one release for
+   back-compat with downstream readers; atom-aware consumers will
+   eventually read from `.murmur/triage.json` (mirror of the same
+   content) once every reader is ported.
 2. A terse Markdown summary printed to the user — confirms what was
    found and offers the obvious next step.
 
@@ -848,10 +853,10 @@ Schema (keep field names stable — downstream prompts depend on them):
   "automation_candidates": [
     {
       "id": "daily-digest",
-      "title": "Daily digest of your PRs + failing CI + open issues",
-      "prose": "Watches your GitHub activity overnight; surfaces 3 things to look at each morning.",
+      "title": "Daily digest of your PRs + open issues",
+      "prose": "Watches your connected systems overnight; surfaces the 3 things to look at each morning.",
       "grounding": {
-        "signals": ["gh CLI authed", "open PRs detected: 4", "1 failing CI run"]
+        "signals": ["gh CLI authed", "open PRs detected: 4", "8 issues open"]
       },
       "connector_required": {"slug": "github", "status": "connected"},
       "install_path": "/mur install daily-digest"
@@ -880,13 +885,142 @@ Schema (keep field names stable — downstream prompts depend on them):
       "type_escape_hatch": {"count": 1, "files": ["src/types/legacy.ts"]}
     },
     "hotspot_paths": ["src/db/users.ts", "src/api/foo.ts"]
-  }
+  },
+  "atoms": [
+    {
+      "id": "<UUID v4 — see 'Atom IDs' below>",
+      "digest_id": "triage-<YYYY-MM-DD>-<short hash of repo_root>",
+      "insight": {
+        "title": "<short, specific, no jargon — 'Sentry: NullPointer in /api/checkout firing 340×/day' beats 'Error tracking finding'>",
+        "body": "<2-4 sentences with file:line citations or URLs>",
+        "sources": [
+          {"kind": "file_line", "value": "src/checkout.ts:142"},
+          {"kind": "url", "value": "https://github.com/.../pull/481"}
+        ]
+      },
+      "intervention": {
+        "kind": "none",
+        "summary": null,
+        "tests_pass_on_draft": null
+      },
+      "automation": {
+        "slug": "@mur/sentry-autofix",
+        "source": "catalog",
+        "default": "off"
+      }
+    }
+  ]
 }
 ```
 
 Empty arrays are fine — they're informative ("no LLM observability detected"
 is a recommendation trigger). Don't omit empty fields; downstream
 prompts pattern-match on them.
+
+### Atoms — the unified shape going forward
+
+Atoms are the unified rendering entity. Every triage emits an `atoms`
+array. Each atom has three layers:
+
+- **insight** — what was observed, always present, with sources cited.
+- **intervention** — a drafted artifact (PR branch, draft email, etc.).
+  In v1 of the rewrite, drafters haven't shipped yet, so
+  `intervention.kind` is always `"none"`; the field exists so downstream
+  prompts have stable shape. Drafters land in W3 of `plans/wow-moment.md`.
+- **automation** — the recurring watcher this finding would pair with,
+  drawn from the catalog (`registry/flows/*.yaml`). Populated by the
+  matcher (`recommend-matcher.md`) when a flow's preconditions are met.
+  `default: "off"` always — the user opts in.
+
+**Atom IDs.** Use a v4 UUID. Stability across triage runs is not
+required in v1 (the `2a-promote-lite` plan workstream uses UUID +
+naive idempotency at promotion time). Content-addressed IDs are
+deferred to v2.
+
+**Coexistence with `findings` / `automation_candidates`.** The old
+`progress.findings` and `automation_candidates` fields stay in the
+schema for back-compat in v1. Downstream prompts that haven't been
+ported to atoms yet keep working. Atoms are the canonical shape; the
+old fields will be removed once every consumer is on atoms.
+
+### Provenance rendering (catalog vs. co-designed)
+
+Every atom's `automation.source` is one of:
+
+- `"catalog"` — drawn from `registry/flows/*.yaml`, status:shipping, has install tests. Renders without a provenance badge — the catalog itself is the provenance signal.
+- `"co-designed"` — composed in the recommend.md co-design dialogue with this user, on the fly. Renders **with** the `⚙ Co-designed` badge above the automation slug + a one-line provenance disclosure ("we composed this with you live; no test suite, no catalog entry"). Per #227's catalog-gated install-CTA work — the badge is the unit of trust the user has to grant explicitly.
+- `"remote"` — reserved for the deferred remote-registry workstream (plans/wow-moment.md §4). Always `"local"` in v1; rendering treats it as catalog.
+
+In the rendered atom:
+
+```
+  Automation
+    [○ off] @user/twilio-rate-limit-watcher
+            ⚙ Co-designed — we composed this with you live;
+              no test suite, no catalog entry.
+            <one-line description from the co-design dialogue>
+```
+
+vs.
+
+```
+  Automation
+    [○ off] @mur/sentry-autofix
+            <one-line description from the catalog YAML>
+```
+
+The `arm` verb routes by `automation.source`: `"catalog"` → `install.md`, `"co-designed"` → `automate.md`. Both write to `installs.jsonl` with distinct `kind` flags so subsequent renders preserve provenance.
+
+### Calling the drafted-PR engine (v1 W3-lite)
+
+After the local read pass, the matcher pass, and the atom assembly,
+call `skill-pack/scripts/draft-engine.mjs`. The engine runs each
+shipped detector (Sentry + Audit-bump in v1) under a wallclock cap
+(~90s placeholder; calibrated in W6), filters by per-detector
+confidence floor, and returns one DraftResult to attach to the lead
+atom's Intervention layer. Detectors run in parallel; nothing is
+cancelled mid-flight.
+
+**How to invoke from the prompt** (this is a Bash + node call, not an
+LLM-driven step):
+
+```sh
+# After scan.json is written + atoms are populated by the matcher.
+node skill-pack/scripts/draft-engine.mjs --repo "$(pwd)" --json
+```
+
+A small CLI wrapper (TBD in this PR's follow-up if not present)
+prints either `{ "selected": <DraftResult> }` or `{ "selected": null }`
+plus a `considered: [...]` log. The `selected` result, if present,
+populates the lead atom's `intervention` field:
+
+- `intervention.kind = "drafted_diff"` (v1 — branch is local, not
+  pushed; W5 controls when it gets pushed via the claim flow)
+- `intervention.summary = result.summary`
+- `intervention.detector = result.detector`
+- `intervention.tests_pass_on_draft = true`
+- The atom's `insight` is upgraded with `result.insight.title` and
+  `result.insight.body` if the detector emitted them.
+- The atom's `automation` is set to the bundle offer per the
+  detector — Sentry → `@mur/sentry-autofix` + `@mur/digest-daily`;
+  Audit → `@mur/digest-daily` alone (audit isn't a recurring watcher).
+
+If `selected` is null, atoms render with `intervention.kind = "none"`
+as before.
+
+**Privacy contract reminder.** The engine + detectors run locally;
+the Sentry detector specifically shells out to the user's own
+`claude -p` (per `_sentry-prompt.md`) for the investigate-shaped
+LLM pass. Code excerpts go to Anthropic via the user's CLI; nothing
+goes to Mur API during triage. See `plans/wow-moment.md` §1.5 Rule 4
+for the privacy boundary.
+
+**Hard skip the engine** when:
+- `node` isn't on PATH (extremely rare for a Claude Code install).
+- Repo size > 100MB (`du -sh .git`).
+- The user typed `/mur triage --no-draft` (escape hatch — the
+  insight + automation render is fine on its own; sometimes the
+  user just wants the read).
 
 ## Get the timestamp from the system clock
 
@@ -1114,25 +1248,25 @@ once connected. Both render every time. The order is intentional:
 findings first (what to look at *now*), automations second (what
 to set up to *keep* watching).
 
-Render five pillars in order:
+Render four sections in order:
+
 1. **What you're building** (product_summary + business_profile)
 2. **Who's working on it with you** (collaborators + forward-looking note)
-3. **What we noticed (worth a look)** — top 2 findings + "show more findings"
-4. **What I'd watch for you (automations)** — top 2 candidates + "show more automations"
-5. **What I can connect to** (factual list, demoted)
+3. **Triage** — atoms, ranked. Each atom renders three layers (insight, intervention, automation) per the shape in `prompts/triage.md`'s atom schema and `plans/wow-moment.md` §1.9. Top 2 atoms by default + "show more" to reveal the rest. **In v1, drafters haven't shipped yet (W3 of `plans/wow-moment.md`)**; atoms typically have `intervention.kind: "none"` and render as `insight + automation` only — the Intervention layer is omitted entirely from the visual when empty.
+4. **Also worth knowing (no action needed)** — eng-pulse and other observation-only signals. Always demoted; never the lead. Drop the section if there's nothing observation-worthy.
 
-Then a separator, then the soft close.
+Then **What I can connect to** (factual list of detected tools, demoted further; drop if zero), a separator, the soft close.
 
-**Update `progress.findings` and `progress.automations` before
-printing.** `progress.findings.shown` = the priority-ranked indices
-of findings rendered (typically [1, 2]); `progress.findings.next` =
-the next rank not yet shown. Same shape under
-`progress.automations`. Write scan.json to disk before printing —
-without it, "show more …" re-surfaces what we already rendered.
+**Update `progress.findings`, `progress.automations`, and the new
+`progress.atoms` before printing.** All three live in `scan.json` for
+back-compat; downstream readers either read atoms (the canonical
+shape going forward) or the legacy split fields. `progress.atoms.shown`
+= the priority-ranked atom ids rendered (typically two), `next` = the
+next rank not yet shown. Write `scan.json` to disk before printing —
+without it, "show more" re-surfaces what was already rendered.
 
-**Cap each rendered section at 2 items** (down from 5 in the
-single-pillar legacy shape). The "show more …" continuations
-reveal the next batch one at a time.
+**Cap the Triage section at 2 atoms** by default. "show more" reveals
+the next batch one at a time.
 
 **Returning users — "since last scan" preamble.** Steady-state mode
 (scan.json existed prior to this run) prepends a one-paragraph
@@ -1144,7 +1278,7 @@ rather than computing in-prompt:
 cp .murmur/scan.json .murmur/scan.prior.json   # only on the first
                                                 # write of this run;
                                                 # skip if already done
-node skill-pack/scripts/scan-delta.mjs \
+node skill-pack/scripts/triage-delta.mjs \
   .murmur/scan.prior.json .murmur/scan.json
 ```
 
@@ -1196,42 +1330,44 @@ Who's working on it with you
    expands — your customers across Stripe, your team across
    Linear, your error-reporting surface across Sentry, etc.">
 
-What we noticed (worth a look)
-  F1: <one-line title with concrete reference — file path, line
-  range, PR number, or issue number>
-  What it is: <ELI10, names the stakes in plain English>
-  Recommendation: <Fix: ... / Surface: ... — verb the user can run>
-  Impact: <user-visible — time saved, risk avoided, capability unlocked>
-  Effort: (you: ~X min / Mur: free)        ← optional, drop for pure surface
+Triage
+  a1. <one-line title — concrete reference (file path, line, PR#, issue#)>
+  What's happening: <ELI10, names the stakes; cites sources from
+  atom.insight.sources verbatim — file:line refs and URLs>
+  {Drafted: <local branch name> (`git diff main..<branch>`).
+   Tests pass. The branch is local on your machine — nothing pushed.
+   ← Render this block ONLY when atom.intervention.kind != "none".
+     In v1 of the rewrite (drafters land in W3), this block is
+     typically omitted; atoms render insight + automation only.}
+  What I'd do next: <one-line action verb the user can take —
+  "I'd push the branch and open a PR" / "I'd arm @mur/sentry-autofix
+  to keep watching" / etc.>
+  {Bundle offer when the atom carries a wow-tier drafted fix:
+   the Automation layer offers the watcher AND @mur/digest-daily
+   together. See "Bundle offer" section below for the canonical
+   phrasing. v1 atoms with no drafted fix typically have a
+   single-automation offer or no automation offer at all.}
 
-  F2: <same shape>
-  (say "show more findings" for the rest)
+  a2. <same shape>
+  (say "show more" or "what else" for the rest)
 
-What I'd watch for you (automations)
-  A1: <flow name — short tagline, no `@mur/` prefix>
-  What it is: <what it watches and what it surfaces. Grounded in:
-  <verbatim signals from automation_candidates[0].grounding.signals>.>
-  Recommendation: Automate: <CTA — see "Automation CTA shape" below>
-  Impact: <user-visible outcome>
-  Effort: (you: <setup cost> / Mur: <$/run or free local>)
-
-  A2: <same shape>
-  (say "show more automations" for the rest)
+Also worth knowing (no action needed)
+  <eng-pulse line if present — past-week PRs, top ships. NEVER
+   the lead. Drop the section entirely if there's nothing
+   observation-worthy.>
 
 What I can connect to
   <comma-separated list from local_resources.* — gh authed,
    Stripe CLI, Vercel CLI, Sentry SDK, etc. Plain-English,
-   factual, no inference. Drop this pillar entirely if zero
-   tools observed.>
+   factual, no inference. Drop entirely if zero tools observed.>
 
 ────
 
-If I were you, I'd start with **A1**. <impact line from A1's card,
-verbatim>.
-
-Want me to set it up? Or pick a different card (A2, F1, F2),
-say "show more findings" / "show more automations" to keep
-browsing, or "skip" to keep just the read.
+Want me to {act on a1 — verb depends on the atom shape: "open the PR"
+when there's a drafted intervention, "set up the watcher" when only
+an automation is offered}? Or pick a different one (a2), say "show
+more" to keep browsing, "that's wrong" to flag a false positive, or
+"skip" to keep just the read.
 ```
 
 **Close-the-loop voice contract.** The chief-of-staff close has an
@@ -1299,6 +1435,40 @@ shape varies by `connector_required.status` and account state:
   ```
   When the user says yes, run `claim-connect.mjs`, then re-mint
   the bridge URL, then `open` it. One yes, two scripts.
+
+### Bundle offer (in atom Automation layer)
+
+When an atom carries a wow-tier drafted fix (W3+ — drafters not yet
+shipped in v1, so this fires only post-W3 in production), the
+Automation layer offers the watcher *paired with* the daily digest
+as a single yes. The digest is the email-into-the-loop retention
+mechanic — armed-automation outputs flow into the morning email so
+the user comes back without typing `/mur`. See
+`plans/wow-moment.md` §1.9 for the unified-surface design.
+
+**Bundle phrasing** (use verbatim or paraphrase tightly — the shape
+is "watcher + digest, one yes, opt out of either"):
+
+> *To prevent this class of issue going forward, I'd arm
+> `<primary-slug>` to <what the watcher does>. While I'm at it, I
+> can set up a daily digest at 6am — the 3 things to look at
+> across <connected systems>, in your inbox. Want both? (Or just
+> the watcher, or just the digest, or neither.)*
+
+**Bundle eligibility** is detector-aware:
+- **Sentry** detector wow atoms: bundle = `@mur/sentry-autofix` + `@mur/digest-daily`
+- **Audit-bump** detector wow atoms: NO bundled watcher (audit isn't a recurring need); the Automation layer offers `@mur/digest-daily` alone, framed as "while I'm at it" rather than "to prevent this class of issue."
+- **Other detectors** (CI, Typecheck, Stripe-webhook — not in v1): TBD per detector when they ship.
+
+If `@mur/digest-daily` is already armed (returning user, expansion
+triage), the bundle collapses to just the watcher offer. Check
+`~/.murmur/installs.jsonl` before composing the offer to avoid the
+"already armed" awkwardness.
+
+**One yes routes to two installs.** The verb router maps "yes both" /
+"yes and arm it" / bare "yes" → `arm.md`'s bundle path. "Just the PR" →
+`approve.md` only. "PR plus the digest" → `approve.md` + `arm.md` for
+digest only. "Just the watcher" → `arm.md` for primary watcher only.
 
 ### Monthly cost framing
 

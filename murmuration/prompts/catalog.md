@@ -142,7 +142,7 @@ but we don't surface it as a recommendation.
 - User says "install <slug>" / "yes, install @mur/digest-daily"
   → read `prompts/install.md`.
 - User says "scan my repo" / "what should I install" → read
-  `prompts/scan.md` or `prompts/recommend.md` respectively.
+  `prompts/triage.md` or `prompts/recommend.md` respectively.
 - User asks about pricing or how a flow runs → read the YAML's
   `reason_template` aloud, optionally point at
   `https://usemur.dev/explore/<slug>` for full docs.

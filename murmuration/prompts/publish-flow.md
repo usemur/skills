@@ -108,7 +108,7 @@ This sub-prompt is for the **manual** publish path — user gives you a
 - **Call** a paid flow from the catalog (search/scrape/transcribe/etc.)
   → read `prompts/consume-flow.md` instead.
 - **Scan** their repo to find publishable utilities they've *already*
-  written (the agent-driven discovery path) → read `prompts/scan.md`.
+  written (the agent-driven discovery path) → read `prompts/triage.md`.
   Note: the agent-driven *publish conversation* (tier choice + pricing
   + registry PR) ships in Phase 4 — for now scanning surfaces
   candidates and the manual `@usemur/cli publish` path here closes the

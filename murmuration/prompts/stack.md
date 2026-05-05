@@ -99,7 +99,7 @@ point them at the self-host link or explore page.
 
 ## Hand-off to other prompts
 
-- User reacts with "scan again" / "rescan" → read `prompts/scan.md`.
+- User reacts with "scan again" / "rescan" → read `prompts/triage.md`.
 - User reacts with "publish <path>" → for the manual path, read
   `prompts/publish-flow.md`. The agent-driven outbound conversation
   (`prompts/publish.md`) ships in Phase 4.

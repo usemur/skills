@@ -608,7 +608,7 @@ ephemeral — re-running the matcher next time is cheap.
   into the user's agent.
 - **User says "show me everything" / "what about the managed version"**
   → read `prompts/catalog.md`.
-- User asks to scan again → read `prompts/scan.md`.
+- User asks to scan again → read `prompts/triage.md`.
 - User asks to see the slot view → read `prompts/stack.md`.
 - User wants to publish their own utility (after seeing outbound
   candidates) → read `prompts/publish-flow.md`.

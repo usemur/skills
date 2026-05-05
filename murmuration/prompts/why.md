@@ -69,6 +69,48 @@ to the active project.
 
 5. **No timeline write.** This is a read; we don't append a row.
 
+## Atom-shaped why (v1 W2b-lite extension)
+
+Triage atoms (per `prompts/triage.md`'s atom schema) carry a richer
+why-shape than legacy digest items. When the user asks why on a
+triage atom (id starts with the triage's UUID, not a numeric digest
+item id), render this extended shape instead:
+
+```
+# {atom.insight.title}
+
+## What I checked
+- Detector: **{intervention.detector}** ({sentry | audit | ci | typecheck | stripe-webhook})
+- Sources cited:
+  - {insight.sources[0].kind}: {insight.sources[0].value}
+  - {insight.sources[1].kind}: {insight.sources[1].value}
+  - ...
+
+## What I think is happening
+{insight.body}
+
+## What I drafted
+{intervention.summary}
+- Branch: `{intervention.branch}` (local on this machine)
+- Diff: {intervention.diff_url or "git diff main..{intervention.branch}"}
+- Tests on the draft: {intervention.tests_pass_on_draft ? "✓ pass" : "✗ fail / not run"}
+- Confidence: {intervention.confidence} (per-detector floor: see plans/wow-moment.md W3)
+```
+
+For v1, the why-trace shape stops here. The full investigate→
+analyze→hypothesize→implement chain (Skeptic + Referee verdicts and
+reasoning, ranked hypotheses considered) is part of W2b-full, deferred
+to v2 per `plans/wow-moment.md` §1.7. When `intervention.why_trace`
+is populated (drafters set it but v1 `why.md` doesn't render it),
+post-W3 a follow-up extends this section to walk the chain.
+
+Atom-shaped why has **no server fallback** in v1 — the data lives in
+`~/.murmur/atoms.jsonl`. If the atom isn't there (corrupted file,
+manually edited, atom expired), say so honestly: *"I can't find the
+reasoning for `{atom_id}` locally. The atom may have been pruned —
+running `/mur triage` again would re-surface the finding if it's
+still relevant."*
+
 ## Hard contracts
 
 - **Cite verbatim.** Don't summarize; show the actual sources used.

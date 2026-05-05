@@ -886,7 +886,7 @@ After install, defer, or explicit done:
   Linear, Pylon, OpenAI/Anthropic, Railway). Read this during
   the `co-design` move when constructing a candidate against a
   specific SDK — prevents fabrication of endpoints/auth.
-- `prompts/scan.md` — the four-pillar local diagnostic that
+- `prompts/triage.md` — the four-pillar local diagnostic that
   precedes recommend (when there's a project to scan).
 - `prompts/connect.md` — the OAuth handoff that triggers
   recommend in `mode: post-connect`. Also writes a minimal
