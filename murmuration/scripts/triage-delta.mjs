@@ -12,6 +12,8 @@
 // Output: a single line on stdout (or empty string if no deltas).
 
 import { readFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // ─── Pure delta computation (exported for tests) ─────────────────────
 
@@ -115,10 +117,15 @@ async function main() {
   process.exit(0);
 }
 
+// Canonicalize through realpath so symlinked install paths
+// (e.g. ~/.claude/skills/mur/scripts/...) match the resolved
+// import.meta.url that Node has already followed.
 const isDirectInvocation = (() => {
   try {
-    const url = new URL(import.meta.url);
-    return process.argv[1] && url.pathname === process.argv[1];
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
   } catch {
     return false;
   }

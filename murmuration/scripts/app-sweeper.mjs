@@ -16,8 +16,10 @@
 //   const tools = await detectInstalledApps();
 
 import { readdir } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // V1 known-app registry (cofounder-skill.md §10.4). Keys are normalized
 // names; the `bundles` array lists bundle filenames that count as a match
@@ -112,9 +114,20 @@ export async function detectInstalledApps(roots = APP_ROOTS, now = () => new Dat
 }
 
 // ─── CLI ──────────────────────────────────────────────────────────────
-// Only run the CLI when invoked directly. The `import.meta.url` check is
-// the standard ESM trick for "is this the entrypoint?"
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Only run the CLI when invoked directly. Canonicalize through realpath
+// so symlinked install paths (~/.claude/skills/mur/scripts/...) match
+// the resolved import.meta.url that Node has already followed.
+const isDirectInvocation = (() => {
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
+  } catch {
+    return false;
+  }
+})();
+if (isDirectInvocation) {
   const pretty = process.argv.includes('--pretty');
   detectInstalledApps()
     .then((tools) => {

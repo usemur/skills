@@ -52,6 +52,7 @@ import { realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_API_BASE = 'https://usemur.dev';
 
@@ -315,10 +316,15 @@ async function main() {
 // Exports for tests.
 export { normalizeRepoUrl, sha256Hex, basenameFromNormalized, detectProjectMetadata };
 
+// Canonicalize through realpath so symlinked install paths
+// (e.g. ~/.claude/skills/mur/scripts/...) match the resolved
+// import.meta.url that Node has already followed.
 const isDirectInvocation = (() => {
   try {
-    const url = new URL(import.meta.url);
-    return process.argv[1] && url.pathname === process.argv[1];
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
   } catch {
     return false;
   }

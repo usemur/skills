@@ -15,10 +15,11 @@
 
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_API_BASE = process.env.MUR_API_BASE || 'https://usemur.dev';
 const POLL_INTERVAL_MS = 2000;
@@ -155,7 +156,18 @@ async function main() {
 
 // Only run main() when invoked directly so the module can be imported
 // from tests without the polling loop firing at import time.
-const invokedDirectly = import.meta.url === `file://${process.argv[1]}`;
+// Canonicalize through realpath so symlinked install paths
+// (~/.claude/skills/mur/scripts/...) match the resolved import.meta.url.
+const invokedDirectly = (() => {
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
+  } catch {
+    return false;
+  }
+})();
 if (invokedDirectly) main().catch((err) => {
   process.stderr.write(`claim-connect failed: ${err.stack || err.message || err}\n`);
   emit('RESULT', { ok: false, reason: 'unexpected', error: String(err?.message || err) });

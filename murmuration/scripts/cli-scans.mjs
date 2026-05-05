@@ -59,8 +59,10 @@
 
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { buildEngPulse } from './eng-pulse.mjs';
 
 const SCAN_TIMEOUT_MS = 5_000;
@@ -572,10 +574,15 @@ async function main() {
 }
 
 // Only run main() when invoked directly (not when imported in tests).
+// Canonicalize both sides through realpath so symlinked install paths
+// (e.g. ~/.claude/skills/mur/scripts/cli-scans.mjs) match the resolved
+// import.meta.url that Node has already followed.
 const isDirectInvocation = (() => {
   try {
-    const url = new URL(import.meta.url);
-    return process.argv[1] && url.pathname === process.argv[1];
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
   } catch {
     return false;
   }

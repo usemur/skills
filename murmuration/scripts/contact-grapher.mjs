@@ -36,8 +36,10 @@
 //   import { coalesceContacts, buildContactsFrontmatter } from './contact-grapher.mjs';
 
 import { readFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ============================================================
 // Constants — tuned per cofounder-skill.md §11.2
@@ -417,7 +419,18 @@ async function main() {
   console.log(pretty ? JSON.stringify(summary, null, 2) : JSON.stringify(summary));
 }
 
-const isDirectInvocation = import.meta.url === `file://${process.argv[1]}`;
+// Canonicalize through realpath so symlinked install paths
+// (~/.claude/skills/mur/scripts/...) match the resolved import.meta.url.
+const isDirectInvocation = (() => {
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const argv = process.argv[1];
+    if (!argv) return false;
+    return here === realpathSync(argv);
+  } catch {
+    return false;
+  }
+})();
 if (isDirectInvocation) {
   main().catch((err) => {
     console.error(err?.stack ?? err);
