@@ -69,7 +69,7 @@ fabricate. If the digest is empty, render:
 > 17 signals scanned across bugs, ops, product, and growth. Nothing
 > actionable today. Your business is calm.
 
-Then offer next steps: "Want me to dig deeper? `/digest --deep` ($0.04)."
+Then offer next steps: "Want me to dig deeper? `/digest --deep`."
 
 ## Hard contracts
 

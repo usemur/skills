@@ -42,14 +42,14 @@ because:
 - **Standalone `/mur recommend`** — user-invoked at any later
   state. Reads `recommend-history.jsonl` to render a "since last
   recommend" delta if one exists.
-- **From `scan.md` tail** when HEARTBEAT.md shows
+- **From `triage.md` tail** when HEARTBEAT.md shows
   `hasMinConnections: true` AND no recommend session has fired
   yet on this project. Scan's close-the-loop suggests `/mur
   recommend` instead of `/mur connect github`.
-- **From `scan.md` "show more automations"** (onboarding-flip
+- **From `triage.md` "show more automations"** (onboarding-flip
   entry — `plans/onboarding-flip.md`). The dual-render scan
   output already shows the top 2 automation candidates inline.
-  When the user wants more, scan.md walks
+  When the user wants more, triage.md walks
   `progress.automations` through the rest of
   `scan.json.automation_candidates`. The matcher already ran in
   `mode: scan-output` at scan time, so the candidates exist
@@ -152,14 +152,12 @@ because:
      `/mur uninstall <slug>` — `/mur` isn't a registered slash
      command in Claude Code.
 
-  **Paid-remote installs ALWAYS get explicit confirm**
-  (no auto-fire grace). The budget context warrants a clear
-  "yes, charge me" moment. Voice:
-  > Installing **<slug>** in our TEE. Cost: ~$<monthly>/mo at
-  > <cadence>. Your balance: $<X>, runway: ~<Y> months. Confirm?
+  **Remote installs ALWAYS get explicit confirm** (no auto-fire
+  grace). Voice:
+  > Installing **<slug>** in our TEE. Cadence: <cadence>. Confirm?
 
-  No exceptions on the paid side. Remote installs still appear
-  in `installs.jsonl` for parity.
+  No exceptions on remote installs. They still appear in
+  `installs.jsonl` for parity.
 
 - **Never dismiss the user.** No "come back when you have a
   project" / "Mur isn't for you yet" / "cd into a repo first"
@@ -215,8 +213,8 @@ registered slash command):
   options" / "skip the chat, propose now" → straight to `propose`
   with 3 cards.
 - **local-only mode** — user says "local installs only" /
-  "free options only" → filter candidates to those with a local
-  install path (no remote, no credit spend).
+  "local options only" → filter candidates to those with a local
+  install path (no remote).
 - **forget mode** — user says "forget what you've seen so far" /
   "clear my history" → clear `recommend-history.jsonl` (back up
   first).
@@ -238,7 +236,7 @@ what:                  "Overnight cross-system digest, threaded by issue↔PR"
 cadence:               "Daily 6am your tz"
 install:
   local:               "cron entry + ~/.local/bin/mur-digest.sh"
-  remote:              "$0.05/run, billed against credit balance"
+  remote:              "Mur TEE (managed)"
 why-you:               "Stripe + Linear + GH all connected — high thread density"
 requires_connections:  []                    # OAuth slugs the flow REQUIRES at runtime
                                               # e.g. ["stripe"] for a Stripe-watcher
@@ -248,7 +246,7 @@ confidence:            high | medium | low   # how well does this match signals
 ```
 
 **Render rules.** Render each candidate as an `A<N>:` card —
-visually identical to scan.md's automation card and digest.md's
+visually identical to triage.md's automation card and digest.md's
 item shape so users see one consistent surface. Numbering starts
 at A1 within the propose round; the user references items by
 number ("yes A1", "show me A2"). Shape:
@@ -266,17 +264,16 @@ command. The agent owns the verb. The user just says "yes A<N>".
 See "Recommendation line shape" below for the three variants.>
 Impact: <one-line user outcome — what they save, stop doing, or
 unlock — derived from `why-you` framed as a user-facing benefit>
-Effort: <setup cost> + <monthly cost grounded in cadence —
-NEVER raw $/run. See scan.md's "Monthly cost framing" section.>
+Effort: <setup time + cadence — e.g. "30s OAuth, daily cadence">
 ```
 
 **Recommendation line shape** (three variants, mirroring
-scan.md's automation CTA):
+triage.md's automation CTA):
 
 - **Connector connected (or env-already-set)** →
-  > Wire it as a <cadence> local cron (free) or in our TEE
-  > (~$<monthly>/mo, fires automatically). Either way: say
-  > "yes A<N>" and I'll set it up.
+  > Wire it as a <cadence> local cron, or in our TEE (fires
+  > automatically on schedule). Either way: say "yes A<N>" and
+  > I'll set it up.
 
 - **Connector needs OAuth/paste, account.json present** →
   > Open your browser to OAuth <Provider> (~30s). When you
@@ -297,8 +294,8 @@ error.
   those slugs aren't in HEARTBEAT.md's connections list.** Render
   the prereq as a yes/no question on the line *after* the card —
   never inline, never as a typed slash command. Examples:
-  > "Needs `<slug>` connected first (~30s, +$5 credit). Want me
-  > to fire that connect now?"
+  > "Needs `<slug>` connected first (~30s). Want me to fire that
+  > connect now?"
   >
   > "Needs `<slug-a>` and `<slug-b>` connected. Want me to walk
   > through them in order?"
@@ -402,7 +399,7 @@ a 2-4 turn loop:
 - **Turn 2 (User):** Iterates — adds/removes data sources,
   changes the threading, adjusts cadence.
 - **Turn 3 (Mur):** Refined sketch + install path picker. "Local
-  install: <render>. Remote install: <$X/run>. Which?"
+  install: <render>. Remote install: TEE-managed. Which?"
 - **Turn 4 (User picks):** Mur emits the artifact (local) or
   installs the remote (FlowState + handler). Register in
   `installs.jsonl`.
@@ -454,32 +451,10 @@ and wires the MCP endpoint if needed.
 `prompts/automate.md`. automate.md hits `POST /api/automations`
 with a FlowState row carrying the LLM-polished prompt + connector
 list + cadence as custom handler config. The handler runs in the
-TEE with vaulted OAuth tokens. Pricing: same $0.05/run default
-as marquee unless the flow's complexity warrants a custom price.
-Both paths register the install in `~/.murmur/installs.jsonl`
-with the appropriate `kind` so `/mur uninstall <slug>` knows
-which revoke surface to point at (dashboard for both — neither
-has a local artifact to remove).
-
-### Budget rendering on install confirm
-
-For ANY remote install (marquee or co-designed), the install
-confirm step MUST surface a budget line. Read the credit balance
-via `GET /api/credit-balance` (or whatever the server exposes;
-otherwise pull from `~/.murmur/account.json` if cached). Render:
-
-```
-Cost: ~$0.05/run × every 4 hours = ~$0.30/day, ~$9/month.
-Your balance: $15 from connect bonuses ($5 × 3 connects) + $0
-top-up = $15. ~50 days runway at this cadence.
-```
-
-This is required, not optional. The user shouldn't accept a
-recurring remote install without seeing the burn-rate × balance
-math. If the balance is $0 AND the install is paid, surface the
-top-up link instead and offer the local alternative if one exists.
-
-For local installs, no budget line — they're free.
+TEE with vaulted OAuth tokens. Both paths register the install in
+`~/.murmur/installs.jsonl` with the appropriate `kind` so
+`/mur uninstall <slug>` knows which revoke surface to point at
+(dashboard for both — neither has a local artifact to remove).
 
 ## Local-install safety contract — full spec
 
@@ -695,10 +670,10 @@ The highest-leverage thing I see right now: 3 customers churned
 last month while their Sentry error rates were spiking. My read
 is a **churn-watcher** would catch this pattern early — pings
 when a customer's Sentry error volume crosses a threshold and
-their last login was >7d. Hosted in our TEE; ~$0.05/run.
+their last login was >7d. Hosted in our TEE.
 
-Needs Stripe connected first (~30s, +$5 credit) — the watcher
-reads customer + subscription state from there.
+Needs Stripe connected first (~30s) — the watcher reads customer
++ subscription state from there.
 
 Want me to fire the Stripe connect now? Or:
   · "poke at something else" — I'll surface another candidate
@@ -811,8 +786,8 @@ watch overnight that I couldn't before:
   slash command. If user accepts install before authorizing the
   prereq, install-time check fires with a chief-of-staff ask:
   "I need `<slug>` connected first — installing this without it
-  would fail at runtime. Want me to fire the connect now (~30s,
-  +$5 credit), then come back to the install?"
+  would fail at runtime. Want me to fire the connect now (~30s),
+  then come back to the install?"
 
 ## Failure modes
 
@@ -829,10 +804,6 @@ watch overnight that I couldn't before:
 - **Connector unreachable mid co-design** → mid-flight, Mur
   can't fetch fresh data. Defer the candidate with a
   `resurface_when` condition tied to connector availability.
-- **User picks remote install but credit balance is 0** →
-  surface: "Remote install would cost ~$X/month at the proposed
-  cadence. Your balance is $0. Top up at usemur.dev/billing or
-  pick the local install (free)."
 
 ## Trigger phrases
 

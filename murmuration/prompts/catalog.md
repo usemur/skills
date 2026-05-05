@@ -45,7 +45,6 @@ For each YAML, parse the top-level fields:
   derived from filename — `langfuse.yaml` → `langfuse`)
 - `display_name`
 - `category`
-- `pricing.unit_price` + `pricing.unit` (flows only)
 - `wraps_tool` (flows only — tells us if it's a managed wrapper)
 - `recommended` (default `true` if missing — `false` means
   `recommend.md` won't surface it but it still appears here)
@@ -68,13 +67,13 @@ Format example (the user is just browsing — keep it tight):
 ### LLM-in-the-loop automations  ← curated by /mur recommend
 
   → @mur/digest-daily — daily digest across connected systems
-    flagship · prices vary by sources
+    flagship · scheduled
 
   → @mur/dep-release-digest — weekly LLM summary of dep release notes
-    $0.015/week · scheduled
+    scheduled
 
   → @mur/competitor-scan — weekly LLM diff of competitor sites
-    $0.02/site/week · scheduled
+    scheduled
 
 ### LLM observability
 
@@ -82,14 +81,14 @@ Format example (the user is just browsing — keep it tight):
   → helicone (OSS, self-host) — https://github.com/Helicone/helicone
 
   Also in catalog (not surfaced by /mur recommend):
-  → @mur/langfuse-host — managed Langfuse, $0.003/trace
+  → @mur/langfuse-host — managed Langfuse
 
 ### Uptime monitoring
 
   → uptime-kuma (OSS, self-host) — https://github.com/louislam/uptime-kuma
 
   Also in catalog (not surfaced by /mur recommend):
-  → @mur/uptime-ping — managed pings, $0.001/check
+  → @mur/uptime-ping — managed pings
 
 ### Error tracking, logging, analytics, CRM, ...
 
@@ -125,17 +124,15 @@ empty categories.
 ## Why some flows are listed under "Also in catalog (not surfaced
 by /mur recommend)"
 
-Mur's recommend pass is opinionated — it doesn't pitch a paid
-managed wrapper of an OSS tool that the user could self-host for
-free. Those flows still exist (someone might genuinely want
-managed Langfuse to skip the Fly setup), they're just not the
-default suggestion.
+Mur's recommend pass is opinionated — it doesn't pitch a managed
+wrapper of an OSS tool that the user could self-host. Those flows
+still exist (someone might genuinely want managed Langfuse to
+skip the Fly setup), they're just not the default suggestion.
 
 If the user asks "why isn't @mur/uptime-ping in your scan recs?",
-the honest answer is: uptime-kuma self-hosts free, and Better
-Stack has a free tier — pitching a paid managed wrapper there is
-weak. We keep it in the catalog because some users do want it,
-but we don't surface it as a recommendation.
+the honest answer is: uptime-kuma self-hosts cleanly. We keep the
+managed wrapper in the catalog because some users do want it, but
+we don't surface it as a recommendation.
 
 ## Hand-off to other prompts
 
@@ -143,9 +140,9 @@ but we don't surface it as a recommendation.
   → read `prompts/install.md`.
 - User says "scan my repo" / "what should I install" → read
   `prompts/triage.md` or `prompts/recommend.md` respectively.
-- User asks about pricing or how a flow runs → read the YAML's
-  `reason_template` aloud, optionally point at
-  `https://usemur.dev/explore/<slug>` for full docs.
+- User asks how a flow runs → read the YAML's `reason_template`
+  aloud, optionally point at `https://usemur.dev/explore/<slug>`
+  for full docs.
 
 ## Privacy contract — same as the rest
 

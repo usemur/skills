@@ -376,8 +376,8 @@ description: {{one_line_description}}
 - `{{activation_phrases_list}}` — bullet list of phrases that
   trigger the skill
 - `{{contracts_specific_to_this_skill}}` — any guarantees the
-  skill makes (e.g. "never writes to user files," "always asks
-  before paid call")
+  skill makes (e.g. "never writes to user files," "always
+  confirms before destructive actions")
 
 **`installs.jsonl` row:**
 ```json

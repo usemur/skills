@@ -4,9 +4,7 @@
 > something like "/murmur ask 481," "tell me more about that bug,"
 > "what should I do about the growth dip," or any free-form follow-up
 > on a digest item or page. Runs the conversation locally in the
-> founder's own paid agent (Claude Code, Cursor, OpenCode) using their
-> LLM subscription — Murmur doesn't carry the LLM cost for
-> conversational follow-ups (cofounder §7.5).
+> founder's own agent (Claude Code, Cursor, OpenCode).
 
 ## What this prompt produces
 
@@ -47,8 +45,8 @@ references this project's facts.
    - The specific digest item's why-trace if an ID is given.
 
 3. **Run the conversation locally.** The founder asks; the agent
-   answers using their own paid LLM. Cite specific evidence
-   from the loaded context. Don't fabricate.
+   answers using its own LLM. Cite specific evidence from the
+   loaded context. Don't fabricate.
 
 4. **If the agent hits a question it can't answer from the local
    mirror**, fetch fresh data with explicit boundaries:
@@ -78,7 +76,7 @@ references this project's facts.
 
 - **Local-LLM-only.** This sub-prompt explicitly does NOT call
   the Murmur server's LLM endpoint. The founder's agent does the
-  reasoning. We provide the context; they pay for the inference.
+  reasoning; we provide the context.
 - **Ground every claim in cited evidence.** Pull from the loaded
   pages, not from the agent's training. If asked something the
   context doesn't support, say "I don't see this in your pages —

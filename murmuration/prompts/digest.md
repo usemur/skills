@@ -27,7 +27,7 @@ chat. Same content as the daily email; the on-demand fire is free
 As of the recommend-phase restructure: the digest is **one possible
 install candidate inside `/mur recommend`**, not a menu option, not
 auto-fired after first connect. The canonical path is now
-`scan → connect → recommend → install`. When the recommend
+`triage → pick → connect (just-in-time) → install`. When the recommend
 conversation lands on the daily digest as the right install for the
 user (e.g. their stack has connected sources whose value compounds
 in a morning briefing), recommend's `install` move fires this prompt

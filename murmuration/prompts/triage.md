@@ -650,8 +650,8 @@ of these failing should fail the scan.
    local CLI auth state.
 
    When suggesting a connect to the user, ALWAYS frame it as a
-   yes/no ask in chat ("Want me to connect GitHub now? ~30s, +$5
-   credit"), NEVER as a typed slash command — `/mur` isn't a
+   yes/no ask in chat ("Want me to connect GitHub now? ~30s"),
+   NEVER as a typed slash command — `/mur` isn't a
    registered Claude Code slash command and would error with
    "Unknown command: /mur" before the skill ever sees the
    message.
@@ -1046,8 +1046,17 @@ that prompted this rewrite had five "also" offers stacked together
 
 ### Step 1 — pick the top finding
 
-After writing scan.json, run a priority sort over what was found and
-pick the **single highest-value next-step**. Priority order, top
+**This is an algorithm, not guidance. Run the rules in order; the
+first rule that matches wins; pick the single highest-priority
+finding.** Don't skip the sort and dump everything — that's the
+status-report failure mode the rest of this section was written
+to prevent. Don't reorder rules to taste — the order encodes
+impact ranking (active risk before infra gap before nice-to-have).
+If you find yourself rendering "also" or "additionally" lines at
+the end of the summary, you skipped Step 1. Stop and re-run it.
+
+After writing scan.json, run the priority sort over what was found
+and pick the **single highest-value next-step**. Priority order, top
 wins:
 
 1. **Active security risk.** Any of
@@ -1161,11 +1170,11 @@ wins:
    positives.
 
    Frame the finding as the gap, not the flow ("LLM SDKs in N
-   files and no observability tracking which prompts cost what").
+   files and no observability tracking which prompts misbehave").
    When this rule wins, the action line offers `recommend` for
    the broader LLM-in-the-loop catalog — that prompt has the
    space to ask "do you have evals via CI?" before pitching a
-   paid flow. Helpful first; treat marquee LLM automations as
+   flow. Helpful first; treat marquee LLM automations as
    things to recommend after a quick gap-confirm conversation,
    not as findings inferred from absence in `scan.json`.
 9. **Stack gap that affects payments, public surface, or auth.**
@@ -1173,8 +1182,8 @@ wins:
    uptime monitoring on a public deployed service, etc. — concrete,
    not generic. When this wins, point at OSS options
    (uptime-kuma, sentry-oss, openobserve) directly. Don't pitch
-   a managed Mur wrapper here — the user can self-host these for
-   free or use a vendor's free tier.
+   a managed Mur wrapper here — the user can self-host these
+   themselves.
    **Don't surface a logging gap if a managed-logs PaaS is
    detected** — any `signals.deploy[].kind` in {`railway`,
    `render`, `fly`, `vercel`, `heroku`, `cloudflare-workers`,
@@ -1381,7 +1390,7 @@ candidate from the matcher. Override only when:
 - A1's `connector_required.status` is `'inferred-from-manifest'`
   AND A2's status is `'env-already-set'` or `'connected'`. In
   that case recommend A2 (faster path to running automation).
-- A1 is paid-remote and A2 is free-local with comparable Impact.
+- A1 is remote-TEE and A2 is local-cron with comparable Impact.
   Recommend A2 — easier first commit, the user can upgrade later.
 - The user has already declined A1 in a prior session
   (`recommend-history.jsonl` shows it). Recommend A2 instead.
@@ -1401,12 +1410,10 @@ shape varies by `connector_required.status` and account state:
 - `connector_required.status === 'connected'` (OAuth done OR env
   var already exported) → render:
   ```
-  Recommendation: Wire it as a <cadence> local cron (free) or in
-  our TEE (~$<monthly>/mo, fires automatically). Either way: say
-  "yes A<N>" and I'll set it up.
+  Recommendation: Wire it as a <cadence> local cron, or in our TEE
+  (fires automatically on schedule). Either way: say "yes A<N>" and
+  I'll set it up.
   ```
-  See "Monthly cost framing" below for how to compute `<monthly>`
-  from `<cadence>`.
 
 - `connector_required.status !== 'connected'` AND
   `~/.murmur/account.json` exists → mint a bridge-baked URL via
@@ -1469,38 +1476,6 @@ triage), the bundle collapses to just the watcher offer. Check
 "yes and arm it" / bare "yes" → `arm.md`'s bundle path. "Just the PR" →
 `approve.md` only. "PR plus the digest" → `approve.md` + `arm.md` for
 digest only. "Just the watcher" → `arm.md` for primary watcher only.
-
-### Monthly cost framing
-
-The card's `Effort:` line and the `Recommendation:` line both
-reference cost. Per SKILL.md voice contract: "be concrete, real
-numbers." Raw `$0.05/run` is opaque — the user can't compute the
-monthly bill in their head. Always frame as monthly cost grounded
-in the candidate's `cadence` field.
-
-Conversion table (pre-compute at render time from the cadence the
-matcher emits):
-
-| Cadence pattern | Per month | Render shape |
-|---|---|---|
-| Every N hours / "hourly" | (24/N × 30) × $0.05 | "~$<X>/mo (every N hours, fires automatically)" |
-| "Daily" / "every morning" / "6am tz" | 30 × $0.05 | "~$1.50/mo (daily, fires automatically)" |
-| "Weekly" / "every Monday" / "Sunday recap" | 4.3 × $0.05 | "~$0.20/mo (weekly, fires automatically)" |
-| "On every PR" / "per PR" / per-event | depends on volume | "scales with PR volume (~$<X>/wk at your pace)" — use `git_activity.last_30d` to estimate the user's PR rate |
-| "Per webhook" / "per Stripe failure" | depends on volume | "scales with <event> volume (~$<X>/wk at your pace)" |
-
-When monthly compute is impractical (per-event flows where
-volume varies wildly), fall back to a conservative "scales with
-<X> volume" line — never show raw `$0.05/run`. Cost should always
-parse as a known commitment OR an explicit "depends on you" framing.
-
-For local-cron candidates, still show monthly TEE cost as the
-alternative — it's how the user understands what they're saving:
-
-> Effort: 30s setup + free local cron, or ~$1.50/mo for the
-> hands-off TEE version.
-
-The "or" framing makes the choice salient. Don't hide one path.
 
 ### Bridge-token pre-render (V1.1 deep-link auth bridge)
 
@@ -1665,13 +1640,12 @@ What I'd watch for you (automations)
   What it is: Overnight roll-up of your PRs, failing CI, and
   open issues across every connected system. Grounded in: gh CLI
   authed, 4 open PRs, 1 failing CI run.
-  Recommendation: Wire it as a 6am local cron (free) or in our
-  TEE (~$1.50/mo, fires automatically). Either way: say "yes A1"
-  and I'll set it up.
+  Recommendation: Wire it as a 6am local cron, or in our TEE
+  (fires automatically). Either way: say "yes A1" and I'll set
+  it up.
   Impact: You stop hand-rolling the Mon-morning roll-up,
   ~3 min/morning saved.
-  Effort: 30s setup + free local cron, or $1.50/mo for the
-  hands-off TEE version.
+  Effort: 30s setup, local cron or hands-off TEE.
 
   A2: Stripe webhook watcher
   What it is: Flags failing payment webhooks before they hit
@@ -1680,9 +1654,9 @@ What I'd watch for you (automations)
   Recommendation: Open your browser to OAuth Stripe (~30s).
   When you switch back, I'll fire the install automatically. Say
   "yes A2" to start.
-  Impact: You stop debugging $-loss webhooks at 2am from a
-  customer ticket.
-  Effort: 30s OAuth + ~$1.50/mo (daily check cadence).
+  Impact: You stop debugging dropped-payment webhooks at 2am
+  from a customer ticket.
+  Effort: 30s OAuth, daily check cadence.
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1721,8 +1695,8 @@ What we noticed (worth a look)
   What it is: 80 lines, takes text and returns a 3-bullet
   summary. Self-contained, all your commits.
   Recommendation: Surface: say "publish lib/summarize.js" to
-  wrap it as a paid Mur flow.
-  Impact: One of your scripts becomes a paid endpoint with no
+  wrap it as a Mur flow.
+  Impact: One of your scripts becomes a hosted endpoint with no
   infra work on your end.
 
   F2: No LLM observability detected despite the OpenAI SDK in deps
@@ -1742,7 +1716,7 @@ What I'd watch for you (automations)
   When you switch back, I'll fire the install automatically. Say
   "yes A1" to start.
   Impact: You stop shipping with stale dependency notes.
-  Effort: 30s OAuth + ~$0.20/mo (weekly cadence).
+  Effort: 30s OAuth, weekly cadence.
 
   A2: Prompt-regression watcher
   What it is: Alerts when a prompt diff hits production.
@@ -1753,7 +1727,7 @@ What I'd watch for you (automations)
   "yes A2" to start.
   Impact: You catch silently broken prompts on the same PR
   that introduced them.
-  Effort: 30s OAuth + scales with PR volume (~$0.50/wk at your pace).
+  Effort: 30s OAuth, fires per PR.
   (say "show more automations" for the rest)
 
 What I can connect to
@@ -1762,7 +1736,7 @@ What I can connect to
 ────
 
 For a repo this shape, the fastest wow is publishing one of the
-utility scripts as a paid Mur flow — that gets you a paid endpoint
+utility scripts as a Mur flow — that gets you a hosted endpoint
 with zero infra work. Want me to walk through **F1: lib/summarize.js**?
 
 Or set up A1 / A2 if you'd rather wire a watcher first, or "skip"

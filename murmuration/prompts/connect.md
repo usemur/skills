@@ -69,16 +69,6 @@ install funnel.
    yet. I'll log `<app>` as a request so we prioritize landing it."
    Do NOT pretend to connect.
 
-   **Connection bonus economics.** First-connect grants $5 in
-   platform credits, capped at the developer's first 3 connections
-   (max $15 per founder). Connections 4+ wire up cleanly but earn
-   no further bonus. This caps onboarding cost per founder so we can
-   keep widening the `SUPPORTED_APPS` allowlist (`composio.service.ts`)
-   without exposure scaling with provider count. Surface the cap to
-   the user when relevant: after their 3rd successful connect, swap
-   the "+$5" line for "Connection 3/3 — bonuses end here. Future
-   connects still work, just no bonus."
-
 ## Walk-through
 
 Run `prompts/_bootstrap.md` before any of the steps below so
@@ -171,7 +161,7 @@ to push to last.
    is freshly populated for the active developer), confirm to the user:
    > "GitHub App installed and pinned to `owner/name`. Pillars will
    > scan only this repo. You can add more repos later from the
-   > dashboard's vault page. +$5 in cofounder credits."
+   > dashboard's vault page."
 
 5. Skip the rest of the Composio walk-through. Jump to the "After
    connect" section below for the Day-0 backfill prompt.
@@ -198,11 +188,8 @@ to push to last.
    approves; the row in `connections[<slug>].status` flips to
    `connected` (from `missing`).
 5. On connected: confirm to the user with a one-line summary
-   ("GitHub connected. +$5 in cofounder credits."). The platform has
-   already granted the $5 connection bonus inside the OAuth callback
-   (idempotent per provider per developer — repeat connects don't
-   double-grant). Refresh BOTH local mirrors before offering the next
-   step (the digest path reads HEARTBEAT to gate
+   ("GitHub connected."). Refresh BOTH local mirrors before offering
+   the next step (the digest path reads HEARTBEAT to gate
    `hasMinConnections`, and routing to it without a fresh HEARTBEAT
    can bounce the user back to /connect with a stale connection
    count):
@@ -268,9 +255,8 @@ to push to last.
   returns each app's `label` and `description`. Print them so the user
   knows what they're authorizing.
 - **All canonical timeline writes are server-side.** The server
-  upserts the `UserSecret` row and grants connection credits; the
-  local agent re-syncs and reads — it does NOT append timeline rows
-  directly.
+  upserts the `UserSecret` row; the local agent re-syncs and reads —
+  it does NOT append timeline rows directly.
 
 ## Errors the user might see
 

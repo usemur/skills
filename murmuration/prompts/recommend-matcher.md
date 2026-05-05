@@ -6,15 +6,15 @@
 > prompt walks Claude through reading `.murmur/scan.json`, matching
 > against `<skill-dir>/registry/{tools,flows}/*.yaml`, and producing a
 > ranked list of conversational proposals — leading with **LLM-in-the-loop
-> automations** (Mur's strongest paid story), then OSS options for
-> generic infra gaps.
+> automations** (Mur's strongest story), then OSS options for generic
+> infra gaps.
 >
-> **Curation rule:** never recommend a paid Mur flow that's a managed
+> **Curation rule:** never recommend a Mur flow that's a managed
 > wrapper of an OSS tool the user can self-host (e.g. `@mur/langfuse-host`,
 > `@mur/uptime-ping`). Those flows still exist in the catalog (browsable
 > via `/mur catalog`), they're just not what we surface as a
 > recommendation. Recommend the OSS directly when the gap is generic
-> infra; recommend a paid Mur flow only when there's genuine
+> infra; recommend a Mur flow only when there's genuine
 > LLM-in-the-loop value.
 
 ## What this prompt produces
@@ -85,15 +85,15 @@ candidate for the connector set (e.g. user connected only an
 unusual SaaS we don't have any marquee for), return an empty
 list and let recommend.md handle the all-co-designed edge case.
 
-### `mode: scan-output` caller (scan.md dual-render — onboarding flip)
+### `mode: scan-output` caller (triage.md dual-render — onboarding flip)
 
-scan.md calls this matcher inline to populate the
+triage.md calls this matcher inline to populate the
 `automation_candidates` array shown in the dual render's "What I'd
 watch for you" pillar. The user has NOT connected anything yet —
 the goal is to produce a small handful of candidates grounded in
 local signals only.
 
-- **scan.json exists** (always true in this mode — scan.md just
+- **scan.json exists** (always true in this mode — triage.md just
   wrote it). Read it AND `~/.murmur/pages/HEARTBEAT.md` if
   present.
 - Treat all of these as one combined connector-signal set:
@@ -132,9 +132,9 @@ local signals only.
   If the matcher can't articulate a specific grounding line for a
   candidate (e.g. it scored on a generic "active_git_repo" signal
   alone), DROP the candidate. Don't render scaffolding. The render
-  contract in scan.md will refuse to display anything without
+  contract in triage.md will refuse to display anything without
   populated grounding anyway — better to filter here than to leak
-  half-formed candidates to scan.md.
+  half-formed candidates to triage.md.
 - Output shape — each candidate emitted into
   `automation_candidates`:
   ```json
@@ -148,18 +148,18 @@ local signals only.
   }
   ```
   - `install_path` for `connected` candidates: a marker like
-    `LOCAL:<id>` (matcher metadata; scan.md's render translates
+    `LOCAL:<id>` (matcher metadata; triage.md's render translates
     this to the user-facing "say yes A<N>" CTA — never a typed
     `/mur install` slash command, which isn't a real Claude Code
     command).
   - `install_path` for non-connected: a marker like
     `BRIDGE:<slug>:<id>:<connect|dashboard-paste>` indicating
-    "scan.md must call mint-bridge-link.mjs at render time to
+    "triage.md must call mint-bridge-link.mjs at render time to
     produce the actual URL." The matcher does NOT emit a literal
     URL with `<projectId>` placeholders — that pattern caused
     "Project not found" errors in V1.1 because the agent
     sometimes substituted the placeholder text verbatim. The
-    matcher emits intent; scan.md's render path mints the real
+    matcher emits intent; triage.md's render path mints the real
     URL via the helper.
 - Top-N: cap at 5 candidates. The dual render shows the top 2
   inline; "show more automations" reveals the rest.
@@ -178,12 +178,12 @@ satisfy. The wireable set is the union of three sources:
    env var already exported (e.g. `STRIPE_SECRET_KEY` set →
    `stripe` is wireable as `connector_required.status:
    'env-already-set'`). Read from `local_resources.local_env`
-   (populated by the env-var sweep in scan.md).
+   (populated by the env-var sweep in triage.md).
 3. **Substrate registry** — `skill-pack/substrate/connectors.json`.
    Slugs in here have a paste-form definition + verify endpoint
    for the dashboard paste flow.
 
-Set `install_path` per source — these are MARKERS for scan.md's
+Set `install_path` per source — these are MARKERS for triage.md's
 render layer, not literal URLs the matcher emits. The matcher
 NEVER emits a literal URL because the agent has historically
 substituted placeholder text (e.g. `cprj_xxx`) verbatim, causing
@@ -192,9 +192,9 @@ call `mint-bridge-link.mjs` to mint the real URL.
 
 - OAuth-or-env-already-set AND the slug is connected/exported in
   this user's stack → `install_path: "LOCAL:<id>"` (no connect
-  step needed; scan.md renders this as a "say yes A<N>" CTA).
+  step needed; triage.md renders this as a "say yes A<N>" CTA).
 - OAuth, not connected →
-  `install_path: "BRIDGE:<slug>:<id>:connect"` (scan.md's render
+  `install_path: "BRIDGE:<slug>:<id>:connect"` (triage.md's render
   layer calls `mint-bridge-link.mjs --slug <slug> --install <id>
   --target connect` and uses the stdout URL verbatim; the helper
   auto-detects project metadata from cwd).
@@ -213,7 +213,7 @@ call `mint-bridge-link.mjs` to mint the real URL.
 
 The marker shape keeps the matcher purely local (no network) and
 isolates the `POST /api/auth/bridge` + project-register calls to
-the render-time path in scan.md. A consequence: the matcher
+the render-time path in triage.md. A consequence: the matcher
 itself doesn't know the cprj_* id or the bridge token; it can't
 emit them, by design.
 
@@ -221,8 +221,8 @@ If the slug is in NONE of the three sets, drop the candidate.
 This is what keeps the dual render honest: every "Set up:" CTA
 leads somewhere that works today.
 
-The matcher returns the candidate list to scan.md, which writes
-it into `scan.json.automation_candidates`. scan.md is responsible
+The matcher returns the candidate list to triage.md, which writes
+it into `scan.json.automation_candidates`. triage.md is responsible
 for the render; this prompt is responsible only for honest
 candidate generation.
 
@@ -251,7 +251,7 @@ cat .murmur/consents.json
   On no: write `"no@..."`, exit cleanly with a one-line "no problem,
   ask again whenever you're ready."
 
-Use the same wall-clock timestamp pattern as scan.md
+Use the same wall-clock timestamp pattern as triage.md
 (`date -u +%Y-%m-%dT%H:%M:%SZ` via Bash).
 
 ## Run the matcher
@@ -434,8 +434,7 @@ The marquee flows (each is an `@mur/*` entry in
    read scopes for charges/events.
 3. **`@mur/sentry-autofix`** — Sentry webhook fires → Claude agent
    clones repo, fixes the bug, runs tests, opens a PR. Match on
-   Sentry SDK detection + `gh_authed: true`. $1.00/PR landed,
-   refunded if the agent gives up.
+   Sentry SDK detection + `gh_authed: true`.
 4. **`@mur/dep-release-digest`** — weekly LLM summary of dep
    release notes. Match on any manifest + multiple deps.
 5. **`@mur/competitor-scan`** — weekly LLM diff of competitor
@@ -464,12 +463,12 @@ priority order:
    **Do NOT pitch `@mur/langfuse-host` here** — it's
    `recommended: false` for a reason.
 2. **error-tracking** — recommend `sentry-oss` (self-host) or
-   the user's preferred vendor's free tier.
+   the user's preferred vendor.
 3. **logging** — recommend `grafana-loki` or `openobserve`
    (both self-host).
 4. **uptime-monitoring** — recommend `uptime-kuma` (self-host)
-   or "Better Stack has a free tier with 10 monitors / 3-min
-   checks — that's probably what you want." **Do NOT pitch
+   or "Better Stack handles 10 monitors / 3-min checks cleanly —
+   that's probably what you want." **Do NOT pitch
    `@mur/uptime-ping`.**
 5. **product-analytics** — recommend `posthog` (self-host).
 6. **crm / project-mgmt / e-sign / scheduling / erp** — recommend
@@ -508,7 +507,6 @@ cross-system threads — "PR #142 fixes the bug in #98 that blocks
 the customer in MUR-203."
 
   → @mur/digest-daily — runs on your schedule (default 6am local)
-    Pricing varies with sources; ~$0.05/day typical.
 
 Want me to set this up? (We'll start with what you have connected
 and add more later.)
@@ -563,11 +561,11 @@ alongside.
   one line each.
 
 - **"Why not the managed Mur version?":** honest answer —
-  "Langfuse self-hosts free in 5 minutes. We do offer a managed
-  langfuse-host flow at $0.003/trace if you'd rather skip the Fly
-  setup, but for most projects the OSS path is the better call.
-  Say 'show me the catalog' if you want to see the managed flow
-  anyway." Same template applies for any other demoted wrapper.
+  "Langfuse self-hosts in about 5 minutes. We do have a managed
+  langfuse-host flow if you'd rather skip the Fly setup, but for
+  most projects the OSS path is the better call. Say 'show me the
+  catalog' if you want to see the managed flow anyway." Same
+  template applies for any other demoted wrapper.
 
 - **"Later":** stop the round. Don't push further.
 

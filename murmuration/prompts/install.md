@@ -36,7 +36,7 @@ Three things, in order:
    (`claude mcp add` for Claude Code, manual config for others).
 
 If any step fails, surface the failure honestly and tell the user
-exactly what to do next. Never silently retry a paid call.
+exactly what to do next. Never silently retry.
 
 ## Hard contracts (re-stated from SKILL.md)
 
@@ -130,36 +130,39 @@ Check `~/.murmur/account.json`:
   bearer token. Also load `email` if present. Skip to step 3.
 - **File missing** → first install ever from this machine.
 
-For the first-install case, disclose:
+For the first-install case, fire the **browser claim flow** — same
+pattern as `connect.md`'s account-key-missing precondition. Don't ask
+the user to navigate to a sign-up page and paste an API key; the
+claim script generates a token-baked deep link, opens the browser,
+and writes `~/.murmur/account.json` automatically when the user
+approves.
 
-> This install lives on Murmuration infra and bills per call. You'll
-> need a Murmuration API key — get one at
-> https://usemur.dev/settings/api-keys (sign up is free, $1 of welcome
-> credits is auto-loaded).
->
-> Paste your API key when ready (starts with `mur_`), or say "cancel"
-> to back out.
+Disclose first:
 
-Wait for the user. On paste:
+> This install lives on Murmuration infra. I'll open a browser claim
+> link — sign in (or sign up) and click "Approve connection." I'll
+> wait here. Or say "cancel" to back out.
 
-- Validate format: `mur_` followed by hex chars (regex
-  `/^mur_[a-f0-9]{16,}$/`).
-- Write `~/.murmur/account.json` with `0600` permissions:
-  ```json
-  {
-    "accountKey": "mur_…",
-    "createdAt": "<ISO timestamp>"
-  }
-  ```
-  (Field name is `accountKey` — same shape the claim/connect flow
-  writes. Older files may use `apiKey`; readers must accept both.)
-  (Email is not required — fetch later from `/api/developers/me` if
-  needed.) Use Bash + `chmod 600`.
-- Confirm to the user with the masked prefix only:
-  `Saved API key (mur_xxxxx…) to ~/.murmur/account.json.`
+Then run `node <skill-dir>/scripts/claim-connect.mjs`. The script:
 
-On "cancel" or invalid input, exit cleanly:
+- Generates a one-time `mur_claim_…` token locally.
+- Registers it via `POST /api/claim/init`.
+- Prints the URL **and** opens it (`if a browser doesn't open, click
+  the link above`).
+- Polls `/api/claim/status` every 2s for up to 10 minutes.
+- On approval, writes `{ accountKey, apiBase, createdAt }` to
+  `~/.murmur/account.json` and emits a final
+  `RESULT {"ok": true, ...}` line on stdout.
+
+On `RESULT {"ok": false, ...}` surface `reason` (`expired`,
+`consumed`, `timeout`, `init_failed`) to the user and offer to retry.
+Do **not** fall back to asking for a manual API-key paste — that flow
+is dead server-side.
+
+On "cancel" before claim fires, exit cleanly:
 `No problem — say "install <slug>" again whenever you're ready.`
+
+Once `account.json` exists, continue to step 3.
 
 ## Step 3 — call the install endpoint
 
@@ -553,7 +556,6 @@ Then print a success summary:
 ```
 ✓ Installed <flow.name> (<flow.slug>)
   MCP:        <flow.mcpUrl>
-  Per call:   $<flow.pricePerCall normalized to dollars>
   Acting:     <agent>
   Dashboard:  https://usemur.dev/dashboard/integrations
 ```
@@ -567,9 +569,9 @@ gracefully — `recommend.md` may continue with the next category.
   do NOT overwrite `~/.murmur/account.json`. Offer to clear it:
   `Your saved key was rejected. Run "rm ~/.murmur/account.json" and
   re-install to start over.`
-- **Network failure mid-call**. Tell the user — don't retry. Paid
-  calls that succeeded server-side but failed network-side are
-  ambiguous (the server-side dashboard row is the source of truth).
+- **Network failure mid-call**. Tell the user — don't retry. Calls
+  that succeeded server-side but failed network-side are ambiguous
+  (the server-side dashboard row is the source of truth).
 - **`claude mcp add` fails** with a non-zero exit but the install API
   succeeded. Server-side state is correct; just print the manual
   config block and tell the user to paste it.

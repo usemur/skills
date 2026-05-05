@@ -1,10 +1,8 @@
-# Trigger an upgraded ("deep") cofounder digest — billed
+# Trigger an upgraded ("deep") cofounder digest
 
 > Sub-prompt of the unified `murmuration` skill. The user said
 > something like "/digest --deep," "deep digest," or "give me the
 > deep brief." Triggers a longer-context, more-sources digest run.
-> **Billed** at 2× the LLM token cost as platform markup (cofounder
-> §8.1).
 
 ## What this prompt produces
 
@@ -19,8 +17,6 @@ docs reorg").
 
 - `~/.murmur/account.json` exists.
 - ≥1 connection exists.
-- Founder has positive credit balance (or auto-top-up enabled). The
-  server returns 402 with a top-up URL if balance is empty.
 
 ## Walk-through
 
@@ -30,43 +26,26 @@ right project's deep digest, not a primary aggregate. (Same
 honest-scope caveat as `digest.md`: the on-demand digest endpoints
 aren't fully wired server-side yet.)
 
-1. **Confirm before charging.** Get a price preview first:
-   `POST /api/digest/quote --deep`. Server returns
-   `{ estimated_tokens, estimated_cents, currency }`. Print clearly:
-
-   **Endpoint not yet wired (V1 scope caveat).** `POST
-   /api/digest/quote` returns 404 today. Until it lands, fall back
-   to the published estimate ($0.04 baseline, 2× LLM token markup)
-   and tell the user honestly: "deep-digest pricing is fixed at
-   $0.04 today; live token-based quotes ship soon." Then ask for
-   the same explicit yes/no before doing anything billed.
+1. **Confirm before running.** Print a one-line preview and ask:
 
    > Deep digest will pull ~90d of context across all pillars and run
-   > deeper reasoning. Estimated cost: $0.04 (2× LLM token markup).
-   > Continue? (yes/no)
+   > deeper reasoning. Continue? (yes/no)
 
-2. On `yes`, **POST `/api/digest/run --deep`**. Server enforces the
-   cost cap (auto-top-up if needed; 402 if not).
+2. On `yes`, **POST `/api/digest/run --deep`**.
 3. Server returns the synthesized result (synchronous for V1, poll if
    the digest_orchestrator falls behind).
 4. Render using the same chief-of-staff template as `digest.md`, but
    with the additional "Cross-pillar signals" section that only
    appears in deep digests.
 5. Append to `HISTORY.md` timeline (kind: `digest_fired`, summary
-   prefixed `[deep]`). Append to `usage_events` server-side.
+   prefixed `[deep]`).
 
 ## Hard contracts
 
-- **Always quote before running.** Never run a billed action without
-  showing the founder the price. Even a 2-cent charge.
 - **Cap to one deep digest per week** unless the founder explicitly
-  overrides with `--deep --force`. Prevents runaway costs from
-  accidental triggers.
-- **Show the receipt.** After the run, print:
-  `Charged: $0.04 · Balance: $4.96 · Run id: dd_01HK...`
-- **Empty deep digests still charge.** Compute is compute. But the
-  empty-state copy is gentler: "Heavy scan, nothing actionable. Your
-  business is calm. Charged $0.04."
+  overrides with `--deep --force`. Prevents accidental retriggers.
+- **Empty deep digests still render.** Empty-state copy is gentle:
+  "Heavy scan, nothing actionable. Your business is calm."
 
 ## Trigger phrases
 

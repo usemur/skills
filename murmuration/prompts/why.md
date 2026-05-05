@@ -65,7 +65,7 @@ to the active project.
 4. **If confidence < 0.5**, append a warning:
 
    > ⚠️ Low confidence ({confidence}). Want me to dig deeper?
-   > Run `/digest --deep` ($0.04) for a longer-context analysis.
+   > Run `/digest --deep` for a longer-context analysis.
 
 5. **No timeline write.** This is a read; we don't append a row.
 

@@ -29,8 +29,15 @@ has Murmuration set up.
 
 ## One-time setup
 
-The user needs a Murmuration API key. They get one at https://usemur.dev
-(sign up, $1 of welcome credits is auto-loaded).
+The user needs a Murmuration API key. **Don't tell them to navigate to
+a sign-up page** — fire the browser claim flow instead so the link
+carries a one-time token and account.json gets written automatically.
+
+If `~/.murmur/account.json` is missing, run
+`node <skill-dir>/scripts/claim-connect.mjs` (same pattern as
+`connect.md`'s account-key-missing precondition). The script generates
+the token, opens the deep link in the browser, polls until approval,
+and writes `account.json`. On `RESULT {"ok": true, ...}`, continue.
 
 Then, register the MCP server in their Claude config:
 
@@ -144,5 +151,6 @@ This sub-prompt is for **calling** paid flows. If the user wants to:
 
 ## Links
 
-- Sign up + load credits: https://usemur.dev
+- Sign up: say "claim my account" — Mur fires the browser claim flow
+  with a one-time token. Don't paste a bare URL.
 - Manage API keys + spend caps: https://usemur.dev/settings/api-keys

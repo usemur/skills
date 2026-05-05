@@ -77,7 +77,7 @@ prompt file doesn't exist yet (do `ls ~/.claude/skills/murmuration/prompts/`
 if uncertain).
 
 - If there are empty inbound slots: `next: say "what tools am I missing" for recommendations on the empty slots.`
-- Else if there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a paid flow.`
+- Else if there are outbound candidates: `next: say "publish <top-candidate-path>" to wrap it as a Mur flow.`
 - Else: `next: say "scan my repo" again whenever you've changed your stack.`
 
 Phase 3 (automated install) hasn't shipped yet. If the user accepts a
