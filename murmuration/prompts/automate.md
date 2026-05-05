@@ -46,11 +46,12 @@ automation" surface. V1 supports the basic three sinks above.
    below. The confirmation MUST disclose co-designed provenance:
 
    > ⚙ This is a **co-designed** automation — we composed it together
-   > in the last few turns. It runs in our TEE just like marquee
-   > flows, but it has no test suite from us, no catalog entry, and
-   > nobody's run it on another founder's stack. You see the literal
-   > handler config below before it ships. If anything looks off,
-   > say "tweak <thing>" or "cancel"; otherwise "yes" and I'll save.
+   > in the last few turns. It runs in our TEE the same way the
+   > pre-built flows do, but it has no test suite from us, no catalog
+   > entry, and nobody's run it on another founder's stack. You see
+   > the literal handler config below before it ships. If anything
+   > looks off, say "tweak <thing>" or "cancel"; otherwise "yes" and
+   > I'll save.
    >
    > I'll wire this on **<project name>** — every Friday at 9am Pacific:
    >   - Read Stripe MRR + churn for the past 7 days.

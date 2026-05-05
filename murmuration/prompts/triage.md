@@ -1735,7 +1735,7 @@ What I can connect to
 
 ────
 
-For a repo this shape, the fastest wow is publishing one of the
+For a repo this shape, the fastest win is publishing one of the
 utility scripts as a Mur flow — that gets you a hosted endpoint
 with zero infra work. Want me to walk through **F1: lib/summarize.js**?
 

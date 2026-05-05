@@ -143,7 +143,7 @@ this machine + the corresponding revoke command for each.
       commit + push the workflow removal).
 
    Remote (in our TEE):
-   3. dep-release-digest (marquee, installed 6 days ago)
+   3. dep-release-digest (TEE, installed 6 days ago)
       Weekly summary of release notes for deps your project uses. Hosted on our infra; no local files.
       To revoke: usemur.dev/dashboard/integrations.
    ```

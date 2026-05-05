@@ -100,8 +100,9 @@ point them at the self-host link or explore page.
 ## Hand-off to other prompts
 
 - User reacts with "scan again" / "rescan" → read `prompts/triage.md`.
-- User reacts with "publish <path>" → for the manual path, read
-  `prompts/publish-flow.md`. The agent-driven outbound conversation
-  (`prompts/publish.md`) ships in Phase 4.
+- User reacts with "publish <path>" → read `prompts/publish-flow.md`
+  for the manual publish path. The agent-driven outbound conversation
+  is a Phase 4 deliverable; tell the user honestly when it's not
+  shipped yet.
 - User reacts with "what should I install" / "recommendations" → not
   shipped yet (Phase 2). Tell them honestly.
