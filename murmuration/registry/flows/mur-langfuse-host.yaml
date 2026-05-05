@@ -2,6 +2,7 @@ slug: "@mur/langfuse-host"
 display_name: Managed Langfuse
 category: llm-observability
 recommended: false  # langfuse self-hosts free; recommend.md points at OSS instead. Browsable via /mur catalog.
+status: deprecated  # OSS alternative is the honest answer; wrapper stays catalog-browsable only
 wraps_tool: tools/langfuse.yaml
 
 mcp:

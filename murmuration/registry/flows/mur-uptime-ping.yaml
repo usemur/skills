@@ -2,6 +2,7 @@ slug: "@mur/uptime-ping"
 display_name: Uptime Ping
 category: uptime-monitoring
 recommended: false  # uptime-kuma self-hosts free, Better Stack has a free tier; recommend.md points at OSS / free-tier instead. Browsable via /mur catalog.
+status: deprecated  # OSS alternative is the honest answer
 wraps_tool: tools/uptime-kuma.yaml
 
 mcp:

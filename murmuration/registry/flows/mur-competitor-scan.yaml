@@ -2,6 +2,13 @@ slug: "@mur/competitor-scan"
 display_name: Competitor Site Scan
 category: llm-in-the-loop
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-competitor-scan.test.ts
+required_code:
+  - service: src/services/cofounderFlows/competitorScan.handler.ts
+    exports: ["competitorScanHandler", "COMPETITOR_SCAN_FLOW_SLUG", "runScanLlm"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:

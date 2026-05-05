@@ -2,6 +2,13 @@ slug: "@mur/reviewer"
 display_name: LLM PR Reviewer
 category: llm-in-the-loop
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-reviewer.test.ts
+required_code:
+  - service: src/services/webhooks/reviewer.handler.ts
+    exports: ["reviewerHandler", "REVIEWER_FLOW_SLUG", "runReviewerLlm", "parseReviewOutput"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:

@@ -41,15 +41,40 @@ automation" surface. V1 supports the basic three sinks above.
    Returns `{ estimated_tokens_per_fire, estimated_cents_per_fire,
    estimated_monthly_cents }`.
 
-3. **Confirm before saving.** Print plainly, leading with the project
-   name from the bootstrap so the founder sees which repo the
-   automation will tag to:
+3. **Confirm before saving — co-designed-provenance disclosure.**
+   Print plainly, leading with the project name from the bootstrap
+   so the founder sees which repo the automation will tag to. The
+   intended caller is recommend.md's `co-designed-remote` route
+   (recommend.md:407); marquee installs go through install.md, not
+   here. If you got routed to automate.md from a marquee path,
+   that's a routing bug — fix the caller, not the disclosure copy
+   below. The confirmation MUST disclose co-designed provenance:
 
+   > ⚙ This is a **co-designed** automation — we composed it together
+   > in the last few turns. It runs in our TEE just like marquee
+   > flows, but it has no test suite from us, no catalog entry, and
+   > nobody's run it on another founder's stack. You see the literal
+   > handler config below before it ships. If anything looks off,
+   > say "tweak <thing>" or "cancel"; otherwise "yes" and I'll save.
+   >
    > I'll wire this on **<project name>** — every Friday at 9am Pacific:
    >   - Read Stripe MRR + churn for the past 7 days.
    >   - Compute deltas vs the prior week.
    >   - Append a row to your Google Sheet "Murmur — MRR Roll-up."
+   >
+   > Handler config (literal bytes that get saved):
+   > ```json
+   > <show the parsed plan as JSON — schedule, sources, computation,
+   >  sink, env requirements>
+   > ```
+   >
    > Estimated cost: $0.012/fire (~$0.05/month). Continue? (yes/no)
+
+   The `⚙ Co-designed` marker mirrors the badge in recommend.md's
+   propose render. It is the founder's last chance to see "this is
+   not a marquee flow Mur built and tested" before the install
+   fires. See plans/scan-recommender-honesty.md §2 Layer 0 for the
+   contract.
 
 4. **POST `/api/automations`** to save. Server returns the
    `automation_id`, schedule expression, and next-fire timestamp.

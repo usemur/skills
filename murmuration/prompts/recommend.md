@@ -255,8 +255,10 @@ number ("yes A1", "show me A2"). Shape:
 
 ```
 A<N>: <bold name — lowercased descriptive title, never the `@mur/`
-prefix. Provenance neutrality requires marquee and co-designed to
-render identically.>
+prefix. Marquee and co-designed both use the descriptive-title
+style, but co-designed candidates additionally render the
+`⚙ Co-designed` provenance badge on the line below the title (see
+"Provenance MUST be visible for co-designed candidates" below).>
 What it is: <one-line `what` from the candidate. Grounded in:
 <verbatim signal from `why-you`>.>
 Recommendation: <action in builder voice — never a slash
@@ -311,10 +313,28 @@ error.
   user typing it would hit "Unknown command: /mur". Always frame
   as a conversational ask the user answers yes/no.
 
-**No provenance label in the rendered prose.** `provenance` lives
-in scan.json / metadata, not in the surface. The user can ask
-("how did you come up with that?") and Mur answers plainly — but
-unprompted prose treats marquee and co-designed identically.
+**Provenance MUST be visible for co-designed candidates.** Marquee
+flows render as today (no badge — the catalog backing is the
+implicit provenance). Co-designed candidates get a one-line
+provenance badge on the line *immediately before* the `What it is:`
+line:
+
+```
+A2: stripe webhook ping
+⚙ Co-designed — we'd compose this with you live; no test suite,
+no catalog entry. You see exactly what runs before it ships.
+What it is: Polls /api/stripe/webhook every 5 minutes...
+```
+
+Render unconditionally for every `provenance: co-designed` and
+`provenance: community-template` candidate, every round, even if
+the user has seen co-designed flows before. The badge is the
+contract — the user always knows which flows we built and tested
+versus which flows we're composing with them right now. See
+plans/scan-recommender-honesty.md §2 Layer 0.
+
+If asked "how did you come up with that?" Mur explains plainly —
+the badge primes the question rather than hiding it.
 
 **Why `requires_connections` matters.** A propose card cites
 `why-you` from scan signals (e.g. "Stripe live in your stack"),
@@ -708,9 +728,13 @@ hits a wall at runtime. With it, the next step is unambiguous.
 
 **Voice rules — what NOT to do:**
 - Don't render multiple candidates (that's the `propose` move).
-- Don't surface provenance ("@mur/" / "(curated)" / "(custom for
-  you)"). The render shape is identical for marquee and
-  co-designed.
+- Don't surface marketing-style provenance labels ("@mur/" /
+  "(curated)" / "(custom for you)"). The descriptive-title style
+  is identical for marquee and co-designed. **EXCEPTION:** for
+  co-designed candidates, render the `⚙ Co-designed — no test
+  suite, no catalog entry` badge per the provenance contract in
+  the propose schema. The badge is not marketing — it's the
+  founder's signal that this flow wasn't built and tested by us.
 - Don't use "Three things I can now watch" — that's the depth
   read, not the opener.
 - Don't soften with "perhaps" / "might" / "if you'd like."

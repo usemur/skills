@@ -2,6 +2,17 @@ slug: "@mur/welcome-flow"
 display_name: Customer Welcome Flow
 category: llm-in-the-loop
 recommended: true
+status: shipping  # shipping | building | roadmap | deprecated — see plans/scan-recommender-honesty.md
+install_test: skill-pack/scripts/install-tests/mur-welcome-flow.test.ts
+required_code:
+  - service: src/services/cofounderFlows/welcomeFlow.handler.ts
+    exports: ["welcomeFlowHandler", "WELCOME_FLOW_SLUG"]
+  - service: src/services/cofounderFlows/welcomeFlowSender.ts
+    exports: ["sendWelcomeEmail"]
+  - service: src/services/cofounder/pillars/_stripe.ts
+    exports: ["stripePaginateExt"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:
@@ -18,6 +29,13 @@ pricing:
 detection:
   category_signals:
     - has_connector: stripe
+    - stripe_scopes:
+        # The handler reads charge.succeeded events to detect first-time
+        # payers. Without read access to events the cron run hits 401
+        # every tick. Drop the candidate when scopes aren't granted —
+        # render layer surfaces a re-auth teaser instead. (See
+        # plans/scan-recommender-honesty.md §1 Leak C.)
+        any_of: [read_events, read_charges]
 
 reason_template: |
   Stripe is connected — every YC partner tells founders to email every

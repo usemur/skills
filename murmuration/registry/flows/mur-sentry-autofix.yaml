@@ -2,6 +2,13 @@ slug: "@mur/sentry-autofix"
 display_name: Sentry Autofix Agent
 category: error-tracking
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-sentry-autofix.test.ts
+required_code:
+  - service: src/services/webhooks/sentry.handler.ts
+    exports: ["sentryAutofixHandler", "SENTRY_AUTOFIX_FLOW_SLUG", "renderAgentBrief"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: sentry-oss
 
 mcp:

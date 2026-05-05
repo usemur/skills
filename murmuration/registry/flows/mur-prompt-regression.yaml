@@ -2,6 +2,7 @@ slug: "@mur/prompt-regression"
 display_name: Prompt Regression Eval
 category: llm-in-the-loop
 recommended: false
+status: building  # managed flow not built yet — recommend.md surfaces promptfoo (OSS) for this gap
 wraps_tool: promptfoo
 
 mcp:

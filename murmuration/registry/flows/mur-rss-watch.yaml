@@ -2,6 +2,7 @@ slug: "@mur/rss-watch"
 display_name: Changelog / RSS Watch
 category: stack-monitoring
 recommended: false  # superseded by the more focused @mur/dep-release-digest and @mur/competitor-scan. Browsable via /mur catalog.
+status: deprecated
 wraps_tool: null
 
 mcp:

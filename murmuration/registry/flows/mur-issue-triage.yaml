@@ -2,6 +2,13 @@ slug: "@mur/issue-triage"
 display_name: LLM Issue Triage
 category: llm-in-the-loop
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-issue-triage.test.ts
+required_code:
+  - service: src/services/webhooks/issueTriage.handler.ts
+    exports: ["issueTriageHandler", "ISSUE_TRIAGE_FLOW_SLUG", "runTriageLlm", "parseTriageOutput"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:

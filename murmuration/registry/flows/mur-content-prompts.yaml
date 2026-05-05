@@ -2,6 +2,13 @@ slug: "@mur/content-prompts"
 display_name: Weekly Content Prompts (grounded in shipping)
 category: growth
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-content-prompts.test.ts
+required_code:
+  - service: src/services/cofounderFlows/contentPrompts.handler.ts
+    exports: ["contentPromptsHandler", "CONTENT_PROMPTS_FLOW_SLUG"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:

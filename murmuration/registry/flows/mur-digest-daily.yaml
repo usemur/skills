@@ -2,6 +2,11 @@ slug: "@mur/digest-daily"
 display_name: Daily Digest
 category: llm-in-the-loop
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-digest-daily.test.ts
+required_code:
+  - service: src/services/cofounder/digestOrchestrator.ts
+    exports: ["runDigestForDeveloper", "formatNextRunLabel"]
 wraps_tool: null
 
 mcp:

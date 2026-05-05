@@ -2,6 +2,7 @@ slug: "@mur/twenty-deploy"
 display_name: Twenty CRM Deploy
 category: crm
 recommended: false  # OSS-deploy isn't a focus right now; we want automation, not installation. Browsable via /mur catalog.
+status: deprecated
 wraps_tool: tools/twenty.yaml
 
 mcp:

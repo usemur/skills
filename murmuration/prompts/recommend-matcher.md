@@ -201,6 +201,15 @@ call `mint-bridge-link.mjs` to mint the real URL.
 - Substrate registry, not connected →
   `install_path: "BRIDGE:<slug>:<id>:dashboard-paste"` (same as
   above with `--target dashboard-paste`).
+- Status-`building` candidate (Step 0b) →
+  `install_path: "TEASER:building:<id>"`. Render layer surfaces
+  this as "we're building this — want to be notified?" with no
+  install action wired.
+- Scope-required candidate (any `*_scopes` sub-block failed) →
+  `install_path: "RESCOPE:<connector>:<id>:<missing-scopes-csv>"`.
+  Render layer surfaces this as "this needs the `<scopes>`
+  scope(s) on `<connector>` — re-auth to grant?" with the
+  re-auth deep link.
 
 The marker shape keeps the matcher purely local (no network) and
 isolates the `POST /api/auth/bridge` + project-register calls to
@@ -250,21 +259,41 @@ Use the same wall-clock timestamp pattern as scan.md
 Walk every YAML file under `<skill-dir>/registry/tools/` and
 `<skill-dir>/registry/flows/`. For each entry:
 
-### Step 0 — filter out demoted catalog entries
+### Step 0 — filter on status, then on recommended
 
-If the YAML has a top-level `recommended: false`, **skip it
-entirely** for recommendation purposes. The entry stays browsable
-via `/mur catalog`, but recommend.md never surfaces it.
+Single combined gate. Status rules first because building flows
+must be able to surface as teasers even when not yet "recommended"
+in the curation sense.
 
-This filter exists because some Mur flows (`@mur/langfuse-host`,
-`@mur/uptime-ping`, `@mur/twenty-deploy`, `@mur/dep-drift`,
-`@mur/rss-watch`) are managed wrappers of OSS tools or have been
-superseded by marquee flows. Pitching them as recommendations is
-weak — the user can self-host the OSS for free. We keep the wrappers
-in the catalog because some users do want them, but they don't
-get a curated rec.
+Evaluate in this order:
 
-If `recommended` is missing, treat as `true` (default).
+**0a. Hard skips by status.** If `status` is missing OR
+`status: roadmap` OR `status: deprecated` → skip the entry
+entirely. Not surfaced anywhere. (Deprecated entries stay
+browsable via `/mur catalog`; missing status is fail-closed
+because adding a YAML without a status is a coding error the
+registry-coherence test will flag.)
+
+**0b. Building → teaser.** If `status: building` → KEEP the entry,
+but mark it as teaser-only. The matcher emits
+`install_path: "TEASER:building:<slug>"` and the render layer
+surfaces "we're building this for projects like yours — want to be
+notified when it ships?" with no install action wired. Building
+entries reach this branch regardless of `recommended` (a flow
+can be `recommended: false` because the managed version isn't
+ready, but we still want the user to know it's coming).
+
+**0c. Shipping → recommended check.** If `status: shipping`,
+THEN apply the `recommended: false` filter. If `recommended: false`
+on a shipping entry, skip — that's a curated demotion (managed
+wrapper of OSS the user can self-host: `@mur/langfuse-host`,
+`@mur/uptime-ping`, `@mur/twenty-deploy`). Browsable via
+`/mur catalog`, never surfaced as a recommendation. If
+`recommended` is missing, treat as `true` (default).
+
+**Combined contract:** **only `recommended: true AND status: shipping`
+emits an install CTA. `status: building` emits a teaser regardless
+of `recommended`. Everything else is skipped or browsable-only.**
 
 ### Step 1 — does any presence_signal match?
 
@@ -306,6 +335,7 @@ If any matches, this entry is a candidate. Evaluate:
 | `custom_prompts_detected: true`  | True iff `outbound_candidates` contains entries with `kind: custom_system_prompt`.    |
 | `gh_authed: true`                | True iff `local_resources.github.authed === true`.                                    |
 | `open_issues_count: ">=N"`       | True iff `local_resources.github.open_issues.length` meets threshold.                 |
+| `<connector>_scopes:` (sub-block, e.g. `stripe_scopes:`)                | Scope-aware gate for connectors that have granular OAuth scopes. Sub-block shape: `any_of: [scope_a, scope_b]` or `all_of: [...]`. True iff `local_resources.<connector>.granted_scopes` contains the required scopes. **If `local_resources.<connector>.granted_scopes` is absent (scope-tracking not yet populated for this connector), treat as FALSE — fail-closed.** Drop the candidate; emit a *re-auth teaser* via `install_path: "RESCOPE:<connector>:<slug>:<missing-scopes-csv>"` so the render layer can offer expanded-scope re-auth (~30s OAuth dance). This is the gate that closes the "Stripe is already authed for revenue queries" leak (see plans/scan-recommender-honesty.md §1 Leak C). |
 
 If at least one category_signal matches AND no presence_signal matched
 in Step 1 AND `recommended !== false`, this entry is a recommendation

@@ -2,6 +2,13 @@ slug: "@mur/dep-release-digest"
 display_name: Dependency Release-Note Digest
 category: llm-in-the-loop
 recommended: true
+status: shipping
+install_test: skill-pack/scripts/install-tests/mur-dep-release-digest.test.ts
+required_code:
+  - service: src/services/cofounderFlows/depReleaseDigest.handler.ts
+    exports: ["depReleaseDigestHandler", "DEP_RELEASE_DIGEST_FLOW_SLUG", "pickDeps", "compareVersions"]
+  - service: src/services/cofounderFlows/registry.ts
+    exports: ["findCofounderFlow"]
 wraps_tool: null
 
 mcp:
