@@ -1405,7 +1405,22 @@ ACTION in builder voice — never a slash command the user has to
 type. `/mur install <slug>` is NOT a real Claude Code slash
 command; typing it produces "Unknown command." The agent owns
 the verb. The user just says "yes A1" / "yes A2" / etc. The
-shape varies by `connector_required.status` and account state:
+shape is selected from `install_path` (the matcher's marker)
+first, falling back to `connector_required.status`:
+
+- `install_path` starts with `LOCAL:` (already-connected OAuth
+  candidate OR self-installing marquee flow whose install
+  endpoint owns the setup walkthrough server-side — see
+  recommend-matcher.md "Self-installing marquee flows") → render:
+  ```
+  Recommendation: Say "yes A<N>" and I'll walk you through it.
+  ```
+  When the user says yes, the agent runs the install in chat
+  (POST `/api/flows/install`, then surface the response's
+  `setupInstructions` verbatim per `prompts/install.md`). Do
+  NOT mint a `/connect/<slug>` bridge URL — the slug may not
+  be in the substrate or Composio registries (sentry, for
+  instance), and the bridge would 500 on click.
 
 - `connector_required.status === 'connected'` (OAuth done OR env
   var already exported) → render:

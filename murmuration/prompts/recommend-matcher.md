@@ -211,15 +211,41 @@ call `mint-bridge-link.mjs` to mint the real URL.
   scope(s) on `<connector>` — re-auth to grant?" with the
   re-auth deep link.
 
+**Self-installing marquee flows.** A few `@mur/*` flows own their
+*entire* setup walkthrough server-side: the install endpoint
+returns a `setupInstructions` block (vault deep-link, webhook URL,
+GitHub App status, etc.) and `prompts/install.md` walks the user
+through it in chat. These flows MUST emit `install_path:
+"LOCAL:<id>"` regardless of `connector_required.status`, even if
+the connector slug isn't in the OAuth/local_env/substrate sets —
+because there's no `/connect/<slug>` step at all. Routing them
+through `BRIDGE:<slug>:<id>:connect` produces a 500 on click
+("Unsupported connector") since the slug has no Composio app and
+no substrate paste form, and that's the correct architecture: the
+server's `setupInstructions.vaultUrl` is the canonical paste
+target.
+
+Self-installing flows today:
+- `@mur/sentry-autofix` — slug `sentry` is intentionally not
+  in connectors.json or Composio. The install endpoint returns
+  `setupInstructions.vaultUrl` (a `/dashboard/vault?key=SENTRY_TOKEN`
+  deeplink) plus the per-developer webhook URL and current
+  GitHub App installations; install.md surfaces all of it.
+
+Apply this carve-out BEFORE the OAuth/substrate wireability check
+below. If the candidate's flow id is in this set, set
+`install_path: "LOCAL:<id>"` and skip the wireability filter.
+
 The marker shape keeps the matcher purely local (no network) and
 isolates the `POST /api/auth/bridge` + project-register calls to
 the render-time path in triage.md. A consequence: the matcher
 itself doesn't know the cprj_* id or the bridge token; it can't
 emit them, by design.
 
-If the slug is in NONE of the three sets, drop the candidate.
-This is what keeps the dual render honest: every "Set up:" CTA
-leads somewhere that works today.
+If the slug is in NONE of the three sets AND the flow isn't a
+self-installing marquee (above), drop the candidate. This is what
+keeps the dual render honest: every "Set up:" CTA leads somewhere
+that works today.
 
 The matcher returns the candidate list to triage.md, which writes
 it into `scan.json.automation_candidates`. triage.md is responsible
