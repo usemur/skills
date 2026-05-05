@@ -188,17 +188,10 @@ Decode the response:
   the local state is consistent.
 - **400 / 500** → surface the error message verbatim, suggest trying
   again or browsing https://usemur.dev/explore.
-- **403** → the install was refused. Some flows are operator-only
-  on a given Mur deployment (e.g. `sentry-autofix` while it's
-  single-tenant). Surface the response's `error` and `detail`
-  fields verbatim to the user. **Stop the workflow here** — do
-  NOT continue to step 4 or step 5. Nothing was installed; there's
-  nothing to wire and nothing to record locally.
-- **503** → the deployment hasn't finished configuring this flow
-  yet (e.g. `sentry-autofix` when `SENTRY_DEFAULT_DEVELOPER_ID` is
-  unset on the backend). Surface the `error` and `detail` fields
-  verbatim. **Stop the workflow here** — the operator needs to
-  finish setup on the backend first; nothing was installed.
+- **503** → the deployment hasn't finished configuring this flow.
+  Surface the `error` and `detail` fields verbatim. **Stop the
+  workflow here** — the operator needs to finish setup on the
+  backend first; nothing was installed.
 
 ## Step 4 — wire the flow's MCP endpoint into the user's agent
 
@@ -228,60 +221,19 @@ BEFORE the "now active" message above and step 5.
 
 #### `sentry-autofix`
 
-You only reach this block on a 201 install (the operator path).
-Non-operator installs already returned 403 in step 3 and stopped
-the workflow there — see the 403 handler above.
+The 201 install response includes `setupInstructions` with
+`vaultUrl`, `webhookUrl`, and `steps[]`. The user needs to
+(a) create a Sentry Internal Integration in their own org pointed
+at `webhookUrl`, (b) paste the integration's auth token into
+their Mur vault at `vaultUrl` (the page prefills the secret name),
+and (c) tell us which Sentry projects map to which GitHub repos.
 
-The flow needs (a) Sentry's webhook signed and pointed at us, and
-(b) a Sentry-project → GitHub-repo mapping so the agent knows
-which repo to clone. Walk through both. Don't ask the user to
-read docs — guide them inline. The full README lives at
-`examples/sentry-autofix/README.md`.
-
-**1. Sentry-side setup.** First, figure out the webhook URL the
-user should register in Sentry. Read the Mur API base URL from
-the `apiBase` field in `~/.murmur/account.json` (the same file
-`claim-connect.mjs` writes). Fall back to `https://usemur.dev`
-only if the file or that field is missing. The webhook URL is
-`<apiBase>/api/webhooks/sentry`.
-
-Tell the user verbatim, substituting `<webhook-url>`:
-
-> To finish setting up sentry-autofix, you'll create a Sentry
-> Internal Integration that signs webhooks pointed at Mur:
->
-> 1. Open your Sentry org → **Settings → Custom Integrations**
-> 2. Click **Create New Integration → Internal**
-> 3. Name it "Mur Autofix" (or anything)
-> 4. **Webhook URL:** `<webhook-url>`
-> 5. **Permissions:** at minimum `Issue & Event: Read`
-> 6. **Webhooks:** subscribe to **Issues**
-> 7. Save the integration
-> 8. Copy the **Client Secret** at the top of the integration
->    page — you'll need it in the next step.
-
-The Client Secret is **operator-side configuration**, not
-something this skill can set for you. The Mur backend reads it
-from the `SENTRY_CLIENT_SECRET` env var, which only the deployment
-operator can change. Do NOT ask the user to paste the secret to
-the agent — pasting it accomplishes nothing.
-
-Tell the user verbatim:
-
-> The Client Secret needs to land in the Mur backend's
-> `SENTRY_CLIENT_SECRET` env var. If you ARE the operator
-> (running your own Mur deployment), set it now:
->
-> ```
-> # On your deployment:
-> SENTRY_CLIENT_SECRET="<paste from Sentry>"
-> # then restart the Mur server
-> ```
->
-> If you're using a hosted Mur deployment that someone else runs,
-> send the Client Secret to that operator out-of-band (Slack, DM,
-> etc.) — they'll set the env var. Webhooks won't verify until it
-> lands.
+**1. Sentry-side setup.** Surface the response's `setupInstructions.steps`
+verbatim. The webhook URL is per-developer (`/api/webhooks/sentry/t/<token>`)
+and the vault URL is a deeplink that opens the Variables tab with
+`SENTRY_TOKEN` already prefilled — the user just clicks through,
+creates the Sentry Internal Integration, copies the auth token,
+and pastes it.
 
 **2. Repo mapping.** Ask the user:
 
@@ -327,10 +279,6 @@ Handle each failure shape:
 - **400 (validation error)** → re-prompt the user with the exact
   error message (probably a malformed slug or `owner/repo` value)
   and re-POST when they correct it.
-- **403** → the requester isn't the operator. Surface `error` +
-  `detail` and stop.
-- **503** → the deployment isn't configured (`SENTRY_DEFAULT_DEVELOPER_ID`
-  unset). Surface `error` + `detail` and stop.
 - **500 / network** → tell the user "Couldn't save the mapping
   right now — try again in a minute, or set it manually from the
   dashboard later." Stop here.

@@ -33,6 +33,10 @@ vi.mock('../../../src/db/client.js', () => ({
     userFlowInstall: { create: vi.fn(), findMany: vi.fn(), count: vi.fn(), deleteMany: vi.fn() },
     project: { findMany: vi.fn(async () => []) },
     flowState: { findMany: vi.fn(async () => []) },
+    developer: {
+      findUnique: vi.fn(async () => ({ sentryWebhookToken: null })),
+      update: vi.fn(async () => ({})),
+    },
   },
 }));
 
@@ -63,8 +67,6 @@ vi.mock('../../../src/api/middleware/auth.js', () => ({
 vi.mock('../../../src/config/index.js', () => ({
   config: {
     publicBaseUrl: 'https://test.usemur.dev',
-    sentryDefaultDeveloperId: 'dev-1',
-    sentryClientSecret: 'test-secret',
     githubAppEnabled: false,
   },
 }));
