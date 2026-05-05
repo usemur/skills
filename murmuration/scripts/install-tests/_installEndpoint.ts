@@ -37,6 +37,9 @@ vi.mock('../../../src/db/client.js', () => ({
       findUnique: vi.fn(async () => ({ sentryWebhookToken: null })),
       update: vi.fn(async () => ({})),
     },
+    githubAppInstallation: {
+      findMany: vi.fn(async () => []),
+    },
   },
 }));
 
@@ -68,6 +71,8 @@ vi.mock('../../../src/config/index.js', () => ({
   config: {
     publicBaseUrl: 'https://test.usemur.dev',
     githubAppEnabled: false,
+    githubAppSlug: 'usemur-test',
+    githubAppClientSecret: 'test-secret-for-state-hmac',
   },
 }));
 

@@ -228,27 +228,53 @@ at `webhookUrl`, (b) paste the integration's auth token into
 their Mur vault at `vaultUrl` (the page prefills the secret name),
 and (c) tell us which Sentry projects map to which GitHub repos.
 
-**1. Sentry-side setup.** Surface the response's `setupInstructions.steps`
-verbatim. The webhook URL is per-developer (`/api/webhooks/sentry/t/<token>`)
-and the vault URL is a deeplink that opens the Variables tab with
-`SENTRY_TOKEN` already prefilled — the user just clicks through,
-creates the Sentry Internal Integration, copies the auth token,
-and pastes it.
+**1. Sentry-side setup.** Print the response's `setupInstructions.steps`
+**verbatim as a numbered list** — do NOT collapse, paraphrase, or summarize
+them ("Awaiting: paste the Sentry token…" is not acceptable; the user
+needs the actual webhook URL, vault URL, scopes, and click path inline so
+they can follow along without context-switching back to the chat). The
+webhook URL embedded in the steps is per-developer
+(`/api/webhooks/sentry/t/<token>`) and the vault URL is a deeplink that
+opens the Variables tab with `SENTRY_TOKEN` already prefilled — the user
+clicks through, creates the Sentry Internal Integration with that webhook
+URL pasted into Sentry's "Webhook URL" field, copies the auth token shown
+after Save, and pastes it into the vault.
 
-**2. Repo mapping.** Ask the user:
+**2. GitHub App check.** Before asking about repo mappings, check
+`setupInstructions.githubApp.installations` from the install response.
+This is the developer's existing Mur GitHub App installations — do
+NOT ask the user to go check github.com/settings/installations
+themselves; you already have the answer.
 
-> Which Sentry projects should map to which GitHub repos? Format:
-> `<sentry-project-slug> → <owner>/<repo>`. You can map several.
->
-> Example: `my-app-backend → acme/api`
+- **If the array is empty** (or every entry has `suspendedAt` set):
+  the Mur GitHub App is not installed. Tell the user:
+
+  > The Mur GitHub App isn't installed yet — autofix needs it so
+  > the agent can open PRs on your behalf. Install it here, then
+  > come back: `<setupInstructions.githubApp.installUrl>`
+
+  STOP. Don't ask for repo mappings until they confirm they've
+  installed it. (You can re-fetch by re-POSTing `/api/flows/install`
+  for sentry-autofix; it's idempotent and will return the updated
+  installations array.)
+
+- **If the array is non-empty**: list the available repos inline
+  so the user can pick from them, e.g.:
+
+  > The Mur GitHub App is installed on these repos (via the
+  > `<accountLogin>` account): `acme/api`, `acme/web`. Which
+  > Sentry projects map to which? Format:
+  > `<sentry-project-slug> → <owner>/<repo>`. Example:
+  > `my-app-backend → acme/api`
+
+  Source the repo list from each installation's
+  `scopedRepoFullNames` if non-empty, otherwise `repoFullNames`.
+  If `repoSelection` is `"all"`, mention that they can also pick
+  any other repo on that account — it'll just need to be added
+  to the App's selection later.
 
 The Sentry project slug is what shows in Sentry URLs (e.g.
 `sentry.io/organizations/<org>/issues/?project=my-app-backend`).
-The repo must be one the Mur GitHub App is installed on with
-`pull_requests:write`. If they're not sure which repos qualify,
-list the ones from `installation.repoFullNames` (read it from
-the GitHub App context if available, otherwise tell them to
-check at https://github.com/settings/installations).
 
 Once you have the mappings, POST them. Use the same `<apiBase>`
 you derived above for the webhook URL — for self-hosted Mur
