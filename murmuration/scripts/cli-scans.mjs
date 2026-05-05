@@ -3,8 +3,10 @@
 //
 // Plan: plans/onboarding-flip.md §1. The "active scan" pass that runs
 // after scan.md's presence-pass to surface real findings (open PRs,
-// failing CI, broken Stripe webhooks, last deploy status) on the first
-// scan, before the user has connected anything server-side.
+// past-week eng pulse, registered webhook endpoints, last deploy
+// status) on the first scan, before the user has connected anything
+// server-side. Findings are observation-only — install CTAs are gated
+// elsewhere via the catalog (plans/scan-recommender-honesty.md).
 //
 // Why a script and not inline-prompt: shelling out from the prompt is
 // slow and unreliable. This script orchestrates parallel CLI scans with

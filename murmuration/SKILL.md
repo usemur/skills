@@ -819,11 +819,14 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > machine during scan.
    >
    > Output is two things in one render: **what to look at right
-   > now** (your open PRs, failing CI runs, broken Stripe webhooks
-   > if you've got the CLI) and **the 1-2 automations I'd actually
-   > run for you** (daily digest, dependency-release watcher,
-   > prompt-regression eval — grounded in your stack, not a generic
-   > list).
+   > now** (eng pulse — past-week PRs merged, top ships, recent
+   > flakes; plus open PRs and TODOs / FIXMEs by file) and **the
+   > 1-2 automations I'd actually run for you** (daily digest, LLM
+   > PR reviewer, LLM issue triage, dep-release-note digest, weekly
+   > competitor-site scan, content prompts grounded in your
+   > shipping — pitched only when your stack signals match). If
+   > nothing in the catalog fits what you actually want, we can
+   > co-design a new one together.
    >
    > When you pick an automation, I get any required connector
    > wired right then — GitHub via OAuth, Linear / OpenAI / Stripe
