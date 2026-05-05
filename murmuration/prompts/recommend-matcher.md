@@ -350,10 +350,14 @@ gh-authed repo" would qualify for `@mur/issue-triage` — very noisy.
 | Marquee flow                     | Conjunctive guard                                                                                          |
 |----------------------------------|------------------------------------------------------------------------------------------------------------|
 | `@mur/digest-daily`              | active project (any) — single-signal pitch is fine, the digest is the flagship and degrades gracefully.   |
-| `@mur/reviewer`                  | `active_git_repo: true` AND `signals.deploy` non-empty (real product, not a scratch repo).                 |
+| `@mur/welcome-flow`              | `has_connector: stripe` AND stripe scopes include `read_charges` or `read_events`.                         |
 | `@mur/issue-triage`              | `gh_authed: true` AND `open_issues_count >= 5` — handful of open issues, otherwise it's premature.        |
 | `@mur/dep-release-digest`        | `has_manifest: true` AND third-party deps count `>= 10`.                                                   |
 | `@mur/competitor-scan`           | `product.summary` mentions "B2B" OR "B2C" OR "SaaS" OR "marketplace" — i.e. has competitors at all.        |
+
+`@mur/reviewer` is no longer surfaced. GitHub Copilot ships PR review for
+free; the YAML stays `recommended: false` (catalog-browsable only) and
+existing webhook handlers keep working for users already opted in.
 
 Note: `@mur/prompt-regression` is **not** a marquee flow. The
 managed version isn't built — recommend.md surfaces `promptfoo`
@@ -393,7 +397,7 @@ specific category or tool. If the user said any of:
 - "add product analytics" / "set up PostHog"
 - "I need a CRM" / "set up scheduling" / "e-sign tool"
 - "add logging" / "structured logs"
-- a registry slug directly: "install langfuse", "@mur/reviewer", etc.
+- a registry slug directly: "install langfuse", "@mur/digest-daily", etc.
 
 …answer THAT request first. Surface the matching Tier 1 flow OR
 Tier 2 OSS option for the named category, and skip the digest pitch
@@ -425,9 +429,12 @@ The marquee flows (each is an `@mur/*` entry in
 
 1. **`@mur/digest-daily`** — flagship. Match on any active project.
    Even when only GitHub is connected, the flow's pitch includes
-   "and gets smarter as you connect more systems."
-2. **`@mur/reviewer`** — LLM PR review. Match on active git repo
-   with multiple PRs.
+   "and gets smarter as you connect more systems." When Stripe is
+   connected, the digest body includes the revenue-pulse pillar
+   (yesterday's revenue + new customers) automatically.
+2. **`@mur/welcome-flow`** — nightly verbatim welcome email to
+   first-time Stripe payers. Match on `has_connector: stripe` plus
+   read scopes for charges/events.
 3. **`@mur/issue-triage`** — LLM labels + prioritizes new GH issues.
    Match on `gh_authed: true` + open issues exist.
 4. **`@mur/dep-release-digest`** — weekly LLM summary of dep
@@ -435,6 +442,10 @@ The marquee flows (each is an `@mur/*` entry in
 5. **`@mur/competitor-scan`** — weekly LLM diff of competitor
    sites. Always offerable (every product has competitors); offer
    as "want me to keep an eye on N competitors?".
+
+**Not surfaced anymore:** `@mur/reviewer` (GitHub Copilot ships PR
+review for free — the marquee version is `recommended: false` and
+catalog-browsable only).
 
 Prompt regression testing is *not* a Tier 1 marquee. When an LLM
 project lacks an eval suite, Tier 2 surfaces `promptfoo` (OSS) —

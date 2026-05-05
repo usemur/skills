@@ -1,7 +1,7 @@
 slug: "@mur/reviewer"
 display_name: LLM PR Reviewer
 category: llm-in-the-loop
-recommended: true
+recommended: false  # Demoted: GitHub Copilot ships PR review for free; we don't compete here.
 status: shipping
 install_test: skill-pack/scripts/install-tests/mur-reviewer.test.ts
 required_code:

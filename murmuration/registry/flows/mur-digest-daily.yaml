@@ -34,7 +34,9 @@ reason_template: |
   in the morning. With just GitHub: top issues + waiting PRs + diff
   weight. Connect Linear or Stripe and the digest finds cross-system
   threads — "PR #{{example_pr}} fixes the bug in issue #{{example_issue}}
-  that blocks the customer in {{example_linear}}." More systems = smarter
-  digest.
+  that blocks the customer in {{example_linear}}." When Stripe is
+  connected the digest includes the revenue-pulse pillar (yesterday's
+  charges + new customers); pair it with @mur/welcome-flow to email
+  every new payer automatically. More systems = smarter digest.
 
 self_host_alternative: null

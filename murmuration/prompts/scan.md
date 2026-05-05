@@ -1656,12 +1656,16 @@ this priority order:
    - **`connected`** → hand off to `prompts/install.md` with the
      candidate's `id`. Same code path as `/mur install <id>`.
    - **anything else** → render a one-line confirmation
-     ("Setting up <title> — needs <Provider>"), then run
-     `open <install_path>` (the deep-link URL) so the user's
-     browser launches, AND print the URL inline as fallback:
-     "If your browser didn't open, click here: <install_path>".
-     Then stop and wait — the OAuth completes server-side and
-     the bootstrap pickup announces on the next /mur run.
+     ("Setting up <title> — needs <Provider>") AND print the
+     deep-link URL inline ("Here's your <Provider> auth link:
+     <install_path> — opening it in your browser in a moment").
+     ONLY AFTER that chat-side text is fully rendered, run
+     `open <install_path>` as the very last action of the turn.
+     Never run `open` before the URL + heads-up is printed —
+     the browser would pop up with no context while the agent
+     is still mid-response. Then stop and wait — the OAuth
+     completes server-side and the bootstrap pickup announces
+     on the next /mur run.
 
 2. **"show more findings" / "what else?" / "what else"** —
    advance `progress.findings.next`. Surface the next finding as

@@ -99,9 +99,21 @@ clickable URL of the shape:
 https://usemur.dev/connect/<slug>?install=<automationId>&project=<projectId>
 ```
 
-When scan.md offers this URL, the agent runs `open <url>` to launch
-the browser AND prints the URL inline as a fallback (for SSH /
-headless / link-shy terminals). The browser handles auth-gating,
+When scan.md offers this URL, the agent FIRST prints a clear,
+user-facing message containing the URL inline (for SSH / headless /
+link-shy terminals) AND a heads-up that the browser is about to
+launch — e.g. "Here's your auth link: <url> — opening it in your
+browser in a moment." Only AFTER that text has been emitted does the
+agent run `open <url>` as its very last action of the turn.
+
+**Why the order matters:** if `open <url>` fires before the
+chat-side message is rendered, the user's browser pops open with
+no context while the agent is still "thinking," then the URL
+arrives 5–10s later. Always print the URL + heads-up first, then
+fire `open` last so the user sees the explanation before the
+browser appears.
+
+The browser handles auth-gating,
 calls `POST /api/installs/pending/start` to create a PendingInstall
 row, and is redirected to the appropriate OAuth provider. After
 OAuth completes, the OAuth callback flips
@@ -174,8 +186,13 @@ to push to last.
    "<optional dashboard URL>" }` and headers `Authorization: Bearer
    <account key>` + `X-Mur-Project-Id: <projectId>`. The response is
    `{ redirectUrl, connectedAccountId }`.
-3. Print the `redirectUrl` clearly; tell the user it'll open in their
-   browser. On localhost the agent can also `open <url>` directly.
+3. Print the `redirectUrl` clearly with a one-line heads-up that the
+   browser is about to launch ("Here's your <Provider> auth link:
+   <url> — opening it in your browser in a moment"). Only AFTER that
+   chat-side text is fully rendered does the agent run `open <url>`
+   as the last action of the turn. Never run `open` before printing
+   the URL — the browser will pop up with no context while the agent
+   is still mid-response.
 4. **Poll `GET /api/connections/check?apps=<slug>`** every 3s, up to
    60s. The Composio server-side flow completes when the user
    approves; the row in `connections[<slug>].status` flips to

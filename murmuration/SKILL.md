@@ -237,10 +237,14 @@ for the full rationale and gates.
    one"). scan.md's Step 3 dispatches by `connector_required.status`:
    - **`connected`** → hand off to `prompts/install.md`
      directly. No OAuth needed.
-   - **anything else** → render a one-line confirmation, then
-     `open <deep-link URL>` from the agent AND print the URL
-     inline ("If your browser didn't open, click here: …").
-     The browser handles auth-gating, OAuth, and a success page.
+   - **anything else** → render a one-line confirmation AND
+     print the deep-link URL inline first ("Here's your auth
+     link: <url> — opening it in your browser in a moment").
+     ONLY AFTER that chat text is rendered, run `open <url>`
+     as the very last action of the turn. Never `open` before
+     printing the URL — the browser would pop up with no
+     context while the agent is still mid-response. The browser
+     then handles auth-gating, OAuth, and a success page.
 
 3. **Just-in-time connect** — only happens when the user picked
    a specific automation that needs it. The deep-link URL
