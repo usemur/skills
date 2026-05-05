@@ -345,19 +345,16 @@ candidate.
 
 The marquee `@mur/*` flows are pitched only when their *full* shape
 matches, not just any one signal. Without these guards, "any
-gh-authed repo" would qualify for `@mur/issue-triage` — very noisy.
+gh-authed repo" would qualify for `@mur/dep-release-digest` —
+very noisy.
 
 | Marquee flow                     | Conjunctive guard                                                                                          |
 |----------------------------------|------------------------------------------------------------------------------------------------------------|
 | `@mur/digest-daily`              | active project (any) — single-signal pitch is fine, the digest is the flagship and degrades gracefully.   |
 | `@mur/welcome-flow`              | `has_connector: stripe` AND stripe scopes include `read_charges` or `read_events`.                         |
-| `@mur/issue-triage`              | `gh_authed: true` AND `open_issues_count >= 5` — handful of open issues, otherwise it's premature.        |
+| `@mur/sentry-autofix`            | Sentry SDK detected (`@sentry/*` import OR `sentry.{client,server}.config.*`) AND `gh_authed: true`.       |
 | `@mur/dep-release-digest`        | `has_manifest: true` AND third-party deps count `>= 10`.                                                   |
 | `@mur/competitor-scan`           | `product.summary` mentions "B2B" OR "B2C" OR "SaaS" OR "marketplace" — i.e. has competitors at all.        |
-
-`@mur/reviewer` is no longer surfaced. GitHub Copilot ships PR review for
-free; the YAML stays `recommended: false` (catalog-browsable only) and
-existing webhook handlers keep working for users already opted in.
 
 Note: `@mur/prompt-regression` is **not** a marquee flow. The
 managed version isn't built — recommend.md surfaces `promptfoo`
@@ -435,17 +432,15 @@ The marquee flows (each is an `@mur/*` entry in
 2. **`@mur/welcome-flow`** — nightly verbatim welcome email to
    first-time Stripe payers. Match on `has_connector: stripe` plus
    read scopes for charges/events.
-3. **`@mur/issue-triage`** — LLM labels + prioritizes new GH issues.
-   Match on `gh_authed: true` + open issues exist.
+3. **`@mur/sentry-autofix`** — Sentry webhook fires → Claude agent
+   clones repo, fixes the bug, runs tests, opens a PR. Match on
+   Sentry SDK detection + `gh_authed: true`. $1.00/PR landed,
+   refunded if the agent gives up.
 4. **`@mur/dep-release-digest`** — weekly LLM summary of dep
    release notes. Match on any manifest + multiple deps.
 5. **`@mur/competitor-scan`** — weekly LLM diff of competitor
    sites. Always offerable (every product has competitors); offer
    as "want me to keep an eye on N competitors?".
-
-**Not surfaced anymore:** `@mur/reviewer` (GitHub Copilot ships PR
-review for free — the marquee version is `recommended: false` and
-catalog-browsable only).
 
 Prompt regression testing is *not* a Tier 1 marquee. When an LLM
 project lacks an eval suite, Tier 2 surfaces `promptfoo` (OSS) —

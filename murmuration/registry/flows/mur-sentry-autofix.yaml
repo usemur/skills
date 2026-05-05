@@ -22,12 +22,20 @@ pricing:
   trigger: "Sentry webhook on issue.created (no charge on dedup)"
 
 detection:
+  # Sentry-autofix REQUIRES Sentry to be in use — these signals are the
+  # trigger to recommend, not a reason to skip. Hence they belong in
+  # category_signals. presence_signals would skip the candidate entirely.
   category_signals:
     - has_tool: sentry-oss
     - gh_authed: true
-  presence_signals:
     - has_keyword: ["sentry-sdk", "@sentry/", "Sentry.init"]
     - file_glob: "**/sentry.{client,server}.config.{ts,js}"
+  presence_signals:
+    # "Already installed" markers — the Mur GitHub App is already wired
+    # to handle Sentry webhooks for this repo. None today; the install
+    # endpoint dedupes via UserFlowInstall, so a second install is a
+    # 409 anyway. Listed as empty so the schema check passes.
+    []
 
 reason_template: |
   You're tracking errors with Sentry. When a new issue fires, this flow

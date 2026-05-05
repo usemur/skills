@@ -262,54 +262,6 @@ export function aggregateShippedPRs(prs, windows) {
 }
 
 /**
- * Decide whether to surface the CI footer line.
- *
- * Rules (per plan §1, §3):
- *   - 0 failing runs → false (nothing to say)
- *   - 1 or more failing runs but each unique workflow `name` only
- *     failed once → false (GitHub already emails; first-time noise)
- *   - Same workflow `name` has failed in ≥2 runs spanning ≥24h → true
- *
- * `failingRuns` is the `gh run list --status failure --json
- * name,databaseId,createdAt` output (array). The dedupe key is `name`
- * (workflow name). Acknowledged limitation in plan §11: workflow
- * rename breaks dedupe; acceptable for v1.
- *
- * Returns { show: boolean, run?: {name, count, oldestCreatedAt, runs} }.
- */
-export function shouldShowCIFooter(failingRuns, now = new Date()) {
-  if (!Array.isArray(failingRuns) || failingRuns.length === 0) {
-    return { show: false };
-  }
-  const byName = new Map();
-  for (const r of failingRuns) {
-    if (!r || !r.name || !r.createdAt) continue;
-    const cur = byName.get(r.name) ?? { name: r.name, runs: [] };
-    cur.runs.push(r);
-    byName.set(r.name, cur);
-  }
-  const refMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
-  for (const entry of byName.values()) {
-    if (entry.runs.length < 2) continue;
-    const sorted = entry.runs.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const oldest = sorted[0];
-    const oldestMs = new Date(oldest.createdAt).getTime();
-    if (refMs - oldestMs >= 24 * 60 * 60 * 1000) {
-      return {
-        show: true,
-        run: {
-          name: entry.name,
-          count: entry.runs.length,
-          oldestCreatedAt: oldest.createdAt,
-          runs: sorted,
-        },
-      };
-    }
-  }
-  return { show: false };
-}
-
-/**
  * Render the F1: Eng pulse card from aggregated data. Returns a
  * single string ready to splat into scan output. The text shape is
  * stable across solo/multi/empty cases — scan.md's prompt code path
@@ -318,7 +270,6 @@ export function shouldShowCIFooter(failingRuns, now = new Date()) {
  * Inputs:
  *   shipped       — aggregateShippedPRs output
  *   commitAgg     — aggregateCommitsByAuthor output (14d window)
- *   ciFooter      — shouldShowCIFooter output
  *   contributors  — number of distinct non-bot contributors in the
  *                   14d window (used for solo-repo collapsing)
  */
@@ -350,7 +301,7 @@ function authorBreakdown(byAuthor) {
   return ' — ' + byAuthor.map((a) => `${a.login} (${a.prs})`).join(', ');
 }
 
-export function formatEngPulseCard(shipped, commitAgg, ciFooter, contributors, now = new Date()) {
+export function formatEngPulseCard(shipped, commitAgg, contributors, now = new Date()) {
   const lines = [];
   const yCount = shipped.yesterday.length;
   const wCount = shipped.thisWeek.length;
@@ -409,14 +360,6 @@ export function formatEngPulseCard(shipped, commitAgg, ciFooter, contributors, n
     lines.push(`- Top ships: ${top.join(', ')}`);
   }
 
-  // CI footer (suppressed unless ≥2 failures of same name across ≥24h).
-  if (ciFooter?.show && ciFooter.run) {
-    const r = ciFooter.run;
-    lines.push(
-      `- CI: ${r.name} has failed ${r.count} times since ${r.oldestCreatedAt.slice(0, 10)} — same run, still red.`,
-    );
-  }
-
   return lines.join('\n');
 }
 
@@ -438,7 +381,6 @@ export function buildEngPulse(rows, { now = new Date(), tz = 'UTC' } = {}) {
 
   const mergedRow = findRow("gh pr list --state merged");
   const gitRow = findRow('git log');
-  const ciRow = findRow('gh run list --status failure');
 
   let mergedPRs = [];
   try {
@@ -447,21 +389,13 @@ export function buildEngPulse(rows, { now = new Date(), tz = 'UTC' } = {}) {
   } catch {
     mergedPRs = [];
   }
-  let failingRuns = [];
-  try {
-    if (ciRow?.output) failingRuns = JSON.parse(ciRow.output);
-    if (!Array.isArray(failingRuns)) failingRuns = [];
-  } catch {
-    failingRuns = [];
-  }
   const commits = parseGitLogShortstat(gitRow?.output ?? '');
 
   const windows = computeWindows(now, tz);
   const shipped = aggregateShippedPRs(mergedPRs, windows);
   const commitAgg = aggregateCommitsByAuthor(commits);
-  const ciFooter = shouldShowCIFooter(failingRuns, now);
   const contributors = commitAgg.byAuthor.length;
-  const card = formatEngPulseCard(shipped, commitAgg, ciFooter, contributors, now);
+  const card = formatEngPulseCard(shipped, commitAgg, contributors, now);
 
   return {
     localResources: {
@@ -483,8 +417,6 @@ export function buildEngPulse(rows, { now = new Date(), tz = 'UTC' } = {}) {
         : null,
       total_commits_14d: commitAgg.totalCommits,
       contributors_14d: contributors,
-      ci_footer_shown: ciFooter.show,
-      ci_footer_run: ciFooter.show ? ciFooter.run : null,
     },
     card,
   };

@@ -99,7 +99,6 @@ export const BUILTIN_SCANS = [
       { cmd: 'gh', args: ['pr', 'list', '--author', '@me', '--state', 'open', '--json', 'number,title,url'] },
       { cmd: 'gh', args: ['pr', 'list', '--search', 'review-requested:@me', '--state', 'open', '--json', 'number,title,url'] },
       { cmd: 'gh', args: ['issue', 'list', '--assignee', '@me', '--state', 'open', '--json', 'number,title,url'] },
-      { cmd: 'gh', args: ['run', 'list', '--status', 'failure', '--limit', '5', '--json', 'name,databaseId,createdAt,url'] },
     ],
   },
   {

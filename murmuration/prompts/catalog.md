@@ -63,18 +63,12 @@ note so the user knows the relationship.
 Format example (the user is just browsing — keep it tight):
 
 ```
-## Murmuration catalog (11 flows · 13 OSS tools)
+## Murmuration catalog (9 flows · 13 OSS tools)
 
 ### LLM-in-the-loop automations  ← curated by /mur recommend
 
   → @mur/digest-daily — daily digest across connected systems
     flagship · prices vary by sources
-
-  → @mur/reviewer — LLM PR review on every PR open
-    $0.022/PR · GitHub webhook
-
-  → @mur/issue-triage — LLM labels + prioritizes new GH issues
-    $0.008/issue · GitHub webhook
 
   → @mur/dep-release-digest — weekly LLM summary of dep release notes
     $0.015/week · scheduled

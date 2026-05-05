@@ -205,8 +205,8 @@ Decode the response:
 **Native cofounder flows skip MCP wiring.** The install endpoint
 returns `flow.flowType: "cofounder"` (or `flow.mcpRequired: false`
 explicitly) for handlers that fire on platform-side
-webhooks/cron — `@mur/issue-triage`, `@mur/reviewer`,
-`@mur/dep-release-digest`, etc. There's no MCP server to wire;
+webhooks/cron — `@mur/dep-release-digest`, `@mur/welcome-flow`,
+`@mur/sentry-autofix`, etc. There's no MCP server to wire;
 the flow runs server-side once enabled.
 
 For cofounder flows, the order is:

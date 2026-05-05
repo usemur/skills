@@ -739,8 +739,9 @@ user types the verb when they're ready.)
 → gstack does the code-side work → next `/mur scan` picks up the new
 state and suggests automations against it (e.g. user shipped a new
 endpoint via `/ship`, next scan flags it as a candidate for
-`@mur/reviewer` on future PRs touching it). Loose coupling, no
-hooks — just Mur's normal scan-react loop catching the new state.
+`@mur/dep-release-digest` once a `package.json` lands). Loose
+coupling, no hooks — just Mur's normal scan-react loop catching
+the new state.
 
 **Install path** (when the user doesn't have gstack and a hand-off
 calls for it later in the conversation, NOT on first contact): the
@@ -825,10 +826,12 @@ going", "set me up", "help me out", "configure for &lt;repo&gt;",
    > Output is two things in one render: **what to look at right
    > now** (eng pulse — past-week PRs merged, top ships, recent
    > flakes; plus open PRs and TODOs / FIXMEs by file) and **the
-   > 1-2 automations I'd actually run for you** (daily digest, LLM
-   > PR reviewer, LLM issue triage, dep-release-note digest, weekly
-   > competitor-site scan, content prompts grounded in your
-   > shipping — pitched only when your stack signals match). If
+   > 1-2 automations I'd actually run for you** (daily digest,
+   > Sentry-autofix agent that opens PRs for new errors, customer
+   > welcome flow for first-time Stripe payers, dep-release-note
+   > digest, weekly competitor-site scan, content prompts grounded
+   > in your shipping — pitched only when your stack signals match).
+   > If
    > nothing in the catalog fits what you actually want, we can
    > co-design a new one together.
    >

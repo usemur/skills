@@ -40,13 +40,6 @@ export function computeDeltaClauses(prior, next) {
   if (closedIssues.length === 1) clauses.push('1 issue closed');
   else if (closedIssues.length > 1) clauses.push(`${closedIssues.length} issues closed`);
 
-  // New failing CI runs (not present in prior, present in next).
-  const priorRuns = readRunUrls(prior?.local_resources?.github?.failing_runs);
-  const nextRuns = readRunUrls(next?.local_resources?.github?.failing_runs);
-  const newFailures = nextRuns.filter((url) => !priorRuns.includes(url));
-  if (newFailures.length === 1) clauses.push('1 new failing CI run');
-  else if (newFailures.length > 1) clauses.push(`${newFailures.length} new failing CI runs`);
-
   // CLIs newly authed (false → true on `authed` flag).
   const newlyAuthed = ['stripe', 'fly', 'vercel', 'railway', 'github']
     .filter((tool) => isAuthedNow(next?.local_resources?.[tool]) && !isAuthedNow(prior?.local_resources?.[tool]))
@@ -85,10 +78,6 @@ function readPrNumbers(arr) {
 function readIssueNumbers(arr) {
   if (!Array.isArray(arr)) return [];
   return arr.map((p) => p?.number).filter((n) => Number.isFinite(n));
-}
-function readRunUrls(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map((r) => r?.url).filter((u) => typeof u === 'string' && u.length > 0);
 }
 function readAutomationIds(arr) {
   if (!Array.isArray(arr)) return [];

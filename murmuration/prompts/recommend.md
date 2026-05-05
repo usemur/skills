@@ -380,7 +380,7 @@ otherwise honored.
 matcher returns marquee candidates but none address what the user
 just said they care about, e.g. user says "Twilio rate-limits
 keep me up at night" but matcher returns @mur/digest-daily +
-@mur/reviewer): pair 1 marquee anchor (for cross-system context)
+@mur/dep-release-digest): pair 1 marquee anchor (for cross-system context)
 with up to 2 co-designed (for the named pain). Flag the gap in
 the propose framing: "No pre-built flow targets <named pain>
 specifically — anchoring with [marquee] for the cross-system
@@ -670,12 +670,11 @@ by the just-completed connect):
 ```
 Connected. I can watch your B2B SaaS for engineering teams now.
 
-The highest-leverage thing I see right now: PR #142 (yours, no
-review in 5 days) is sitting in front of a payment-touching
-change. My read is **reviewer** would catch this and the next
-one — auto-comments on every PR with first-pass review. Hosted
-in our TEE; ~$0.05/PR, free if you'd rather emit the GH workflow
-yourself.
+The highest-leverage thing I see right now: 4 open PRs and 12 stale
+TODOs in src/billing/. My read is **digest-daily** would surface
+the right one to look at each morning — overnight roll-up across
+GitHub + the systems you connect, top 3 things to look at first
+thing. Hosted in our TEE; pricing varies by sources connected.
 
 Want me to install it? Or just say what fits:
   · "poke at <thing>" — I'll dig in

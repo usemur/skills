@@ -537,8 +537,8 @@ of these failing should fail the scan.
    and translate each tool's rows into `local_resources.<tool>`
    shape. Tools and what to populate:
 
-   - **gh** (scans: `gh pr list --author @me`, `gh pr list --search review-requested:@me`, `gh issue list --assignee @me`, `gh run list --status failure`)
-     - Populate `local_resources.github = { authed: true, open_prs: [...], review_requested_prs: [...], open_issues: [...], failing_runs: [...] }`.
+   - **gh** (scans: `gh pr list --author @me`, `gh pr list --search review-requested:@me`, `gh issue list --assignee @me`)
+     - Populate `local_resources.github = { authed: true, open_prs: [...], review_requested_prs: [...], open_issues: [...] }`.
      - **Field-name transform.** `gh --json` returns camelCase
        (`isDraft`, `reviewDecision`, `updatedAt`,
        `reviewRequests`, `defaultBranchRef`); snake_case in
@@ -819,8 +819,7 @@ Schema (keep field names stable — downstream prompts depend on them):
       "repo": {"description": "...", "default_branch": "main", "visibility": "private"},
       "open_issues": [{"number": 42, "title": "...", "labels": [], "updated_at": "...", "author": {"login": "..."}}],
       "open_prs": [{"number": 17, "title": "...", "is_draft": false, "review_decision": "REVIEW_REQUIRED", "updated_at": "...", "author": {"login": "..."}, "requested_reviewers": ["alice", "bob"]}],
-      "review_requested_prs": [{"number": 91, "title": "...", "url": "https://github.com/..."}],
-      "failing_runs": [{"name": "ci", "createdAt": "...", "url": "https://github.com/.../actions/runs/..."}]
+      "review_requested_prs": [{"number": 91, "title": "...", "url": "https://github.com/..."}]
     },
     "eng_pulse": {
       "authed": true,
