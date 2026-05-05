@@ -143,11 +143,51 @@ to push to last.
    > dashboard at usemur.dev/dashboard/vault to pick repos in the
    > GitHub UI." Then stop — do not fall back to the unscoped path.
 
-2. **POST `/api/integrations/github-app/start`** with body
+2. **GET `/api/integrations/github-app/lookup?repo=owner/name`** —
+   detect whether the founder already has a Mur App install that
+   covers this repo before forcing them through OAuth. Branch on
+   `status` from the response:
+
+   - **`already-scoped`** → already done. Confirm and skip to
+     "After connect":
+     > "Already connected on `<install.accountLogin>` — `owner/name`
+     > is in your watched list. Nothing to do."
+
+   - **`scopable`** → granted but not yet in scope. **POST**
+     `/api/integrations/github-app/scope` with body
+     `{ "installationId": <install.installationId>,
+        "scopedRepoFullNames": [...install.scopedRepoFullNames, "owner/name"] }`.
+     On 200, confirm and skip to "After connect":
+     > "Already connected on `<install.accountLogin>` — added
+     > `owner/name` to the watched list."
+
+     No browser. No OAuth. No PendingInstall row. This is the dominant
+     human-user fast path (second repo on an already-connected org).
+
+   - **`needs-grant`** → install exists but the granted-repos set
+     doesn't include this one (selection='selected'). Tell the user
+     before opening GitHub:
+     > "You've got the Mur App installed on `<install.accountLogin>`
+     > but it doesn't have access to `owner/name` yet. Opening
+     > GitHub so you can add it to the granted-repos list."
+
+     Then fall through to step 3 below (POST /start). The OAuth
+     "configure" flow lets them widen the granted set on the
+     existing installation.
+
+   - **`installed-by-other`** → an install exists on this org but
+     under a different developer's account (teammate, or same human
+     on a new device). Tell the user, then fall through:
+     > "There's already a Mur App install on `<accountLogin>` under
+     > a different account. I'll start a fresh install for you."
+
+   - **`not-installed`** → fall through to step 3 (current default).
+
+3. **POST `/api/integrations/github-app/start`** with body
    `{ "scopedRepoFullName": "owner/name" }` and the same auth +
    project-id headers. Response: `{ installUrl, scopedRepoFullName }`.
 
-3. Print the `installUrl` and open it in the browser. The user picks
+4. Print the `installUrl` and open it in the browser. The user picks
    "Only select repositories" + their project on github.com. After
    they confirm, GitHub redirects them back to
    `/api/integrations/github-app/installed`. The server validates the
@@ -155,7 +195,7 @@ to push to last.
    pins the row to `owner/name` even if they accidentally selected
    more repos in the GitHub UI.
 
-4. **Poll `GET /api/integrations/github-app/list`** every 3s, up to
+5. **Poll `GET /api/integrations/github-app/list`** every 3s, up to
    60s. When `installs[]` contains an entry whose
    `scopedRepoFullNames` includes `"owner/name"` (or `installationId`
    is freshly populated for the active developer), confirm to the user:
@@ -163,7 +203,7 @@ to push to last.
    > scan only this repo. You can add more repos later from the
    > dashboard's vault page."
 
-5. Skip the rest of the Composio walk-through. Jump to the "After
+6. Skip the rest of the Composio walk-through. Jump to the "After
    connect" section below for the Day-0 backfill prompt.
 
 ### General path (every app slug other than `github`)
