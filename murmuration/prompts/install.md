@@ -90,7 +90,20 @@ optionally an agent name + budget cap:
 
 - `slug` — required. Either a registry-style slug like `@mur/langfuse-host`
   or a plain `Flow.slug` like `langfuse-host`. The install endpoint
-  normalizes both.
+  normalizes both. **Don't guess slug shapes** — agents that POST a
+  reasonable-looking slug like `daily-digest` get a 404 because the
+  canonical slug is `digest-daily` (words swapped). When the caller
+  hands you anything that doesn't exactly match a known canonical
+  slug, fetch the catalog first:
+
+  ```
+  curl -s https://usemur.dev/api/flows/registry
+  ```
+
+  The response is `{ flows: [{ slug, name, description, kind }, ...] }`
+  with every native cofounder flow + every published marketplace flow.
+  Pick the slug whose `name`/`description` matches what the caller
+  actually wants.
 - `actingAgent` — optional. Defaults to `claude-code` when invoked from
   a Claude Code session, `user` when typed directly by the user.
   Auto-detect: if the user typed `install <slug>` themselves, use
@@ -221,6 +234,100 @@ straight to the "now active" message + step 5.
 Some cofounder flows need additional one-time configuration after
 the `enabled` gate is flipped. Run these blocks based on `flow.slug`
 BEFORE the "now active" message above and step 5.
+
+#### `digest-daily`
+
+The digest is only as rich as the connected sources behind it. The
+moment after install is the right place to surface the connections the
+founder *could* have today — not the right place to ship a thin digest
+and hope they wander into `/connect` later. Walk through this every
+time `digest-daily` is installed.
+
+**1. Find the local CLI scan results.**
+
+Look for `<repo-root>/.murmur/scan-cli.jsonl`. The user's last `/mur`
+or `/mur scan` writes it.
+
+- **File exists:** read it directly. The scan-and-suggest hand-off is
+  best-effort enrichment, not a blocker — don't run a fresh scan from
+  the install path. The dominant flow (`/mur` → scan → recommend →
+  install) leaves a fresh JSONL on disk seconds before install fires.
+- **File missing:** skip this whole step, jump to "now active". The
+  digest install itself succeeded; we just have nothing to surface.
+
+**2. Compute the unconnected-but-detectable set.**
+
+For each row in the JSONL where `ok === true`:
+
+1. Look up the connector slug via `<skill-dir>/scripts/cli-to-connector.mjs`
+   (`CLI_TO_CONNECTOR[row.tool]`). Skip rows that don't map to anything
+   (the map only includes CLIs whose connector ships in the Composio
+   catalog today).
+2. Drop entries where the connector slug is `github` — the native
+   Murmur Cofounder GitHub App handles GitHub end-to-end, no Composio
+   bridge involved.
+3. Dedupe (a tool with multiple data-fetch commands emits multiple
+   `ok: true` rows; collapse to one slug per connector). Then collect
+   the remaining slugs.
+
+If the resulting set is empty, skip step 3 and jump to "now active".
+
+**3. Cross-reference against server-side connection state.**
+
+```
+GET /api/connections/check?apps=<comma-joined-slugs>
+```
+
+Filter the response to apps whose `status === 'missing'`. If the
+filtered set is empty, jump to "now active" — the user already
+connected everything they have CLIs for. Nothing to surface.
+
+**4. Format a deep-link per remaining slug.**
+
+Do NOT POST `/api/installs/pending/start` from this prompt. The frontend
+`ConnectPage` does that POST itself when the user clicks the link, with
+the `install` query param treated as the `automationId`. POSTing here
+too would create a duplicate PendingInstall row keyed under the WRONG
+automationId, and the bootstrap pickup would later try to install a
+slug like `cpi_xxx` and 404.
+
+Just render the URL directly:
+
+```
+https://usemur.dev/connect/<connector>?install=digest-daily-followup&project=<projectId>
+```
+
+For `<projectId>`, prefer the `projectId` field on the `/api/flows/install`
+201 response — cofounder installs include it directly on the `install`
+object (the install path at `installs.routes.ts:396` adds it). Fall
+back to the project context resolved by `_bootstrap.md` only if the
+response field is absent.
+
+**5. Render the co-list.**
+
+Render in chief-of-staff voice — direct, no internal terms, end with
+a clear question. Example:
+
+> Daily Digest is on. I noticed you have **Stripe** and **Vercel**
+> CLIs authed locally but they aren't connected to Mur yet. Each one
+> would make tomorrow's digest richer:
+>
+> - **Stripe** — revenue + new-customer pulse: `<deep-link>`
+> - **Vercel** — deploy + build-failure summary: `<deep-link>`
+>
+> Click any link and the OAuth happens in your browser — I'll pick
+> the connection up the next time you run /mur. Want me to wait, or
+> shall we set up something else first?
+
+Never push past two or three suggestions in one render — pick the
+top by founder-impact-likelihood (Stripe > Linear > others) if the
+filtered set is longer.
+
+**6. Continue to step 5 (record locally).**
+
+Don't block the install on whether the user clicks the deep-links.
+The digest is on regardless; this hand-off only invites them to
+make tomorrow's version better.
 
 #### `sentry-autofix`
 

@@ -181,6 +181,20 @@ export const BUILTIN_SCANS = [
       { cmd: 'modal', args: ['app', 'list'] },
     ],
   },
+  {
+    // sentry-cli is the official CLI. `sentry-cli info` exits 0 when
+    // configured against an org and prints the org/project context.
+    // Detection only — the digest install hand-off uses presence to
+    // suggest connecting Sentry, but the Composio connector slug
+    // 'sentry' isn't shipped yet (composio.service.ts V2 staging at
+    // line 117). When it lands, add a real probe (e.g.
+    // `sentry-cli issues list --status unresolved --limit 5`).
+    tool: 'sentry-cli',
+    authCheck: { cmd: 'sentry-cli', args: ['info'] },
+    commands: [
+      { cmd: 'sentry-cli', args: ['info'] },
+    ],
+  },
 ];
 
 // ─── Process spawn helpers ───────────────────────────────────────────
@@ -372,14 +386,21 @@ export function mergeScans(builtin, user) {
 
 // ─── Auth checks ─────────────────────────────────────────────────────
 
-async function isToolPresent(cmd) {
+async function isToolPresent(cmd, opts = {}) {
   // `command -v` is the POSIX way to check; spawn it via the shell.
-  const result = await runCommand('sh', ['-c', `command -v ${cmd}`], { timeoutMs: 1_500 });
+  // Cap by remaining deadline budget when supplied — important for
+  // presence-only mode where the total budget is only 3s and a single
+  // hung CLI shouldn't blow it.
+  const cap = typeof opts.maxMs === 'number' ? Math.min(1_500, opts.maxMs) : 1_500;
+  if (cap <= 0) return false;
+  const result = await runCommand('sh', ['-c', `command -v ${cmd}`], { timeoutMs: cap });
   return result.ok && result.output.trim().length > 0;
 }
 
-async function isToolAuthed(scan) {
-  const result = await runCommand(scan.authCheck.cmd, scan.authCheck.args, { timeoutMs: 3_000 });
+async function isToolAuthed(scan, opts = {}) {
+  const cap = typeof opts.maxMs === 'number' ? Math.min(3_000, opts.maxMs) : 3_000;
+  if (cap <= 0) return false;
+  const result = await runCommand(scan.authCheck.cmd, scan.authCheck.args, { timeoutMs: cap });
   return result.ok;
 }
 
@@ -401,7 +422,11 @@ async function runScan(scan, repoRoot, deadline) {
     return rows;
   }
 
-  const present = await isToolPresent(scan.commands[0].cmd);
+  // Cap the presence check by remaining deadline budget so a single
+  // hung CLI can't starve the parallel fan-out.
+  const present = await isToolPresent(scan.commands[0].cmd, {
+    maxMs: deadline - Date.now(),
+  });
   if (!present) {
     rows.push(skipRow('tool not on PATH'));
     return rows;
@@ -412,7 +437,7 @@ async function runScan(scan, repoRoot, deadline) {
     return rows;
   }
 
-  const authed = await isToolAuthed(scan);
+  const authed = await isToolAuthed(scan, { maxMs: deadline - Date.now() });
   if (!authed) {
     rows.push(skipRow('tool not authenticated'));
     return rows;
