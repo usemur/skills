@@ -32,7 +32,10 @@ vi.mock('../../../src/db/client.js', () => ({
     flow: { findFirst: vi.fn() },
     userFlowInstall: { create: vi.fn(), findMany: vi.fn(), count: vi.fn(), deleteMany: vi.fn() },
     project: { findMany: vi.fn(async () => []) },
-    flowState: { findMany: vi.fn(async () => []) },
+    flowState: {
+      findMany: vi.fn(async () => []),
+      findFirst: vi.fn(async () => null),
+    },
     developer: {
       findUnique: vi.fn(async () => ({ sentryWebhookToken: null })),
       update: vi.fn(async () => ({})),
