@@ -5,7 +5,10 @@ import { parse as parseYaml } from 'yaml';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..', '..', '..');
-export const FLOWS_DIR = join(REPO_ROOT, 'skill-pack', 'registry', 'flows');
+// Flow catalog YAMLs moved server-side: nothing in the skill bundle
+// reads them, only the server (catalog) and the install-tests in this
+// directory. See plans/digest-inserts-and-automations.md.
+export const FLOWS_DIR = join(REPO_ROOT, 'src', 'services', 'flows', 'registry');
 
 export type FlowStatus = 'shipping' | 'building' | 'roadmap' | 'deprecated';
 

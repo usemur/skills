@@ -1,0 +1,9 @@
+slug: resend
+name: Resend
+patterns:
+  - manifest: package.json
+    field: dependencies
+    match: "^resend$"
+  - manifest: package.json
+    field: devDependencies
+    match: "^resend$"
