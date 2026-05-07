@@ -1,0 +1,15 @@
+slug: sentry
+name: Sentry
+patterns:
+  - manifest: package.json
+    field: dependencies
+    match: "^@sentry/"
+  - manifest: package.json
+    field: devDependencies
+    match: "^@sentry/"
+  - manifest: requirements.txt
+    match: "^sentry-sdk"
+  - manifest: pyproject.toml
+    match: "^sentry-sdk"
+  - manifest: Pipfile
+    match: "^sentry-sdk"

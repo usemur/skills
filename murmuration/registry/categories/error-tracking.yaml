@@ -1,7 +1,0 @@
-slug: error-tracking
-display_name: Error Tracking
-description: |
-  Capture uncaught exceptions, surface release-tagged regressions, and
-  link stack traces back to the commits that caused them.
-canonical_tools: [tools/sentry-oss.yaml]
-canonical_flows: []

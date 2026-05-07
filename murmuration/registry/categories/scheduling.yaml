@@ -1,7 +1,0 @@
-slug: scheduling
-display_name: Scheduling
-description: |
-  Booking, appointments, calendar embeds, group event coordination.
-  OSS alternative to Calendly + SavvyCal.
-canonical_tools: [tools/cal-com.yaml]
-canonical_flows: []

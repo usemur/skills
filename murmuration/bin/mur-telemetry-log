@@ -10,23 +10,15 @@
 #     --duration 12 --session-id "12345-1777680000"
 #
 # All flags (per skill-pack/registry/telemetry-vocab.md):
-#   --event-type        verb_run | flow_run | finding_shown | finding_action |
-#                       connect | consent_change | error | upgrade_prompted |
-#                       upgrade_completed (required)
-#   --outcome           success | error | abort | skipped | unknown (required)
-#   --verb              scan, recommend, digest, etc.
+#   --event-type        verb_run | upgrade_prompted | upgrade_completed (required)
+#   --outcome           success | error | abort | unknown (required)
+#   --verb              scan | connect
 #   --duration          integer seconds
 #   --session-id        opaque session id (PID + epoch is fine)
 #   --error-class       short error name (e.g. NetworkError)
 #   --error-message     free text — truncated to 200 chars before send
 #   --failed-step       short step identifier
-#   --finding-kind      see telemetry-vocab.md
-#   --finding-action    shown | opened | fixed | snoozed | rejected | automated
-#   --connector         github, stripe, linear, ...
-#   --automation-decision   offered | accepted | declined
-#   --flow-id           marketplace flow id
-#   --flow-source       local | marketplace
-#   --credits-charged   numeric (decimal ok)
+#   --connector         github, stripe, ... (target slug for connect events)
 #   --proposed-version  e.g. 0.2.0 (used by upgrade_prompted/upgrade_completed)
 #
 # Env overrides (testing):

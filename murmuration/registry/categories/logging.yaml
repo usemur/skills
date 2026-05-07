@@ -1,7 +1,0 @@
-slug: logging
-display_name: Logging
-description: |
-  Structured log collection + querying. Covers everything from
-  console.log shipping to multi-region log aggregation.
-canonical_tools: [tools/openobserve.yaml, tools/grafana-loki.yaml]
-canonical_flows: []

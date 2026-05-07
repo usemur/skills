@@ -1,0 +1,5 @@
+slug: github
+name: GitHub
+patterns:
+  - manifest: git-remote
+    match: "github\\.com"

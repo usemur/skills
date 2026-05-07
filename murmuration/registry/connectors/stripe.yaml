@@ -1,0 +1,21 @@
+slug: stripe
+name: Stripe
+patterns:
+  - manifest: package.json
+    field: dependencies
+    match: "^stripe$"
+  - manifest: package.json
+    field: devDependencies
+    match: "^stripe$"
+  - manifest: package.json
+    field: dependencies
+    match: "^@stripe/"
+  - manifest: package.json
+    field: devDependencies
+    match: "^@stripe/"
+  - manifest: requirements.txt
+    match: "^stripe$"
+  - manifest: pyproject.toml
+    match: "^stripe$"
+  - manifest: Pipfile
+    match: "^stripe$"

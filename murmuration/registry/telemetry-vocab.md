@@ -1,91 +1,38 @@
 # Telemetry controlled vocabulary
 
-Single source of truth for the values that may appear in `MurEvent` rows. The ingest
-endpoint (`src/api/routes/skillTelemetry.routes.ts`) validates incoming events
-against this vocab. Values not on the list are coerced to `unknown` (or rejected
-for `event_type` and `outcome`, which are required and enumerated).
+Single source of truth for the values `bin/mur-telemetry-log` emits.
+The ingest endpoint (`src/api/routes/skillTelemetry.routes.ts`)
+validates incoming events against this vocab and rejects unknown
+values for `event_type` and `outcome` (both required and enumerated).
 
-When you add a new verb / finding kind / connector, **add it here first**, then
-update `bin/mur-telemetry-log` callers in `SKILL.md`. Without this discipline the
-analytics layer fills with `stalePR` / `stale-pr` / `stale_pr` typos and stops being
-queryable.
+When you add a new emit point, add the new value here first, then
+update the matching server-side enum in `skillTelemetry.routes.ts`.
 
-Keys use `snake_case` for stored fields but the values are kebab-case where they
-mirror existing skill-pack identifiers (verb names, slugs).
+## `event_type` (required, enumerated)
 
-## `event_type` (required, enumerated — ingest rejects unknown values)
-
-| Value | Emitted when |
+| Value | Emitted from |
 |---|---|
-| `verb_run` | A user-facing verb dispatch completed (success, error, or abort) |
-| `flow_run` | A marketplace or local flow finished executing |
-| `finding_shown` | A finding rendered in the dual-render scan output |
-| `finding_action` | The user acted on a finding (opened / fixed / snoozed / rejected / automated) |
-| `connect` | A connector OAuth or paste-key step completed |
-| `consent_change` | The user toggled `~/.mur/config.yaml` `telemetry` |
-| `error` | An error surfaced to the user during a verb |
-| `upgrade_prompted` | The preamble detected `UPGRADE_AVAILABLE` and prompted the user |
-| `upgrade_completed` | A successful upgrade ran via `mur-upgrade` |
+| `verb_run` | SKILL.md preamble after `mur` or `mur connect <tool>` completes |
+| `upgrade_prompted` | `bin/mur-update-check` when a newer version is detected |
+| `upgrade_completed` | `mur-upgrade/SKILL.md` after a successful upgrade |
 
-## `outcome` (required, enumerated — ingest rejects unknown values)
+## `outcome` (required, enumerated)
 
 | Value | Meaning |
 |---|---|
 | `success` | Verb completed normally |
 | `error` | Verb hit an exception or returned an error response |
-| `abort` | User cancelled mid-flow (rejected a confirmation, killed the session) |
-| `skipped` | Verb short-circuited because the precondition failed (e.g. no scan.json) |
+| `abort` | User cancelled mid-flow |
 | `unknown` | Outcome could not be determined |
 
-## `verb` (skill verbs — extend when adding a new prompt)
+## `verb` (the two skill verbs)
 
-`scan`, `recommend`, `whoami`, `stack`, `digest`, `digest-deep`, `morning-check`,
-`approve`, `why`, `ask`, `later`, `connect`, `automate`, `contact-grapher`,
-`recommend-matcher`, `catalog`, `install`, `uninstall`, `bug-hunt`, `security-audit`,
-`consume-flow`, `publish-flow`, `configure-cooldown`, `plan` (legacy alias for
-`recommend`).
+`scan`, `connect`.
 
-## `finding_kind` (extracted from `prompts/scan.md` priority sort)
+## Optional fields
 
-| Value | Source rule |
-|---|---|
-| `security_risk` | Rule 1 — secrets risk on a money-flow / public-facing service |
-| `supply_chain_cooldown_gap` | Rule 2 — npm/pnpm/bun/uv release-age floor missing |
-| `pr_changes_requested` | Rule 3 — own PR with `CHANGES_REQUESTED` |
-| `pr_review_requested` | Rule 3 — someone else's PR requesting this user as reviewer |
-| `issue_high_signal` | Rule 4 — open issue with `bug` / `security` / `customer` / `p0` / `p1` |
-| `hotspot_file` | Rule 5 — a path in both `risky_patterns.hotspot_paths` and `git_activity.last_7d` |
-| `todos_updated` | Rule 6 — recently-touched `TODOS.md` / `ROADMAP.md` |
-| `llm_observability_gap` | Rule 7 — LLM SDKs detected, no obs tooling |
-| `stack_gap` | Rule 8 — missing error tracking / uptime monitoring on payments / public surface |
-| `publishable_outbound` | Rule 9 — outbound candidate worth publishing |
-
-## `finding_action`
-
-`shown` (auto-emitted when a finding renders), `opened`, `fixed`, `snoozed`,
-`rejected`, `automated`.
-
-## `connector`
-
-`github`, `stripe`, `linear`, `slack`, `gmail`, `google-calendar`, `google-drive`,
-`notion`, `vercel`, `railway`, `fly`, `openai`, `anthropic`, `posthog`, `sentry`,
-`twilio`, `weaviate`, `pylon`, `bootstrap` (synthetic — emitted on first-contact
-project register).
-
-## `automation_decision`
-
-`offered`, `accepted`, `declined`.
-
-## `flow_source`
-
-`local` (cron / launchd / GH workflow / gstack skill), `marketplace` (TEE-executed
-remote flow).
-
-## `host_agent`
-
-`claude-code`, `codex`, `cursor`, `unknown`.
-
-## `tier` (stored only on `consent_change` via `outcome` field shape)
-
-`off`, `anonymous`, `community`. Anonymous strips `installation_id` client-side
-before the POST.
+- `--duration` (integer seconds)
+- `--session-id` (opaque, PID + epoch)
+- `--proposed-version` (e.g. `0.2.0`, used by `upgrade_*` events)
+- `--connector` (target slug for connect events: `github`, `stripe`, etc.)
+- `--error-class`, `--error-message`, `--failed-step` (set when `outcome=error`)

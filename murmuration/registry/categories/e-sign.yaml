@@ -1,7 +1,0 @@
-slug: e-sign
-display_name: E-Sign
-description: |
-  Contract / agreement signature flows. Open-standard alternatives
-  to DocuSign that keep your data in your infra.
-canonical_tools: [tools/documenso.yaml]
-canonical_flows: []

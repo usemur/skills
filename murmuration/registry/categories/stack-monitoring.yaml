@@ -1,7 +1,0 @@
-slug: stack-monitoring
-display_name: Stack Monitoring
-description: |
-  Watch the third-party services your stack depends on. Subscribe to
-  their changelogs, status feeds, security advisories. Daily summary.
-canonical_tools: []
-canonical_flows: [flows/mur-rss-watch.yaml]
