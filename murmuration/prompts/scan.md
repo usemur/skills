@@ -38,8 +38,13 @@ names against the connector registry at
 node <skill-dir>/scripts/dep-scans.mjs --repo-root "$PWD"
 ```
 
-The script writes `<repo-root>/.murmur/scan-deps.jsonl`. Each row:
-`{ slug, name, source, evidence }`.
+The script writes two files:
+- `<repo-root>/.murmur/scan-deps.jsonl` — one row per matched
+  connector: `{ slug, name, source, evidence }`.
+- `<repo-root>/.murmur/scan-deps-raw.jsonl` — one row per parsed
+  manifest entry: `{ name, version, ecosystem, kind, manifestPath }`.
+  Used by the server for tool-targeted automation suggestions and
+  security-advisory alerts.
 
 The connector registry is the extension point. To add support for a
 new service, drop a YAML at `<skill-dir>/registry/connectors/<slug>.yaml`
@@ -52,6 +57,10 @@ Author `projectProfile`:
 - **`tools`** — read `.murmur/scan-deps.jsonl` and convert each row
   into a `ToolFound` entry (`name`, `slug`, `source`, `evidence`).
   GitHub is detected via the `git-remote` pattern in `github.yaml`.
+- **`dependencies`** — read `.murmur/scan-deps-raw.jsonl` and pass
+  each row through verbatim. Each row is already
+  `{ name, version, ecosystem, kind, manifestPath }`. Don't filter
+  or re-shape — the server uses the full list.
 - **`summary`** — one paragraph in plain English. Read `README.md`
   (top portion), `package.json` `description`, and the last ~10
   commit subjects (`git log --oneline -10`). Describe what the
@@ -84,7 +93,7 @@ POST /api/projects/profile
 Authorization: Bearer <account key>
 {
   "projectId": "<projectId>",
-  "profile": { summary, category, role, teammates, tools }
+  "profile": { summary, category, role, teammates, tools, dependencies }
 }
 ```
 

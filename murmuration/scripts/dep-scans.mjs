@@ -28,6 +28,10 @@
 // Output:
 //   - Writes JSONL to <repo-root>/.murmur/scan-deps.jsonl, one row
 //     per detected tool: { slug, name, source, evidence }.
+//   - Writes JSONL to <repo-root>/.murmur/scan-deps-raw.jsonl, one
+//     row per parsed manifest entry:
+//       { name, version, ecosystem, kind, manifestPath }
+//     Used server-side for tool-targeting + security advisories.
 //   - Also prints a single-line JSON status to stdout on exit.
 //
 // Usage:
@@ -185,6 +189,169 @@ export function parsePipfile(text) {
     if (eq <= 0) continue;
     const name = line.slice(0, eq).trim().replace(/^["']|["']$/g, '');
     if (name) out.push(name);
+  }
+  return out;
+}
+
+// ─── Detailed dep extraction (with versions) ─────────────────────────
+//
+// The parsers above return bare name lists — that's what the
+// connector matcher needs. The functions below return rich entries
+// with versions + dev/prod classification. They are best-effort:
+// when a manifest uses a non-trivial value shape (e.g. Pipfile/Poetry
+// table form `foo = { version = "1.0", ... }`) we leave version null
+// rather than guess. The server can still target the package by name.
+
+const DEP_KIND_BY_PJ_FIELD = {
+  dependencies: 'prod',
+  devDependencies: 'dev',
+  peerDependencies: 'peer',
+};
+
+/** Detailed parser for package.json. Returns [{ name, version, kind }]. */
+export function extractPackageJsonDetailed(text) {
+  const out = [];
+  let json;
+  try { json = JSON.parse(text); } catch { return out; }
+  if (!json || typeof json !== 'object') return out;
+  for (const field of Object.keys(DEP_KIND_BY_PJ_FIELD)) {
+    const obj = json[field];
+    if (!obj || typeof obj !== 'object') continue;
+    for (const [name, version] of Object.entries(obj)) {
+      out.push({
+        name,
+        version: typeof version === 'string' ? version : null,
+        kind: DEP_KIND_BY_PJ_FIELD[field],
+      });
+    }
+  }
+  return out;
+}
+
+/** Detailed parser for requirements.txt. Returns [{ name, version, kind }]. */
+export function extractRequirementsTxtDetailed(text) {
+  const out = [];
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/#.*/, '').trim();
+    if (!line) continue;
+    if (line.startsWith('-')) continue;
+    // Split off env markers / extras first, then peel off the version specifier.
+    const head = line.split(';')[0].trim();
+    const m = head.match(/^([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*([<>=!~].*)?$/);
+    if (!m) continue;
+    const name = m[1];
+    const version = m[2] ? m[2].trim() : null;
+    if (name) out.push({ name, version, kind: 'prod' });
+  }
+  return out;
+}
+
+/** Detailed parser for pyproject.toml. PEP 621 + Poetry tables. */
+export function extractPyprojectDetailed(text) {
+  const out = [];
+  // PEP 621 [project].dependencies = ["foo>=1.0", "bar"]
+  const pep621 = text.match(/^\s*dependencies\s*=\s*\[([\s\S]*?)\]/m);
+  if (pep621) {
+    for (const m of pep621[1].matchAll(/["']([^"']+)["']/g)) {
+      const entry = m[1].trim();
+      const parts = entry.split(';')[0].trim();
+      const nm = parts.match(/^([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?\s*([<>=!~].*)?$/);
+      if (!nm) continue;
+      out.push({
+        name: nm[1],
+        version: nm[2] ? nm[2].trim() : null,
+        kind: 'prod',
+      });
+    }
+  }
+  // Poetry [tool.poetry.dependencies] / dev-dependencies. Values are
+  // either a simple version string ("^1.0") or an inline table; we
+  // only capture the simple-string form for version.
+  for (const { section, line } of tomlLines(text)) {
+    if (!/^tool\.poetry(\..+)?\.(dependencies|dev-dependencies)$/.test(section)) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const name = line.slice(0, eq).trim().replace(/^["']|["']$/g, '');
+    if (!name || name === 'python') continue;
+    const rhs = line.slice(eq + 1).trim();
+    let version = null;
+    if (/^["'].*["']$/.test(rhs)) {
+      version = rhs.slice(1, -1);
+    }
+    const kind = section.endsWith('dev-dependencies') ? 'dev' : 'prod';
+    out.push({ name, version, kind });
+  }
+  return out;
+}
+
+/** Detailed parser for Pipfile. */
+export function extractPipfileDetailed(text) {
+  const out = [];
+  for (const { section, line } of tomlLines(text)) {
+    if (section !== 'packages' && section !== 'dev-packages') continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const name = line.slice(0, eq).trim().replace(/^["']|["']$/g, '');
+    if (!name) continue;
+    const rhs = line.slice(eq + 1).trim();
+    let version = null;
+    if (/^["'].*["']$/.test(rhs)) {
+      version = rhs.slice(1, -1);
+    }
+    out.push({
+      name,
+      version,
+      kind: section === 'dev-packages' ? 'dev' : 'prod',
+    });
+  }
+  return out;
+}
+
+const ECOSYSTEM_BY_MANIFEST = {
+  'package.json': 'npm',
+  'requirements.txt': 'pypi',
+  'pyproject.toml': 'pypi',
+  'Pipfile': 'pypi',
+};
+
+const MAX_DEPENDENCIES = 2000;
+
+/**
+ * Walk all manifests under repoRoot and return rich dep entries.
+ * Dedupes on (manifestPath, name, kind) so a package listed once per
+ * manifest yields one row even when read multiple times.
+ */
+export async function extractDependencies(repoRoot) {
+  const manifests = await findManifests(repoRoot);
+  const out = [];
+  const seen = new Set();
+  for (const path of manifests) {
+    const name = basename(path);
+    const ecosystem = ECOSYSTEM_BY_MANIFEST[name];
+    if (!ecosystem) continue;
+    let text;
+    try { text = await readFile(path, 'utf8'); } catch { continue; }
+    let entries = [];
+    if (name === 'package.json') entries = extractPackageJsonDetailed(text);
+    else if (name === 'requirements.txt') entries = extractRequirementsTxtDetailed(text);
+    else if (name === 'pyproject.toml') entries = extractPyprojectDetailed(text);
+    else if (name === 'Pipfile') entries = extractPipfileDetailed(text);
+    const relPath = path.startsWith(repoRoot)
+      ? path.slice(repoRoot.length).replace(/^[\\/]/, '')
+      : path;
+    for (const e of entries) {
+      const key = `${relPath}:${e.name}:${e.kind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name: e.name,
+        version: e.version,
+        ecosystem,
+        kind: e.kind,
+        manifestPath: relPath,
+      });
+      if (out.length >= MAX_DEPENDENCIES) return out;
+    }
   }
   return out;
 }
@@ -353,10 +520,10 @@ export async function scanRepo({ repoRoot, registryDir }) {
   return rows;
 }
 
-async function writeJsonl(rows, repoRoot) {
+async function writeJsonl(rows, repoRoot, filename = 'scan-deps.jsonl') {
   const dir = join(repoRoot, '.murmur');
   await mkdir(dir, { recursive: true });
-  const path = join(dir, 'scan-deps.jsonl');
+  const path = join(dir, filename);
   const text = rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : '');
   await writeFile(path, text, 'utf8');
   return path;
@@ -384,7 +551,11 @@ async function main() {
   try {
     const rows = await scanRepo({ repoRoot, registryDir });
     const path = await writeJsonl(rows, repoRoot);
-    process.stdout.write(JSON.stringify({ ok: true, rows: rows.length, path }) + '\n');
+    const deps = await extractDependencies(repoRoot);
+    const depsPath = await writeJsonl(deps, repoRoot, 'scan-deps-raw.jsonl');
+    process.stdout.write(
+      JSON.stringify({ ok: true, rows: rows.length, path, deps: deps.length, depsPath }) + '\n',
+    );
     process.exit(0);
   } catch (err) {
     process.stderr.write(`dep-scans harness error: ${err && err.message ? err.message : String(err)}\n`);
