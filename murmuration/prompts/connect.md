@@ -66,7 +66,27 @@ X-Mur-Project-Id: <projectId>
   `<install.accountLogin>`. Nothing to do." Stop. ("Re-auth" for the
   native App means re-installing — only useful when something is
   actually broken. Don't trigger it pre-emptively.)
-- Anything else → render the dashboard hand-off and open it:
+- `installed-by-other` → render the join hand-off and open it:
+
+  ```
+  GitHub App is already installed on <accountLogin> (originally by
+  @<installer.login>). Click "Join @<accountLogin>" in your dashboard
+  (don't click Install — GitHub will dead-end you on the App settings
+  page):
+
+    https://usemur.dev/dashboard/vault?tab=apps
+
+  Type `done` when you've joined and I'll re-check.
+  ```
+
+  The dashboard's Join button is labeled with the org/account login
+  (`@<accountLogin>`), not the installer's username — match that exactly
+  so the user knows which button to click. Drop the
+  "(originally by @<installer.login>)" clause when installer is null.
+  Skip step 4's "Connecting <tool>" framing — that's Composio-only.
+  (Path B — see `_deep-link.md`.)
+- Anything else (`scopable`, `needs-grant`, `not-installed`) → render
+  the dashboard hand-off and open it:
 
   ```
   GitHub: finish setup in your dashboard.
@@ -76,11 +96,8 @@ X-Mur-Project-Id: <projectId>
   Type `done` when you've finished there and I'll re-check.
   ```
 
-  When status is `installed-by-other`, prefix the first line with
-  `connected by @<installer.login> on <accountLogin>` (drop the
-  `@<installer.login>` clause when null) so the user knows they're
-  joining a teammate's install. Skip step 4's "Connecting <tool>"
-  framing — that's Composio-only. (Path B — see `_deep-link.md`.)
+  Skip step 4's "Connecting <tool>" framing — that's Composio-only.
+  (Path B — see `_deep-link.md`.)
 
 The skill never POSTs `/api/integrations/github-app/start` and never
 emits a github.com URL.
