@@ -19,3 +19,5 @@ patterns:
     match: "^stripe$"
   - manifest: Pipfile
     match: "^stripe$"
+  - manifest: Cargo.toml
+    match: "^(async-stripe|stripe-rust|stripe)$"

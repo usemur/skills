@@ -30,8 +30,8 @@ Run `_bootstrap.md`. Resolves `projectId`.
 ### 2. Detect tools (manifest scan)
 
 Run the dep scan. It walks the repo's manifest files (`package.json`,
-`requirements.txt`, `pyproject.toml`, `Pipfile`) and matches package
-names against the connector registry at
+`requirements.txt`, `pyproject.toml`, `Pipfile`, `Cargo.toml`) and
+matches package names against the connector registry at
 `<skill-dir>/registry/connectors/*.yaml`.
 
 ```bash

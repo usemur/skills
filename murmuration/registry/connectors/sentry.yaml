@@ -13,3 +13,5 @@ patterns:
     match: "^sentry-sdk"
   - manifest: Pipfile
     match: "^sentry-sdk"
+  - manifest: Cargo.toml
+    match: "^sentry($|-)"

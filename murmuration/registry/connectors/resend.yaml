@@ -7,3 +7,5 @@ patterns:
   - manifest: package.json
     field: devDependencies
     match: "^resend$"
+  - manifest: Cargo.toml
+    match: "^(resend-rs|resend)$"

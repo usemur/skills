@@ -12,6 +12,8 @@
 //   - requirements.txt
 //   - pyproject.toml ([project] dependencies + Poetry deps)
 //   - Pipfile ([packages] + [dev-packages])
+//   - Cargo.toml ([dependencies], [dev-dependencies], [build-dependencies],
+//                 [workspace.dependencies], [target.*.dependencies])
 //   - git remote (origin) — for the `git-remote` pattern type
 //
 // What we DON'T do:
@@ -57,6 +59,7 @@ const MANIFEST_NAMES = new Set([
   'requirements.txt',
   'pyproject.toml',
   'Pipfile',
+  'Cargo.toml',
 ]);
 
 // ─── Connector registry ──────────────────────────────────────────────
@@ -193,6 +196,32 @@ export function parsePipfile(text) {
   return out;
 }
 
+// Cargo dep sections: [dependencies], [dev-dependencies], [build-dependencies],
+// [workspace.dependencies], and the target-conditional forms
+// [target.<spec>.dependencies] / dev-dependencies / build-dependencies.
+const CARGO_DEP_SECTION_RE = /^(dependencies|dev-dependencies|build-dependencies|workspace\.dependencies|target\..+\.(dependencies|dev-dependencies|build-dependencies))$/;
+
+function cargoSectionKind(section) {
+  // Build- and dev-dependencies aren't shipped in the published binary,
+  // so neither runs in production — both classify as 'dev'.
+  if (/(?:^|\.)dev-dependencies$/.test(section)) return 'dev';
+  if (/(?:^|\.)build-dependencies$/.test(section)) return 'dev';
+  return 'prod';
+}
+
+/** Parse Cargo.toml — flat name list across all dependency sections. */
+export function parseCargoToml(text) {
+  const out = [];
+  for (const { section, line } of tomlLines(text)) {
+    if (!CARGO_DEP_SECTION_RE.test(section)) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const name = line.slice(0, eq).trim().replace(/^["']|["']$/g, '');
+    if (name) out.push(name);
+  }
+  return out;
+}
+
 // ─── Detailed dep extraction (with versions) ─────────────────────────
 //
 // The parsers above return bare name lists — that's what the
@@ -307,11 +336,37 @@ export function extractPipfileDetailed(text) {
   return out;
 }
 
+/** Detailed parser for Cargo.toml. Captures simple-string versions and
+ *  pulls `version = "..."` out of single-line inline tables. Leaves
+ *  version null for `{ workspace = true }`, git/path deps, or any
+ *  inline table without a literal version field. */
+export function extractCargoTomlDetailed(text) {
+  const out = [];
+  for (const { section, line } of tomlLines(text)) {
+    if (!CARGO_DEP_SECTION_RE.test(section)) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const name = line.slice(0, eq).trim().replace(/^["']|["']$/g, '');
+    if (!name) continue;
+    const rhs = line.slice(eq + 1).trim();
+    let version = null;
+    if (/^["'].*["']$/.test(rhs)) {
+      version = rhs.slice(1, -1);
+    } else if (rhs.startsWith('{')) {
+      const m = rhs.match(/(?:^|[{,\s])version\s*=\s*["']([^"']+)["']/);
+      if (m) version = m[1];
+    }
+    out.push({ name, version, kind: cargoSectionKind(section) });
+  }
+  return out;
+}
+
 const ECOSYSTEM_BY_MANIFEST = {
   'package.json': 'npm',
   'requirements.txt': 'pypi',
   'pyproject.toml': 'pypi',
   'Pipfile': 'pypi',
+  'Cargo.toml': 'crates',
 };
 
 const MAX_DEPENDENCIES = 2000;
@@ -336,6 +391,7 @@ export async function extractDependencies(repoRoot) {
     else if (name === 'requirements.txt') entries = extractRequirementsTxtDetailed(text);
     else if (name === 'pyproject.toml') entries = extractPyprojectDetailed(text);
     else if (name === 'Pipfile') entries = extractPipfileDetailed(text);
+    else if (name === 'Cargo.toml') entries = extractCargoTomlDetailed(text);
     const relPath = path.startsWith(repoRoot)
       ? path.slice(repoRoot.length).replace(/^[\\/]/, '')
       : path;
@@ -456,6 +512,7 @@ export async function scanRepo({ repoRoot, registryDir }) {
     'requirements.txt': [],
     'pyproject.toml': [],
     'Pipfile': [],
+    'Cargo.toml': [],
   };
   /** Map of manifest filename → first match path, for evidence display. */
   const manifestPaths = {};
@@ -476,6 +533,8 @@ export async function scanRepo({ repoRoot, registryDir }) {
       data[name].push(...parsePyproject(text));
     } else if (name === 'Pipfile') {
       data[name].push(...parsePipfile(text));
+    } else if (name === 'Cargo.toml') {
+      data[name].push(...parseCargoToml(text));
     }
   }
 
