@@ -22,23 +22,58 @@ Makes Branch C richer than "you're set up." Two suggestion shapes:
 
 Two sources, ranked, capped at 5.
 
-### Source 1 — catalog (`registry/flows/*.yaml`)
+### Source 1 — server matches (the `automations` array)
 
-Filter to `recommended: true` AND `status: shipping` AND (best-effort)
-`detection.category_signals` / `presence_signals` plausibly match the
-user's `projectProfile.tools` from scan.md.
+The server returns the ranked, deterministic match list as the
+`automations` field of the most recent `POST /api/projects/profile`
+response (cached in scan.md's output). **Don't invent
+recommendations** — render only what the server returned.
 
-For each match, build an active suggestion:
+Each match looks like:
 
+```json
+{
+  "slug": "reviewer",
+  "name": "LLM PR Reviewer",
+  "oneLiner": "Reviews every PR ...",
+  "reason": "GitHub is connected (...). ...",
+  "flowSlug": "@mur/reviewer",
+  "status": "available" | "installed" | "needs-resume" | "connect-to-unlock" | "coming-soon",
+  "installState": "not-installed" | "active" | "paused" | "errored",
+  "fit": { "score": 75, "requiredMet": true, "optionalMatched": ["sentry"], "categoryBoosted": true },
+  "unlocked": [{ "slug": "github", "provides": "..." }],
+  "upsell":   [{ "slug": "sentry", "provides": "..." }],
+  "setupInstructions": "..."
+}
 ```
-Want me to set up <flow.display_name>? <one-line from
-flow.reason_template, first sentence>. Reply yes and I'll wire it.
-```
 
-Drop matches the user has already installed. Truth source:
-`GET /api/installed`. (YAML `presence_signals` aren't enough — the
-install path doesn't write a marker file, so a presence check would
-re-suggest installed flows.)
+**Render rules — one per status:**
+
+- **`available`** — required tools connected, automation not
+  installed. Render as: "Enable <name>? <reason>". CTA is **"Enable"
+  / "Install"** — never "Connect X." Re-prompting connect for tools
+  the user already has is the failure mode. Render any `upsell`
+  entries as "you could also get …" so the user knows which optional
+  tools would deepen the automation.
+- **`needs-resume`** — installed but `paused` or `errored`. Render
+  as: "<name> is paused — resume?" CTA is the automation-specific
+  resume endpoint (e.g. `POST /api/welcome-flow/resume`,
+  `POST /api/churn-flow/resume`). Don't offer install — the
+  automation is already configured.
+- **`connect-to-unlock`** — required tool missing. **Collapse all
+  recs in this status into one line per missing tool.** Example:
+  "Connect GitHub to enable: PR reviewer, weekly founder update,
+  sentry autofix." One CTA → kick off `mur connect <tool>`. Without
+  the collapse, a fresh-install user sees the same connect-CTA five
+  times.
+- **`installed`** — already running and healthy. Don't render in
+  Branch C. Surface in `/mur status` instead.
+- **`coming-soon`** — handler not built yet. Render the one-liner as
+  "coming soon" with no install offer.
+
+**Ordering.** Show top 3 *actionable* matches (status ∈
+{`available`, `needs-resume`, `connect-to-unlock`}) by `fit.score`
+descending. If the user says "more," show the next 2.
 
 ### Source 2 — gstack-aware passive suggestions
 
@@ -55,13 +90,15 @@ If gstack isn't installed, skip silently.
 
 ### Ranking
 
-1. Active automations matching ALL their required tools.
-2. Active automations matching SOME required tools.
+1. Server matches with `status: 'available'` or `'needs-resume'`,
+   ordered by `fit.score` descending (alphabetical slug on ties).
+2. The collapsed `connect-to-unlock` line(s), one per missing tool.
 3. Passive gstack suggestions tied to immediate state.
 4. Passive gstack suggestions tied to longer-cycle state.
 
-Ties → alphabetical slug. No state tracking — same input always
-produces the same ranking.
+Server matches are deterministic — same connection set + project
+install state in → identical array out. If the server returns
+nothing actionable, fall back to passive gstack hints.
 
 ## Render
 
@@ -80,9 +117,18 @@ Reply with "yes" + the number to set one up, or just keep going.
 Cap at 3-5 visible. Extras surface next `mur` after the user
 installs (or ignores) the current batch.
 
-## "Yes" handler — active install
+## "Yes" handler — branch by status
 
-When the user says "yes <number>" or "yes set up <slug>":
+When the user says "yes <number>" or "yes set up <slug>", look up the
+match's `status`:
+
+- **`available`** → install path (steps 1–3 below). Use the match's
+  `flowSlug` (e.g. `@mur/reviewer`) as the install request body.
+- **`needs-resume`** → call the automation-specific resume endpoint
+  (`POST /api/welcome-flow/resume`, `POST /api/churn-flow/resume`,
+  etc.). Don't call `/api/flows/install`. Confirm + stop.
+- **`connect-to-unlock`** → kick off `mur connect <tool>` for the
+  missing required tool. Don't try to install.
 
 ### 1. Install
 
@@ -127,10 +173,9 @@ If absent, skip.
 
 - **Account key missing.** Defensive — re-read `~/.murmur/account.json`
   at the top of the yes handler; if gone, route to scan.md.
-- **No automations matched.** Source 1 empty. If Source 2 also
-  empty, render "Nothing new to suggest right now. Re-run `mur`
-  after you ship something or change your stack and I'll have more."
-  No fabricated suggestions.
-- **Catalog YAML parse error.** Surface the offending file path and
-  continue with whatever YAMLs did parse.
+- **No automations matched.** `automations` array empty or every
+  entry is `installed`/`coming-soon`. If Source 2 is also empty,
+  render "Nothing new to suggest right now. Re-run `mur` after you
+  ship something or change your stack and I'll have more." No
+  fabricated suggestions.
 - **gstack-aware check throws.** Skip Source 2 silently.
