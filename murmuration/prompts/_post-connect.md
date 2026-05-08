@@ -156,7 +156,10 @@ If present:
 - Render `setupInstructions.steps[]` verbatim as a numbered list.
   Don't collapse, paraphrase, or summarize — the user needs the
   actual webhook URL, vault URL, scopes, and click path inline.
-- Print URLs inline before `open` (per `_deep-link.md`).
+- Print URLs inline. Do not auto-launch — see `_deep-link.md`
+  Rule 1. If the user replies `open it`, launch the most
+  recently rendered URL via the platform-appropriate command
+  from that rule.
 - For sentry-autofix, also surface `setupInstructions.githubApp.installations`
   so the user doesn't have to check `github.com/settings/installations`.
 

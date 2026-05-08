@@ -170,11 +170,14 @@ Scanned <repo-name>. Found:
 To start getting Mur's daily digest, sign in here:
   <claim-connect URL>
 
-After sign-in I'll walk you through connecting <tool list> in your
-browser. Type `done` after sign-in and I'll pick up.
+Click the link, or reply `open it` and I'll launch your browser.
+After sign-in I'll walk you through connecting <tool list>. Type
+`done` after sign-in and I'll pick up.
 ```
 
-Then `open <claim URL>` as the last action of the turn.
+Do not auto-launch the claim URL. If the user replies `open it`,
+launch it via the platform-appropriate command (see
+`_deep-link.md` Rule 1).
 
 **Branch B — signed in, missing connections:**
 
@@ -192,14 +195,16 @@ You're signed in. <N> tools to connect:
   - <ConnectionNeeded[0].name> (connected by @<installer.login> on <installer.accountLogin>): <connectUrls[0].url>
   - <ConnectionNeeded[1].name>: <connectUrls[1].url>
 
-Click each. They land you back on the Mur dashboard. Type `done`
-when finished and I'll re-scan.
+Click each link, or reply `open it` and I'll launch the first one
+in your browser. They land you back on the Mur dashboard. Type
+`done` when finished and I'll re-scan.
 ```
 
 Drop the parenthetical entirely when `installer` is unset. When
 `installer.login` is null, render `(already on <installer.accountLogin>)`.
-Open the first URL as the last action of the turn. (One `open` per
-turn — multi-`open` calls race the print.)
+Do not auto-launch. If the user replies `open it`, launch the
+first URL via the platform-appropriate command (see
+`_deep-link.md` Rule 1) — one URL per launch.
 
 **Branch C — all wired:**
 

@@ -5,7 +5,10 @@
 // Flow:
 //   1. Generate `mur_claim_<32 random hex>` locally.
 //   2. POST /api/claim/init so the server registers the hash.
-//   3. Print + `open` https://usemur.dev/claim?token=<plaintext>.
+//   3. Print https://usemur.dev/claim?token=<plaintext>. The user
+//      clicks it (terminals linkify) or asks the calling agent to
+//      open it. The script never auto-launches a browser — popping
+//      one open mid-task surprises the user.
 //   4. Poll /api/claim/status every 2s until approved or 10 min elapse.
 //   5. Write { accountKey, apiBase, createdAt } to ~/.murmur/account.json.
 //
@@ -16,9 +19,8 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { existsSync, realpathSync } from 'node:fs';
-import { homedir, platform } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_API_BASE = process.env.MUR_API_BASE || 'https://usemur.dev';
@@ -29,22 +31,6 @@ const POLL_DEADLINE_MS = 10 * 60 * 1000;
 // regex. Drift here breaks the entire skill pack silently.
 export function generateToken() {
   return `mur_claim_${randomBytes(32).toString('hex')}`;
-}
-
-function openInBrowser(url) {
-  // Best-effort: macOS `open`, Linux `xdg-open`, Windows `start`. We never
-  // wait on this — the printed URL above is the real fallback.
-  const cmd = platform() === 'darwin' ? 'open'
-    : platform() === 'win32' ? 'cmd'
-    : 'xdg-open';
-  const args = platform() === 'win32' ? ['/c', 'start', '""', url] : [url];
-  try {
-    const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
-    child.on('error', () => { /* swallow — fallback URL is printed */ });
-    child.unref();
-  } catch {
-    /* swallow */
-  }
 }
 
 async function postInit(apiBase, token) {
@@ -104,11 +90,12 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Tell the user what's about to happen and open the URL.
+  // 2. Print the URL. Do NOT auto-open — the calling agent surfaces
+  //     an "open it" affordance and the user opts in. Auto-popping a
+  //     browser mid-task is jarring; let the user read first.
   process.stdout.write(`\nApprove the connection in your browser:\n`);
   process.stdout.write(`  ${claimUrl}\n`);
-  process.stdout.write(`(opening it for you now — if a browser doesn't open, click the link above)\n\n`);
-  openInBrowser(claimUrl);
+  process.stdout.write(`(click the link above, or reply \`open it\` in chat and I'll launch your browser)\n\n`);
 
   // 3. Poll.
   const deadline = Date.now() + POLL_DEADLINE_MS;

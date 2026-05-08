@@ -66,7 +66,7 @@ X-Mur-Project-Id: <projectId>
   `<install.accountLogin>`. Nothing to do." Stop. ("Re-auth" for the
   native App means re-installing — only useful when something is
   actually broken. Don't trigger it pre-emptively.)
-- `installed-by-other` → render the join hand-off and open it:
+- `installed-by-other` → render the join hand-off:
 
   ```
   GitHub App is already installed on <accountLogin> (originally by
@@ -76,6 +76,7 @@ X-Mur-Project-Id: <projectId>
 
     https://usemur.dev/dashboard/vault?tab=apps
 
+  Click the link, or reply `open it` and I'll launch your browser.
   Type `done` when you've joined and I'll re-check.
   ```
 
@@ -86,13 +87,14 @@ X-Mur-Project-Id: <projectId>
   Skip step 4's "Connecting <tool>" framing — that's Composio-only.
   (Path B — see `_deep-link.md`.)
 - Anything else (`scopable`, `needs-grant`, `not-installed`) → render
-  the dashboard hand-off and open it:
+  the dashboard hand-off:
 
   ```
   GitHub: finish setup in your dashboard.
 
     https://usemur.dev/dashboard/vault?tab=apps
 
+  Click the link, or reply `open it` and I'll launch your browser.
   Type `done` when you've finished there and I'll re-check.
   ```
 
@@ -117,19 +119,21 @@ If the connection already exists, the same endpoint returns a fresh
 token replaces the old one. This is what makes `mur connect <tool>`
 the re-auth path.
 
-### 4. Render + open
+### 4. Render
 
 ```
 Connecting <tool name>. Here's the OAuth link:
 
   <url>
 
-Opening it in your browser. After OAuth completes, you'll land on
-the Mur dashboard. Type `done` and I'll confirm the connection
-landed.
+Click the link, or reply `open it` and I'll launch your browser.
+After OAuth completes, you'll land on the Mur dashboard. Type
+`done` and I'll confirm the connection landed.
 ```
 
-Then `open <url>` as the very last action of the turn.
+Do not auto-launch the browser. If the user replies `open it`
+(or similar — "open", "go", "yes open it"), launch the URL via
+the platform-appropriate command (see `_deep-link.md` Rule 1).
 
 ### 5. Confirm
 

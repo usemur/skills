@@ -43,22 +43,37 @@ by the prompt itself (B is a static dashboard route; C interpolates
 
 ## Rules
 
-### 1. Print the URL inline before `open`
+### 1. Print the URL — never auto-launch
 
-Print the URL + a heads-up that the browser is about to launch.
-Then run `open <url>` as the very last action of the turn.
+Print the URL inline and end the turn with the open-on-reply
+offer. **Never** auto-launch the browser from a prompt or
+script. The user opens it themselves (most terminals linkify
+the URL) or asks the agent to launch it.
 
 ```
-Here's your auth link: <url>
-Opening it in your browser in a moment.
+Here's your auth link:
+
+  <url>
+
+Click it, or reply `open it` and I'll launch your browser.
 ```
 
-If `open` fires before the chat-side message renders, the user's
-browser pops open with no context while the agent is still
-"thinking," and the URL arrives 5-10 seconds later.
+When the user replies `open it` (or anything close — "open",
+"yes open it", "go"), launch the URL with the platform-appropriate
+command. Detect with `uname -s`:
 
-This rule applies on SSH / headless / link-shy terminals too —
-`open` is a no-op there but the user copies the URL inline.
+- macOS (`Darwin`): `open <url>`
+- Linux: `xdg-open <url>`
+- Windows / WSL (`MINGW*`, `MSYS*`, `CYGWIN*`, or `Linux` under WSL): `cmd.exe /c start "" <url>`
+
+If `uname` isn't available or the platform is unknown, just
+print the URL again and tell the user to click it. Until the
+user replies, do nothing. Auto-launching surprises them
+mid-task — they deserve a beat to read what's about to happen.
+
+On SSH / headless / link-shy terminals the launch command is
+typically a no-op or fails silently; the printed URL above is
+always the real fallback.
 
 ### 2. Never POST `/api/installs/pending/start` from a prompt (Path C only)
 
@@ -78,6 +93,7 @@ the dashboard itself acts on.
 Reference from any prompt that emits a deep-link with
 `> See _deep-link.md`. Lint flags any prompt containing a
 `usemur.dev/connect/` URL, `usemur.dev/dashboard/vault?tab=apps`,
-`/api/connections/start`, `/api/installs/pending/start`, a literal
-`github.com/apps/` URL, or a trailing `open "<url>"` without that
-reference.
+`/api/connections/start`, `/api/installs/pending/start`, or a
+literal `github.com/apps/` URL without that reference. Prompts
+must never instruct the agent to call `open <url>` — that runs
+only after the user replies `open it`.
