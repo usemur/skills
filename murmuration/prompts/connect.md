@@ -50,17 +50,40 @@ Stop.
 
 **For `github`** (native Mur GitHub App):
 
+The native App is org-scoped and the install / join / scope flow
+lives in our dashboard, not on github.com. Two outcomes — call
+`/lookup` and branch:
+
 ```
-POST /api/integrations/github-app/start
+GET /api/integrations/github-app/lookup?repo=<owner>/<name>
 Authorization: Bearer <account key>
 X-Mur-Project-Id: <projectId>
-{ "scopedRepoFullName": "<owner>/<name>" }
 ```
 
-Response: `{ installUrl, scopedRepoFullName }`. Use `installUrl`.
-The owner/name comes from `_bootstrap.md`'s git remote read. If the
-App is already installed on this repo, the server returns the right
-URL either way (re-running OAuth is idempotent on the App's side).
+`<owner>/<name>` from `_bootstrap.md`'s git remote read.
+
+- `already-scoped` → render "GitHub is already connected on
+  `<install.accountLogin>`. Nothing to do." Stop. ("Re-auth" for the
+  native App means re-installing — only useful when something is
+  actually broken. Don't trigger it pre-emptively.)
+- Anything else → render the dashboard hand-off and open it:
+
+  ```
+  GitHub: finish setup in your dashboard.
+
+    https://usemur.dev/dashboard/vault?tab=apps
+
+  Type `done` when you've finished there and I'll re-check.
+  ```
+
+  When status is `installed-by-other`, prefix the first line with
+  `connected by @<installer.login> on <accountLogin>` (drop the
+  `@<installer.login>` clause when null) so the user knows they're
+  joining a teammate's install. Skip step 4's "Connecting <tool>"
+  framing — that's Composio-only. (Path B — see `_deep-link.md`.)
+
+The skill never POSTs `/api/integrations/github-app/start` and never
+emits a github.com URL.
 
 **For all other slugs** (Composio):
 
@@ -99,7 +122,11 @@ When the user types `done`:
 GET /api/connections/check?apps=<slug>
 ```
 
-(For `github`: `GET /api/integrations/github-app/list`.)
+For `github`, re-call `/api/integrations/github-app/lookup?repo=<owner>/<name>`
+instead. Treat `already-scoped` as the success state (the user joined
+or installed and the repo is now in scope). Treat `scopable` /
+`needs-grant` as success too — the install lands fine even if the
+scoped-repo list hasn't been narrowed yet.
 
 If connected, confirm:
 
@@ -108,7 +135,8 @@ If connected, confirm:
 the next fire.
 ```
 
-If still missing:
+If still missing (or `installed-by-other` still / `not-installed`
+still for github):
 
 ```
 The OAuth hasn't landed yet. Either it failed in the browser, or
@@ -121,7 +149,8 @@ the server is still propagating. Try again in a few seconds with
 - **`/api/connections/start` returns 5xx.** Surface the error
   message verbatim ("Composio is not configured" if the operator
   hasn't set `COMPOSIO_API_KEY`, etc.) and stop.
-- **`/api/integrations/github-app/start` returns 503** ("GitHub App
-  is not configured on this server"). Surface verbatim.
+- **`/api/integrations/github-app/lookup` returns 5xx.** Render the
+  dashboard hand-off anyway with no `<state copy>` clause — the
+  Apps tab will surface whatever the actual state is.
 - **OAuth completes but `done` shows missing.** Composio webhook
   may not have fired yet. The message above already covers this.

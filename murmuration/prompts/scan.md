@@ -104,26 +104,45 @@ GET /api/connections/check?apps=<comma-separated slugs>
 ```
 
 Returns `{ connections: { <slug>: { status: 'connected' | 'missing', label } } }`.
-For slug `github`, ignore that endpoint — call
-`/api/integrations/github-app/list` and treat connected as
-`installs[].length > 0`.
+For each non-github tool, classify into `connectionsPresent` (status
+`'connected'`) or `connectionsNeeded` (status `'missing'`). Populate
+`ConnectionPresent.detail` from the response label.
 
-For each tool in `projectProfile.tools`, classify into
-`connectionsPresent` (status `'connected'`) or `connectionsNeeded`
-(status `'missing'`). Populate `ConnectionPresent.detail` from the
-response label or, for GitHub, from `installs[0].accountLogin`.
+For slug `github`, the per-repo membership check matters — a developer
+who joined org A's install but is working in a repo from org B is NOT
+connected for B. Skip `/api/connections/check` and call:
 
-If `signInRequired` is true, skip — every detected tool goes to
-`connectionsNeeded`.
+```
+GET /api/integrations/github-app/lookup?repo=<owner>/<name>
+```
+
+`<owner>/<name>` is the scoped repo full name from the bootstrap git
+remote read (e.g. `usemur/cadence`). Two outcomes:
+
+- `already-scoped` → `connectionsPresent` entry. `detail` = `connected as <accountLogin>` from `install.accountLogin`.
+- Anything else (`scopable`, `needs-grant`, `installed-by-other`,
+  `not-installed`) → `connectionsNeeded` entry. The dashboard's Apps
+  tab handles every one of these (install, scope a new repo, join a
+  teammate's install, recover a suspended one) so the skill doesn't
+  branch — one URL covers all of them. When status is
+  `installed-by-other`, capture the response's `accountLogin` plus
+  `installer.login` / `installer.avatarUrl` into the entry's
+  `installer` field so the render can attribute it.
+
+If `signInRequired` is true, skip every server call — every detected
+tool goes to `connectionsNeeded`.
 
 ### 7. Build connect URLs
 
-One URL per `ConnectionNeeded` entry.
+One `ConnectUrl` entry per `ConnectionNeeded` entry.
 
-- For slug `github`: POST `/api/integrations/github-app/start` with
-  the scoped repo full name; render the returned `installUrl`.
-- For other slugs: POST `/api/connections/start` with `{ app: slug }`
-  and read `redirectUrl`.
+- For slug `github`: URL is the static dashboard route
+  `https://usemur.dev/dashboard/vault?tab=apps`. The skill never
+  emits github.com links — the dashboard's Apps tab owns the install
+  / join / scope flow and redirects to GitHub itself when needed.
+  See `_deep-link.md` Path B.
+- For other slugs (Composio): POST `/api/connections/start` with
+  `{ app: slug }` and read `redirectUrl`.
 - For sign-up (when `signInRequired` is true): the existing claim
   flow runs first. `node <skill-dir>/scripts/claim-connect.mjs` mints
   the claim URL. Per-tool connects fire after sign-up.
@@ -150,19 +169,26 @@ Then `open <claim URL>` as the last action of the turn.
 
 **Branch B — signed in, missing connections:**
 
+When a `ConnectionNeeded` entry has an `installer` set (only happens
+for `github` when the org already has a Mur install added by a
+teammate), prefix the line with attribution so the user knows they're
+joining an existing install rather than starting fresh.
+
 ```
 Scanned <repo-name>. Found:
   - <tools[0].name> (<tools[0].evidence>)
   - <tools[1].name> (<tools[1].evidence>)
 
 You're signed in. <N> tools to connect:
-  - <ConnectionNeeded[0].name>: <connectUrls[0].url>
+  - <ConnectionNeeded[0].name> (connected by @<installer.login> on <installer.accountLogin>): <connectUrls[0].url>
   - <ConnectionNeeded[1].name>: <connectUrls[1].url>
 
-Click each. The OAuth lands you back on the Mur dashboard. Type
-`done` when finished and I'll re-scan.
+Click each. They land you back on the Mur dashboard. Type `done`
+when finished and I'll re-scan.
 ```
 
+Drop the parenthetical entirely when `installer` is unset. When
+`installer.login` is null, render `(already on <installer.accountLogin>)`.
 Open the first URL as the last action of the turn. (One `open` per
 turn — multi-`open` calls race the print.)
 
@@ -191,6 +217,9 @@ suggestions appended). If `no`, stop. No `open`.
 - **`/api/connections/check` returns an error.** Default every
   `connected` to `false`; surface every detected tool as needed.
   OAuth re-auths cleanly (idempotent server-side).
+- **`/api/integrations/github-app/lookup` returns an error.** Treat
+  github as `connectionsNeeded` with the dashboard URL. The Apps tab
+  resolves the user's actual state on its own.
 - **No git remote AND no manifest matches.** Render:
 
   ```

@@ -14,10 +14,19 @@ No `usemur.dev/connect/` intermediate.
 
 ### B — Native Mur GitHub App (`github`)
 
-GitHub uses the Mur Cofounder GitHub App, not Composio. Verb POSTs
-`/api/integrations/github-app/start` with the scoped repo full name;
-server returns an `installUrl` to `github.com/apps/<app>/installations/new`
-with a signed state token.
+GitHub's native App is org-scoped, shared across teammates, and the
+install / join / scope flow lives in the dashboard's Apps tab. The
+skill calls `GET /api/integrations/github-app/lookup?repo=<owner>/<name>`
+to classify state, then either confirms (`already-scoped` → no link)
+or hands the user to the Apps tab:
+
+```
+https://usemur.dev/dashboard/vault?tab=apps
+```
+
+The Apps tab handles install, join, scope, and unsuspend on its
+own. The skill never mints a `github.com` URL and never POSTs to
+any github-app endpoint.
 
 ### C — `usemur.dev/connect/` (post-install hand-off)
 
@@ -28,8 +37,9 @@ and the response surfaces an extra tool the automation needs:
 https://usemur.dev/connect/<slug>?install=<automationId>&project=<projectId>
 ```
 
-Path C is the only path where the prompt formats the URL itself; A
-and B always receive it from a server endpoint.
+Path A's URL comes from a server endpoint. Paths B and C are formatted
+by the prompt itself (B is a static dashboard route; C interpolates
+`slug` + `automationId` + `projectId`).
 
 ## Rules
 
@@ -61,11 +71,13 @@ and the bootstrap pickup later 404s on a slug like `cpi_xxx`.
 The prompt's job is to format and emit the URL. The frontend owns
 the POST.
 
-Paths A and B don't have this concern — server returns the URL,
-prompt opens it.
+Paths A and B don't have this concern — Path A's URL comes
+back from a server endpoint, Path B is a static dashboard route
+the dashboard itself acts on.
 
 Reference from any prompt that emits a deep-link with
 `> See _deep-link.md`. Lint flags any prompt containing a
-`usemur.dev/connect/` URL, `/api/connections/start`,
-`/api/integrations/github-app/start`, `/api/installs/pending/start`,
-or a trailing `open "<url>"` without that reference.
+`usemur.dev/connect/` URL, `usemur.dev/dashboard/vault?tab=apps`,
+`/api/connections/start`, `/api/installs/pending/start`, a literal
+`github.com/apps/` URL, or a trailing `open "<url>"` without that
+reference.
