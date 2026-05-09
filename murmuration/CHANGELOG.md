@@ -4,6 +4,20 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.2.2] - 2026-05-08 — Email-as-feed connect + paste-key route for sentry/stripe/resend
+
+- New `mur connect email` route. Inline three-state verify form
+  (link → 6-digit code → verified) against `/api/account/email/{link,verify}`.
+  Once verified, the founder BCCs or CCs `mur+<alias>@usemur.dev` on threads
+  they want Mur to see; ingested threads land in the next morning's daily
+  digest.
+- New paste-key connect path for `sentry`, `stripe`, and `resend`. Skill
+  deep-links to the Integrations page Variables tab with the prefill key
+  set — restricted keys are faster and more reliable than Composio OAuth
+  for tokens founders already have. Stripe Composio OAuth was removed
+  (digest's `stripeFeed` couldn't read COMPOSIO rows); paste-into-vault is
+  now the only supported Stripe path.
+
 ## [0.2.1] - 2026-05-07 — GitHub connect always routes through dashboard
 
 - `mur` and `mur connect github` no longer mint github.com install URLs.
