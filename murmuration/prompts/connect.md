@@ -11,11 +11,24 @@ If the user types `mur connect` with no tool, route to `scan.md`.
 
 ## Inputs
 
-`tool` — required. Today's catalog (`src/services/composio.service.ts:49`):
-`gmail`, `slack`, `googlecalendar`, `notion`, `linear`, `stripe`,
-`searchconsole`, `googlesheets`, `vercel`, `posthog`, `intercom`,
-`crisp`, `front`. Plus the special slug `github` (native Mur GitHub
-App, not Composio). Match case-insensitively.
+`tool` — required. Three routes:
+
+- **Composio OAuth** (`src/services/composio.service.ts:49`): `gmail`,
+  `slack`, `googlecalendar`, `notion`, `linear`, `searchconsole`,
+  `googlesheets`, `vercel`, `posthog`, `intercom`, `crisp`, `front`.
+- **Paste-into-vault SEALED** (TEE-consumed paste-keys in
+  `src/services/integrations/catalog.ts`): `sentry`, `resend`. The
+  automation runner reads the value inside the Lit TEE; the server never
+  decrypts.
+- **Paste-into-vault DEVELOPER_TOKEN** (server-consumed paste-keys):
+  `stripe`. The digest's stripeFeed calls `resolveConnectorToken('stripe')`
+  in plain Node, which only reads DEVELOPER_TOKEN rows — pasting a Stripe
+  restricted key here is the only supported path now (Composio Stripe was
+  removed because OAuth tokens land as COMPOSIO rows the digest can't
+  decrypt).
+- **Native Mur GitHub App**: `github`.
+
+Match case-insensitively.
 
 ## Preconditions
 
@@ -30,17 +43,19 @@ Run `_bootstrap.md`. Resolves `projectId`.
 
 ### 2. Validate slug
 
-Match against:
-- The Composio catalog (`GET /api/connections/apps`).
+Match against (in order):
 - The literal string `github`.
+- The paste-into-vault list: `sentry`, `stripe`, `resend`.
+- The Composio catalog (`GET /api/connections/apps`), minus any slug
+  already claimed above.
 
 If no match:
 
 ```
 I don't have a connector for "<input>" yet. Today's catalog is:
-github, stripe, vercel, linear, gmail, slack, googlecalendar,
-notion, searchconsole, googlesheets, posthog, intercom, crisp,
-front. Want one that's not on this list? Email
+github, stripe, sentry, vercel, linear, resend, gmail, slack,
+googlecalendar, notion, searchconsole, googlesheets, posthog,
+intercom, crisp, front. Want one that's not on this list? Email
 hello@usemur.dev — they ship new connectors fast.
 ```
 
@@ -103,6 +118,58 @@ X-Mur-Project-Id: <projectId>
 
 The skill never POSTs `/api/integrations/github-app/start` and never
 emits a github.com URL.
+
+**For paste-into-vault tools** (`sentry`, `stripe`, `resend`):
+
+Two URL shapes depending on how the digest reads the token. Both deep-link
+to the dashboard; neither passes the token value over the URL.
+
+| slug     | url shape                                    | storage          | why |
+|----------|----------------------------------------------|------------------|-----|
+| sentry   | `?key=SENTRY_AUTH_TOKEN&hint=<copy>`         | SEALED           | sentry-autofix automation reads it inside the Lit TEE — server never sees it. |
+| resend   | `?key=RESEND_API_KEY&hint=<copy>`            | SEALED           | per-user Resend usage runs inside flows/automations (TEE), not the platform's `email.service.ts`. |
+| stripe   | `?devToken=stripe`                            | DEVELOPER_TOKEN  | digest's `stripeFeed` calls `resolveConnectorToken('stripe')` server-side — needs DEVELOPER_TOKEN, can't decrypt SEALED. |
+
+`?key=<NAME>&hint=<copy>` lands on the Variables tab + prefills the
+create-modal (creates a SEALED row). `?devToken=<slug>` opens the
+PasteApiKeyDialog directly (creates a DEVELOPER_TOKEN row via
+`/api/vault/secrets/developer-token`). The dialog has its own
+"where to grab the key" copy from `PASTE_HINTS`, so the skill's
+inline copy is the redundant-but-helpful pre-context.
+
+Per-tool "where to grab the token" copy (URL-encode for the `hint=` cases):
+
+| slug     | where to get it |
+|----------|-----------------|
+| sentry   | Sentry org → Settings → Custom Integrations → Create New Integration → "Internal Integration". Grant at minimum `Issue & Event: Read` and `Project: Read`. Save → copy the auth token shown once on the next page. |
+| stripe   | https://dashboard.stripe.com/apikeys → "Create restricted key" → grant read scopes (Charges, Customers, Subscriptions, Invoices, Events). Reveal + copy. Live-mode key is what the digest reads from. |
+| resend   | https://resend.com/api-keys → "Create API Key" → name it "Mur", choose "Full access" or "Sending access". Copy the value shown once. |
+
+Full URLs:
+
+```
+https://usemur.dev/dashboard/vault?key=SENTRY_AUTH_TOKEN&hint=<urlencoded>
+https://usemur.dev/dashboard/vault?key=RESEND_API_KEY&hint=<urlencoded>
+https://usemur.dev/dashboard/vault?devToken=stripe
+```
+
+Render:
+
+```
+Connecting <tool name>. You'll need a token from <provider>:
+
+  <one-line "where to get it" — copied from the table above>
+
+Then paste it into the prefilled vault field here:
+
+  <vault url>
+
+Opening it in your browser. Type `done` once you've pasted the token
+and I'll confirm.
+```
+
+Then `open <url>` as the very last action of the turn. Skip step 4's
+"Connecting <tool>" framing — that's Composio-only.
 
 **For all other slugs** (Composio):
 
