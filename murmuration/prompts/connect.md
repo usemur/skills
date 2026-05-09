@@ -27,6 +27,10 @@ If the user types `mur connect` with no tool, route to `scan.md`.
   removed because OAuth tokens land as COMPOSIO rows the digest can't
   decrypt).
 - **Native Mur GitHub App**: `github`.
+- **Verified-email (CC/BCC ingest)**: `email`. Three-state interactive
+  flow against `/api/account/email/{link,verify}` — no OAuth, no paste.
+  Founder verifies a sender address via 6-digit code; then BCCs/CCs
+  `mur+<alias>@usemur.dev` on threads they want Mur to see.
 
 Match case-insensitively.
 
@@ -45,6 +49,7 @@ Run `_bootstrap.md`. Resolves `projectId`.
 
 Match against (in order):
 - The literal string `github`.
+- The literal string `email` (verified-email / CC-BCC ingest).
 - The paste-into-vault list: `sentry`, `stripe`, `resend`.
 - The Composio catalog (`GET /api/connections/apps`), minus any slug
   already claimed above.
@@ -53,7 +58,7 @@ If no match:
 
 ```
 I don't have a connector for "<input>" yet. Today's catalog is:
-github, stripe, sentry, vercel, linear, resend, gmail, slack,
+github, email, stripe, sentry, vercel, linear, resend, gmail, slack,
 googlecalendar, notion, searchconsole, googlesheets, posthog,
 intercom, crisp, front. Want one that's not on this list? Email
 hello@usemur.dev — they ship new connectors fast.
@@ -118,6 +123,67 @@ X-Mur-Project-Id: <projectId>
 
 The skill never POSTs `/api/integrations/github-app/start` and never
 emits a github.com URL.
+
+**For `email` (verified-email / CC-BCC ingest):**
+
+No OAuth. Three-state interactive flow against the existing REST API.
+Skip step 4's deep-link framing entirely; this runs inline in chat.
+
+State 0 — ask for the address:
+
+```
+Which email do you want to verify? I'll send a 6-digit code to confirm
+you own it. Once verified, BCC or CC mur+<your-alias>@usemur.dev on any
+thread you want me to see.
+```
+
+When the founder provides an address:
+
+```
+POST https://usemur.dev/api/account/email/link
+Content-Type: application/json
+Authorization: Bearer <account key>
+X-Mur-Project-Id: <projectId>
+
+{ "email": "<the address>" }
+```
+
+Expect 200 `{ ok: true }`. On 429 → render "We're rate-limited; try again
+in an hour." On other 4xx → render the `error` field verbatim.
+
+State 1 — ask for the code:
+
+```
+Check your inbox at <email>. Paste the 6-digit code:
+```
+
+When the founder provides a code:
+
+```
+POST https://usemur.dev/api/account/email/verify
+Content-Type: application/json
+Authorization: Bearer <account key>
+X-Mur-Project-Id: <projectId>
+
+{ "email": "<the address>", "code": "<6 digits>" }
+```
+
+On 200 → render State 2 below. On 4xx → branch by `error`:
+- `wrong-code` → "Wrong code. Try again." (loop back to State 1)
+- `locked-out` → "Too many wrong attempts. Run `mur connect email` again to start over."
+- `no-active-code` → "No active code for this address. Run `mur connect email` again."
+
+State 2 — confirm + show address:
+
+```
+✓ Connected. BCC or CC `<bccAddress>` on any thread you want me to see.
+- BCC: I see the message you sent. Re-CC or re-BCC me on replies to keep up.
+- CC: I follow the thread as long as recipients reply-all (they see me in headers).
+```
+
+`<bccAddress>` is the `bccAddress` field from the verify response.
+
+Skip step 4's "Connecting <tool>" framing entirely.
 
 **For paste-into-vault tools** (`sentry`, `stripe`, `resend`):
 
