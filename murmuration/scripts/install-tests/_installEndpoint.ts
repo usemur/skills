@@ -60,6 +60,7 @@ vi.mock('../../../src/services/flowState.service.js', async () => {
 
 vi.mock('../../../src/services/projects.service.js', () => ({
   getOrCreatePrimaryProject: vi.fn(async () => ({ id: 'proj-primary' })),
+  PRIMARY_PROJECT_NAME: 'Primary project',
 }));
 
 vi.mock('../../../src/api/middleware/auth.js', () => ({
