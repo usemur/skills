@@ -62,6 +62,27 @@ const MANIFEST_NAMES = new Set([
   'Cargo.toml',
 ]);
 
+// Config-artifact files we scan for env-var names and hostnames. The signal
+// is "this project talks to Stripe / Sentry / Resend even though no SDK
+// dependency exists" — common when calls go through raw HTTP, the OTel
+// exporter, a sidecar, or a deployment platform's secret store.
+const ARTIFACT_FILE_PATTERNS = [
+  /^\.env(\..+)?$/,            // .env, .env.example, .env.local, .env.production, ...
+  /^\.envrc$/,                  // direnv
+  /^docker-compose(\..+)?\.ya?ml$/,
+  /^compose(\..+)?\.ya?ml$/,
+  /^Dockerfile(\..+)?$/,
+  /^fly\.toml$/,
+  /^render\.ya?ml$/,
+  /^vercel\.json$/,
+  /^netlify\.toml$/,
+  /^app\.ya?ml$/,               // Google App Engine
+  /^Procfile$/,                 // Heroku
+];
+
+const MAX_ARTIFACT_FILES = 40;
+const MAX_ARTIFACT_BYTES = 256 * 1024;
+
 // ─── Connector registry ──────────────────────────────────────────────
 
 /**
@@ -412,6 +433,104 @@ export async function extractDependencies(repoRoot) {
   return out;
 }
 
+// ─── Config-artifact scanning (env-var + host) ───────────────────────
+//
+// Some projects use a vendor without depending on its SDK — they call the
+// REST API directly, point an OTel exporter at it, or just let a sidecar
+// handle outbound traffic. The package-manifest scan above will miss those.
+//
+// We catch them by scanning a small, curated set of config files for two
+// signals:
+//   - env-var: uppercase identifiers like STRIPE_SECRET_KEY or SENTRY_DSN.
+//   - host: dotted hostnames like api.stripe.com or sentry.io.
+//
+// Both feed the same matchPattern() machinery — connector YAMLs add
+// patterns with manifest: env-var / manifest: host. Keeping it bounded
+// (file count + byte budget) means this stays the same order-of-magnitude
+// cost as the manifest scan.
+
+function isArtifactFile(name) {
+  for (const re of ARTIFACT_FILE_PATTERNS) {
+    if (re.test(name)) return true;
+  }
+  return false;
+}
+
+async function findArtifacts(repoRoot) {
+  const found = [];
+  async function walk(dir, depth) {
+    if (depth > MAX_DIR_DEPTH) return;
+    if (found.length >= MAX_ARTIFACT_FILES) return;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch { return; }
+    for (const entry of entries) {
+      if (found.length >= MAX_ARTIFACT_FILES) return;
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue;
+        // Skip most dotdirs but recurse into a known-useful set (.github
+        // for workflow yaml, .config for some platform configs).
+        if (entry.name.startsWith('.') && entry.name !== '.github' && entry.name !== '.config') continue;
+        await walk(join(dir, entry.name), depth + 1);
+      } else if (entry.isFile()) {
+        const parent = basename(dir);
+        const isWorkflowYaml = parent === 'workflows' && /\.ya?ml$/.test(entry.name);
+        if (isWorkflowYaml || isArtifactFile(entry.name)) {
+          found.push(join(dir, entry.name));
+        }
+      }
+    }
+  }
+  await walk(repoRoot, 0);
+  return found;
+}
+
+// Uppercase identifier, 3-64 chars, at least one underscore — covers
+// STRIPE_SECRET_KEY, SENTRY_DSN, RESEND_API_KEY without dragging in
+// things like PATH or HOME (no underscore) or PORT (too generic but no
+// connector cares; the connector regex is the actual filter).
+const ENV_VAR_RE = /\b([A-Z][A-Z0-9]*_[A-Z0-9_]{1,60})\b/g;
+
+// URL host or bare dotted hostname (lowercase, at least one dot).
+// Matches inside https://api.stripe.com/... and bare api.stripe.com.
+const HOST_RE = /\b([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+)\b/g;
+
+/** Extract env-var names and hosts from artifact-file text. */
+export function extractArtifactSignals(text) {
+  const envVars = new Set();
+  const hosts = new Set();
+  for (const m of text.matchAll(ENV_VAR_RE)) envVars.add(m[1]);
+  for (const m of text.matchAll(HOST_RE)) {
+    const host = m[1];
+    // Skip version-looking tokens (1.2.3) and obvious non-hosts.
+    if (/^\d+(\.\d+)+$/.test(host)) continue;
+    // Must end with a real-looking TLD (>= 2 alpha chars).
+    if (!/\.[a-z]{2,}$/.test(host)) continue;
+    hosts.add(host);
+  }
+  return { envVars: [...envVars], hosts: [...hosts] };
+}
+
+/** Walk artifact files under repoRoot, return { envVars, hosts } merged. */
+export async function scanArtifacts(repoRoot) {
+  const envVars = new Set();
+  const hosts = new Set();
+  const files = await findArtifacts(repoRoot);
+  for (const path of files) {
+    let text;
+    try {
+      const st = await stat(path);
+      if (st.size > MAX_ARTIFACT_BYTES) continue;
+      text = await readFile(path, 'utf8');
+    } catch { continue; }
+    const sig = extractArtifactSignals(text);
+    for (const v of sig.envVars) envVars.add(v);
+    for (const h of sig.hosts) hosts.add(h);
+  }
+  return { envVars: [...envVars], hosts: [...hosts] };
+}
+
 // ─── Pattern matching ────────────────────────────────────────────────
 
 /**
@@ -513,6 +632,8 @@ export async function scanRepo({ repoRoot, registryDir }) {
     'pyproject.toml': [],
     'Pipfile': [],
     'Cargo.toml': [],
+    'env-var': [],
+    'host': [],
   };
   /** Map of manifest filename → first match path, for evidence display. */
   const manifestPaths = {};
@@ -538,6 +659,11 @@ export async function scanRepo({ repoRoot, registryDir }) {
     }
   }
 
+  // Config artifacts — env vars + hosts found in .env, compose files, etc.
+  const artifacts = await scanArtifacts(repoRoot);
+  data['env-var'] = artifacts.envVars;
+  data['host'] = artifacts.hosts;
+
   // Git remote — fetched once, used for git-remote patterns.
   const gitRemote = await getGitRemote(repoRoot);
 
@@ -560,9 +686,17 @@ export async function scanRepo({ repoRoot, registryDir }) {
       }
       const matches = matchPattern(data, pattern);
       if (matches.length > 0) {
-        const where = manifestPaths[pattern.manifest] || pattern.manifest;
-        evidence = `${matches[0]} in ${basename(where)}`;
-        source = 'manifest';
+        if (pattern.manifest === 'env-var') {
+          evidence = `env var: ${matches[0]}`;
+          source = 'env-var';
+        } else if (pattern.manifest === 'host') {
+          evidence = `host: ${matches[0]}`;
+          source = 'host';
+        } else {
+          const where = manifestPaths[pattern.manifest] || pattern.manifest;
+          evidence = `${matches[0]} in ${basename(where)}`;
+          source = 'manifest';
+        }
         break;
       }
     }

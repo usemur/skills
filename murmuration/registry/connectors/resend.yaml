@@ -9,3 +9,8 @@ patterns:
     match: "^resend$"
   - manifest: Cargo.toml
     match: "^(resend-rs|resend)$"
+  # SDK-less integrations (raw HTTP) — sniffed from config artifacts.
+  - manifest: env-var
+    match: "^RESEND_(API_KEY|WEBHOOK_SECRET)$"
+  - manifest: host
+    match: "^api\\.resend\\.com$"

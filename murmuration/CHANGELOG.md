@@ -4,6 +4,24 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.2.4] - 2026-05-11 — Detect SDK-less integrations via env vars + hosts
+
+- `scripts/dep-scans.mjs` gained a bounded artifact scan over `.env*`,
+  `docker-compose*`, `Dockerfile*`, `.github/workflows/*.yml`, `fly.toml`,
+  and a handful of platform configs. Extracts env-var names and hostnames
+  and feeds them to the existing connector matcher via two new pattern
+  types: `manifest: env-var` and `manifest: host`. Catches the SDK-less
+  case (raw HTTP calls, OTel exporter to vendor endpoint, sidecar handles
+  outbound) — the manifest-only scan missed these.
+- `registry/connectors/{stripe,sentry,resend}.yaml` extended with env-var
+  and host patterns. GitHub unchanged (already detected via git remote).
+- Server-side `ToolSource` accepts the new sources end-to-end: agent
+  validator, agent prompt, Zod schema on POST /api/projects/profile.
+- Scan-row evidence format splits by source: `manifest` → `"pkg in file"`,
+  `env-var` → `"env var: NAME"`, `host` → `"host: domain"`, `git-remote`
+  → `"git remote: url"`. Distinct `source` field lets the server weight
+  signal confidence when picking automations.
+
 ## [0.2.3] - 2026-05-10 — Enable-state check via /api/installed
 
 - `_post-connect.md` now documents `GET /api/installed` as the

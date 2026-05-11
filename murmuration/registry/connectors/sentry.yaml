@@ -15,3 +15,8 @@ patterns:
     match: "^sentry-sdk"
   - manifest: Cargo.toml
     match: "^sentry($|-)"
+  # SDK-less integrations (DSN-only / OTel exporter) — sniffed from config artifacts.
+  - manifest: env-var
+    match: "^SENTRY_(DSN|AUTH_TOKEN|ORG|PROJECT|ENVIRONMENT)$"
+  - manifest: host
+    match: "(^|\\.)sentry\\.io$"

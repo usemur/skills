@@ -21,3 +21,8 @@ patterns:
     match: "^stripe$"
   - manifest: Cargo.toml
     match: "^(async-stripe|stripe-rust|stripe)$"
+  # SDK-less integrations (raw HTTP) — sniffed from config artifacts.
+  - manifest: env-var
+    match: "^STRIPE_(SECRET_KEY|PUBLISHABLE_KEY|WEBHOOK_SECRET|API_KEY|RESTRICTED_KEY)$"
+  - manifest: host
+    match: "^(api|js|checkout|connect|files|m)\\.stripe\\.com$"
