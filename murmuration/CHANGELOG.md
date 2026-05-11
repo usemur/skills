@@ -4,6 +4,22 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.2.5] - 2026-05-11 — scan.md routes stripe/sentry/resend to paste-into-vault
+
+- `prompts/scan.md` step 7 now branches paste-into-vault slugs (`stripe`,
+  `sentry`, `resend`) to dashboard paste deep-links instead of POSTing
+  `/api/connections/start`. The Composio POST route had no path for
+  these slugs and returned 400 (`Unsupported app`) for stripe/resend
+  and 503 (`Sentry OAuth is not configured`) for sentry — even though
+  the server fully supports them via `?devToken=stripe` (DEVELOPER_TOKEN)
+  and `?key=...&hint=...` (SEALED) on the vault page. `connect.md` was
+  already correct since 0.2.2; scan.md was the laggard.
+- scan.md step 7 also added a "Composio app not live yet" fallback:
+  when `/api/connections/start` returns 400 (`Unsupported app`) or
+  503 (`<provider> OAuth is not configured`), the slug is dropped
+  from `connectUrls` and surfaced honestly in Branch B rather than
+  handed off as a dead link.
+
 ## [0.2.4] - 2026-05-11 — Detect SDK-less integrations via env vars + hosts
 
 - `scripts/dep-scans.mjs` gained a bounded artifact scan over `.env*`,

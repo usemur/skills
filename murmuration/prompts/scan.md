@@ -143,15 +143,43 @@ tool goes to `connectionsNeeded`.
 
 ### 7. Build connect URLs
 
-One `ConnectUrl` entry per `ConnectionNeeded` entry.
+One `ConnectUrl` entry per `ConnectionNeeded` entry. Branch on slug —
+the three families match `connect.md`'s routes, and the wrong branch
+either dead-ends in a 400 (Composio POST for a paste-into-vault slug)
+or mints a `github.com` URL the dashboard can't recover from.
 
 - For slug `github`: URL is the static dashboard route
   `https://usemur.dev/dashboard/vault?tab=apps`. The skill never
   emits github.com links — the dashboard's Apps tab owns the install
   / join / scope flow and redirects to GitHub itself when needed.
   See `_deep-link.md` Path B.
-- For other slugs (Composio): POST `/api/connections/start` with
-  `{ app: slug }` and read `redirectUrl`.
+- For paste-into-vault slugs (`stripe`, `sentry`, `resend`): URL is a
+  static dashboard deep-link that prefills the paste form. **Do not**
+  POST `/api/connections/start` for these — the server's Composio app
+  list doesn't include them (Stripe was removed because OAuth tokens
+  land as COMPOSIO rows the digest can't decrypt; Sentry/Resend are
+  TEE-consumed SEALED paste-keys with no OAuth path). Use the URL
+  shapes from `connect.md`'s paste-into-vault table verbatim:
+
+  | slug   | url shape                                                                    |
+  |--------|------------------------------------------------------------------------------|
+  | stripe | `https://usemur.dev/dashboard/vault?devToken=stripe`                         |
+  | sentry | `https://usemur.dev/dashboard/vault?key=SENTRY_AUTH_TOKEN&hint=<urlencoded>` |
+  | resend | `https://usemur.dev/dashboard/vault?key=RESEND_API_KEY&hint=<urlencoded>`    |
+
+  `hint=` is the per-tool "where to grab the token" copy from
+  `connect.md`'s table (URL-encoded). The dashboard lands the founder
+  on the paste form with the field prefilled; once they paste, the
+  server verifies and `/api/connections/check` will flip to `connected`
+  on the next scan.
+- For all other slugs (Composio): POST `/api/connections/start` with
+  `{ app: slug }` and read `redirectUrl`. If the server returns
+  `{ error: "Unsupported app: <slug>", supported: [...] }` (400) or
+  `{ error: "<provider> OAuth is not configured on this server" }`
+  (503), the connector isn't live yet — drop the entry from
+  `connectUrls` and surface the tool in Branch B's render under a
+  "detected but not connectable yet" line, so the founder isn't
+  handed a dead link.
 - For sign-up (when `signInRequired` is true): the existing claim
   flow runs first. `node <skill-dir>/scripts/claim-connect.mjs` mints
   the claim URL. Per-tool connects fire after sign-up.
