@@ -172,6 +172,39 @@ If absent, skip.
 "Drafts a PR for every Sentry issue going forward.">
 ```
 
+## Checking current install state
+
+When the user asks "did the reviewer get enabled?" or "what's
+running for me?" or anything that requests a status check on
+already-installed automations — the user enabled via the web
+confirmation page and wants the agent to confirm — call:
+
+```
+GET /api/installed
+Authorization: Bearer <account key>
+```
+
+Returns `{ installs, total, limit, offset }`. Each entry has at
+least `{ flow: { slug, name, description }, createdAt, direction,
+projectId }`. Cofounder flows (the ones in the recommendation list)
+appear iff their FlowState `enabled` row is `true` for at least
+one of the user's projects.
+
+Render shape:
+
+- If the user asked about a specific automation, filter to that
+  `flow.slug` and answer directly: "`<flow.name>` is on for
+  `<projectName>`" or "It's not running yet — want me to enable
+  it?" (the latter routes back to the `available` install path
+  above).
+- If the user asked broadly ("what's running"), render a short
+  bulleted list of `<flow.name>` per install.
+
+Always trust this endpoint over the agent's recollection of an
+earlier install — the user may have enabled or disabled flows
+elsewhere (web, dashboard, another session). Stale memory is the
+worse failure mode.
+
 ## Failure modes
 
 - **Account key missing.** Defensive — re-read `~/.murmur/account.json`

@@ -4,6 +4,16 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.2.3] - 2026-05-10 — Enable-state check via /api/installed
+
+- `_post-connect.md` now documents `GET /api/installed` as the
+  authoritative read of which cofounder flows are currently enabled.
+  When the founder enables an automation on the web confirmation
+  page and then asks the agent ("did the reviewer turn on?"), the
+  agent has a documented endpoint to query rather than relying on
+  stale recollection. Closes the loop between web-side Enable and
+  conversational confirmation.
+
 ## [0.2.2] - 2026-05-08 — Email-as-feed connect + paste-key route for sentry/stripe/resend
 
 - New `mur connect email` route. Inline three-state verify form
