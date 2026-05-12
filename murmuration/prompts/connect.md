@@ -15,7 +15,7 @@ If the user types `mur connect` with no tool, route to `scan.md`.
 
 - **Composio OAuth** (`src/services/composio.service.ts:49`): `gmail`,
   `slack`, `googlecalendar`, `notion`, `linear`, `searchconsole`,
-  `googlesheets`, `vercel`, `posthog`, `intercom`, `crisp`, `front`.
+  `googlesheets`, `vercel`, `posthog`, `intercom`, `front`.
 - **Paste-into-vault SEALED** (TEE-consumed paste-keys in
   `src/services/integrations/catalog.ts`): `sentry`, `resend`. The
   automation runner reads the value inside the Lit TEE; the server never
@@ -60,7 +60,7 @@ If no match:
 I don't have a connector for "<input>" yet. Today's catalog is:
 github, email, stripe, sentry, vercel, linear, resend, gmail, slack,
 googlecalendar, notion, searchconsole, googlesheets, posthog,
-intercom, crisp, front. Want one that's not on this list? Email
+intercom, front. Want one that's not on this list? Email
 hello@usemur.dev — they ship new connectors fast.
 ```
 

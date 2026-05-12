@@ -4,6 +4,15 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.3] - 2026-05-12 — drop Crisp from connector list
+
+- `prompts/connect.md` no longer lists `crisp` in the Composio OAuth
+  enumeration or the "today's catalog is …" fallback message. Composio
+  doesn't actually ship a Crisp toolkit, so any agent that routed a user
+  to `mur connect crisp` would have hit Composio's
+  `ToolRouterV2_ToolkitNotFound` 404. Catalog entry was also removed
+  server-side.
+
 ## [0.3.2] - 2026-05-12 — inline YAML parser, drop runtime `yaml` dep
 
 - `scripts/dep-scans.mjs` no longer imports the `yaml` package. The
