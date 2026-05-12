@@ -4,6 +4,16 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.2] - 2026-05-12 — inline YAML parser, drop runtime `yaml` dep
+
+- `scripts/dep-scans.mjs` no longer imports the `yaml` package. The
+  skill ships without `node_modules`, so fresh installs were failing
+  `/mur scan` with `ERR_MODULE_NOT_FOUND: 'yaml'`. Replaced with an
+  inline `parseConnectorYaml()` covering the constrained subset our
+  connector YAMLs use (top-level scalars + a `patterns:` list of simple
+  maps, with quoted strings, escapes, and `#` comments). All existing
+  dep-scans tests still pass.
+
 ## [0.3.1] - 2026-05-12 — headless scan prompt + shared _build-profile slice
 
 - New substrate `prompts/_build-profile.md` — carved out of scan.md's

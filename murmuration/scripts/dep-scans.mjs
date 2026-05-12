@@ -44,7 +44,165 @@ import { realpathSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { parse as parseYaml } from 'yaml';
+
+// ─── Tiny YAML subset parser ─────────────────────────────────────────
+//
+// Connector definitions use a constrained YAML shape: top-level scalar
+// keys + a `patterns:` list of simple maps with scalar values. We parse
+// it inline instead of taking a hard dep on the `yaml` package — the
+// skill ships to a registry repo without node_modules, and a missing
+// `yaml` was a real install-time failure mode for /mur scan.
+//
+// Handles: bare scalars, single/double-quoted strings (with the small
+// set of escape sequences we actually use), `#` comments outside quoted
+// strings, block sequences (`- `), and nested block mappings. Does not
+// handle: flow style ([...], {...}), anchors/aliases, multi-line literal
+// blocks, type tags. If a connector ever needs those, add `yaml` back —
+// but the shipped connector schema doesn't today.
+export function parseConnectorYaml(text) {
+  const lines = text.split('\n').map(stripYamlComment);
+  const out = {};
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    if (leadingSpaces(line) !== 0) { i++; continue; }
+    const m = line.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+    if (!m) { i++; continue; }
+    const key = m[1];
+    const valueText = m[2];
+    if (valueText === '') {
+      const block = collectYamlBlock(lines, i + 1, 0);
+      out[key] = block.value;
+      i = block.next;
+    } else {
+      out[key] = parseYamlScalar(valueText);
+      i++;
+    }
+  }
+  return out;
+}
+
+function stripYamlComment(line) {
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '\\' && inDouble) { i++; continue; }
+    if (c === '"' && !inSingle) { inDouble = !inDouble; continue; }
+    if (c === "'" && !inDouble) { inSingle = !inSingle; continue; }
+    if (c === '#' && !inSingle && !inDouble) {
+      if (i === 0 || /\s/.test(line[i - 1])) return line.slice(0, i).trimEnd();
+    }
+  }
+  return line;
+}
+
+function leadingSpaces(line) {
+  let n = 0;
+  while (n < line.length && line[n] === ' ') n++;
+  return n;
+}
+
+function parseYamlScalar(text) {
+  const t = text.trim();
+  if (!t) return '';
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    return t.slice(1, -1).replace(/\\(.)/g, (_, c) => {
+      if (c === 'n') return '\n';
+      if (c === 't') return '\t';
+      if (c === 'r') return '\r';
+      return c;
+    });
+  }
+  if (t.length >= 2 && t.startsWith("'") && t.endsWith("'")) {
+    return t.slice(1, -1).replace(/''/g, "'");
+  }
+  if (t === 'true') return true;
+  if (t === 'false') return false;
+  if (t === 'null' || t === '~') return null;
+  if (/^-?\d+$/.test(t)) return parseInt(t, 10);
+  if (/^-?\d+\.\d+$/.test(t)) return parseFloat(t);
+  return t;
+}
+
+function collectYamlBlock(lines, start, parentIndent) {
+  let i = start;
+  while (i < lines.length && !lines[i].trim()) i++;
+  if (i >= lines.length) return { value: null, next: i };
+  const indent = leadingSpaces(lines[i]);
+  if (indent <= parentIndent) return { value: null, next: start };
+  const trimmed = lines[i].trim();
+  if (trimmed === '-' || trimmed.startsWith('- ')) {
+    return collectYamlSequence(lines, i, indent);
+  }
+  return collectYamlMapping(lines, i, indent);
+}
+
+function collectYamlSequence(lines, start, indent) {
+  const items = [];
+  let i = start;
+  while (i < lines.length) {
+    if (!lines[i].trim()) { i++; continue; }
+    const ind = leadingSpaces(lines[i]);
+    if (ind < indent) break;
+    if (ind > indent) { i++; continue; }
+    const trimmed = lines[i].trim();
+    if (!trimmed.startsWith('-')) break;
+    const afterDash = trimmed.replace(/^-\s*/, '');
+    const item = {};
+    if (afterDash) {
+      const m = afterDash.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+      if (m) item[m[1]] = parseYamlScalar(m[2]);
+    }
+    i++;
+    while (i < lines.length) {
+      if (!lines[i].trim()) { i++; continue; }
+      const ind2 = leadingSpaces(lines[i]);
+      if (ind2 <= indent) break;
+      const t2 = lines[i].trim();
+      if (t2.startsWith('-')) break;
+      const m = t2.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+      if (m) {
+        if (m[2] === '') {
+          const block = collectYamlBlock(lines, i + 1, ind2);
+          item[m[1]] = block.value;
+          i = block.next;
+          continue;
+        }
+        item[m[1]] = parseYamlScalar(m[2]);
+      }
+      i++;
+    }
+    items.push(item);
+  }
+  return { value: items, next: i };
+}
+
+function collectYamlMapping(lines, start, indent) {
+  const map = {};
+  let i = start;
+  while (i < lines.length) {
+    if (!lines[i].trim()) { i++; continue; }
+    const ind = leadingSpaces(lines[i]);
+    if (ind < indent) break;
+    if (ind > indent) { i++; continue; }
+    const trimmed = lines[i].trim();
+    const m = trimmed.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+    if (!m) { i++; continue; }
+    const key = m[1];
+    const value = m[2];
+    if (value === '') {
+      const block = collectYamlBlock(lines, i + 1, ind);
+      map[key] = block.value;
+      i = block.next;
+    } else {
+      map[key] = parseYamlScalar(value);
+      i++;
+    }
+  }
+  return { value: map, next: i };
+}
 
 const MAX_MANIFEST_FILES = 50;
 const MAX_DIR_DEPTH = 3;
@@ -104,7 +262,7 @@ export async function loadConnectors(registryDir) {
     const path = join(registryDir, entry.name);
     let parsed;
     try {
-      parsed = parseYaml(await readFile(path, 'utf8'));
+      parsed = parseConnectorYaml(await readFile(path, 'utf8'));
     } catch (err) {
       console.warn(`[dep-scans] skipping malformed connector ${path}: ${err && err.message}`);
       continue;
