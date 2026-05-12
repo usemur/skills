@@ -3,6 +3,7 @@
 > See _voice.md
 > See _project-context.md
 > See _deep-link.md
+> See _build-profile.md (shared with `scan-headless.md`)
 
 Get the user from "fresh install" to "Mur account exists + project
 profile uploaded + at least one tool connected." Idempotent.
@@ -27,55 +28,32 @@ End every render with a clear question or stop.
 
 Run `_bootstrap.md`. Resolves `projectId`.
 
-### 2. Detect tools (manifest scan)
+### 2. Detect tools + build profile fields
 
-Run the dep scan. It walks the repo's manifest files (`package.json`,
-`requirements.txt`, `pyproject.toml`, `Pipfile`, `Cargo.toml`) and
-matches package names against the connector registry at
-`<skill-dir>/registry/connectors/*.yaml`.
+Run `_build-profile.md` with `$REPO_ROOT` set to the bootstrapped
+repo root (`$PWD` in the local skill). Output: `tools`,
+`dependencies`, `summary`, `category`, `role`, `teammates`.
 
-```bash
-node <skill-dir>/scripts/dep-scans.mjs --repo-root "$PWD"
+If signed in, you can optionally enrich `summary` and `role` with
+cross-tool activity:
+
+```
+GET /api/scan/context?project=<projectId>
+Authorization: Bearer <account key>
 ```
 
-The script writes two files:
-- `<repo-root>/.murmur/scan-deps.jsonl` — one row per matched
-  connector: `{ slug, name, source, evidence }`.
-- `<repo-root>/.murmur/scan-deps-raw.jsonl` — one row per parsed
-  manifest entry: `{ name, version, ecosystem, kind, manifestPath }`.
-  Used by the server for tool-targeted automation suggestions and
-  security-advisory alerts.
+Returns `{ since, events: FeedRecapEvent[] }`. Fold non-GitHub
+signals (Stripe subscriptions, Composio actions) into `summary`
+and `role` per the rules in `_build-profile.md`. Skip when
+signed out — `_build-profile.md` falls back to git-only signals.
 
-The connector registry is the extension point. To add support for a
-new service, drop a YAML at `<skill-dir>/registry/connectors/<slug>.yaml`
-declaring which manifest fields and regex patterns identify it.
+The endpoint lands as part of the same workstream
+(plans/unified-remote-and-local-scan.md Phase 1). On servers
+where it hasn't deployed yet, the request 404s and the failure
+mode below routes through the git-only path. The skill works
+in both states — never block a render on the enrichment call.
 
-### 3. Build the project profile
-
-Author `projectProfile`:
-
-- **`tools`** — read `.murmur/scan-deps.jsonl` and convert each row
-  into a `ToolFound` entry (`name`, `slug`, `source`, `evidence`).
-  GitHub is detected via the `git-remote` pattern in `github.yaml`.
-- **`dependencies`** — read `.murmur/scan-deps-raw.jsonl` and pass
-  each row through verbatim. Each row is already
-  `{ name, version, ecosystem, kind, manifestPath }`. Don't filter
-  or re-shape — the server uses the full list.
-- **`summary`** — one paragraph in plain English. Read `README.md`
-  (top portion), `package.json` `description`, and the last ~10
-  commit subjects (`git log --oneline -10`). Describe what the
-  project does. No marketing copy.
-- **`category`** — pick from the enum in `ScanResult.ts`:
-  `b2b-saas`, `b2c`, `dev-tool`, `oss-library`, `internal-tool`,
-  `agency-work`, `personal-project`, `pre-product`. When uncertain,
-  default to `pre-product`.
-- **`role`** — short string ("founder", "engineer", "tech lead",
-  "contributor"). Infer from `git shortlog -sne` (the user's commit
-  share vs others) and any explicit README cues.
-- **`teammates`** — `git shortlog -sne` minus the user's email,
-  capped at 10. Plain `Name <email>` strings.
-
-### 4. Sign-in state
+### 3. Sign-in state
 
 ```bash
 test -f ~/.murmur/account.json && echo signed-in || echo signed-out
@@ -83,7 +61,7 @@ test -f ~/.murmur/account.json && echo signed-in || echo signed-out
 
 `signInRequired = !signedIn`.
 
-### 5. Upload the profile (signed-in only)
+### 4. Upload the profile (signed-in only)
 
 If signed in, POST the profile so the server can pick relevant
 automations:
@@ -104,7 +82,7 @@ it to Branch C.
 If `signInRequired` is true, skip — the upload happens on the next
 `mur` after the user signs in.
 
-### 6. Server-side connection state
+### 5. Server-side connection state
 
 If signed in:
 
@@ -141,7 +119,7 @@ remote read (e.g. `usemur/cadence`). Two outcomes:
 If `signInRequired` is true, skip every server call — every detected
 tool goes to `connectionsNeeded`.
 
-### 7. Build connect URLs
+### 6. Build connect URLs
 
 One `ConnectUrl` entry per `ConnectionNeeded` entry. Branch on slug —
 the three families match `connect.md`'s routes, and the wrong branch
@@ -186,7 +164,7 @@ or mints a `github.com` URL the dashboard can't recover from.
 
 Each `ConnectUrl` entry: `{ slug, url }`.
 
-### 8. Render
+### 7. Render
 
 **Branch A — first-time:**
 
@@ -251,11 +229,14 @@ suggestions appended). If `no`, stop. No `open`.
 
 ## Failure modes
 
-- **`dep-scans.mjs` exits non-zero or doesn't write the JSONL.**
-  Render the `tools` we have (likely just GitHub from git remote)
-  and continue.
+> Profile-building failure modes (script crash, no manifests) are
+> covered by `_build-profile.md`. The ones below are surface-specific.
+
 - **`/api/projects/profile` returns an error.** Log + skip — don't
   block the connect flow on a profile upload. The next `mur` retries.
+- **`/api/scan/context` returns an error.** Skip the activity
+  enrichment and fall back to git-only signals. The profile is
+  still valid; cross-tool signals are an optional upgrade.
 - **`/api/connections/check` returns an error.** Default every
   `connected` to `false`; surface every detected tool as needed.
   OAuth re-auths cleanly (idempotent server-side).

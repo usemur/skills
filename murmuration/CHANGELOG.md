@@ -4,6 +4,26 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.1] - 2026-05-12 — headless scan prompt + shared _build-profile slice
+
+- New substrate `prompts/_build-profile.md` — carved out of scan.md's
+  former steps 2-3. Documents `dep-scans.mjs` + the six ProjectProfile
+  fields (`tools`, `dependencies`, `summary`, `category`, `role`,
+  `teammates`) in one place. Both surface prompts now include it.
+- New server-side prompt `prompts/scan-headless.md` — the managed-agent
+  variant loaded by the upcoming scan runner
+  (`src/services/scan/runner.service.ts`, phase 3 of
+  `plans/unified-remote-and-local-scan.md`). Same detection + field
+  rules as scan.md, no Branch render, no upload — emits a single
+  ProjectProfile JSON object as its final message. Not a user-typed
+  verb; SKILL.md does not route to it.
+- `prompts/scan.md` carved-out steps 2-3 + added an optional
+  `GET /api/scan/context` enrichment for cross-tool activity (Stripe,
+  Composio). Falls back to git-only signals when signed out or the
+  endpoint is unavailable. Renumbered subsequent steps 4-7 (was 5-8).
+- Coherence tests in `prompts.test.ts` enforce both prompts reference
+  the slice and don't drift on profile-field rubrics.
+
 ## [0.3.0] - 2026-05-11 — Subscription pricing + trial gate + dormancy
 
 Big release — the cofounder funnel moves off per-call credit purchases onto
@@ -31,7 +51,6 @@ a $20/month subscription with monthly quota. See `plans/pricing-subscription.md`
   The new field is true when `subscriptionStatus ∈ {trialing, active, past_due}`
   AND `cofounderBalance > 0`. Stripe payment-retry grace (past_due) keeps
   the gate open so a transient card decline doesn't kick paying users out.
-
 ## [0.2.5] - 2026-05-11 — scan.md routes stripe/sentry/resend to paste-into-vault
 
 - `prompts/scan.md` step 7 now branches paste-into-vault slugs (`stripe`,
