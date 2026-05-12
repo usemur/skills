@@ -172,6 +172,61 @@ If the cached entry's `identifierHash` differs from the live one
   the same `projectId`.
 - **New project**: register fresh per step 4.
 
+## Subscription dormancy gate
+
+After step 5, before delegating to the calling verb, read the user's
+subscription status:
+
+```sh
+curl -fsSL https://usemur.dev/api/subscription/status \
+  -H "Authorization: Bearer <account key>"
+```
+
+Response shape:
+
+```json
+{
+  "tier": "hobby" | "pro" | "team" | null,
+  "status": "none" | "trialing" | "active" | "past_due" | "canceled" | "inactive",
+  "hasStripeSubscription": true | false,
+  "cofounderBalance": "20000000",
+  "tierQuotaRaw": "20000000",
+  "quotaRemainingPct": 100,
+  "trialEndsAt": "2026-06-10T..." | null,
+  "currentCycleEndsAt": "2026-06-10T..." | null
+}
+```
+
+`hasStripeSubscription` distinguishes the two trial paths: `false` for
+connections-trigger trials (no Stripe object yet — need tier picker),
+`true` for CC-on-file Stripe trials (use Customer Portal).
+
+Branch on `status`:
+
+- **`none`** — user has never started a trial or subscription. The skill
+  works normally; trial activates automatically when they connect 2 tools
+  or run `/mur upgrade`. Don't render anything special — first-run UX
+  belongs to scan/connect, not this gate.
+- **`trialing`** — render a one-line trial badge at the top of the verb
+  output: `Free month active — N days left.` Don't block.
+- **`active`** — render the quota badge only if `quotaRemainingPct < 20`:
+  `Cofounder quota: N% remaining this cycle. Run /mur upgrade for more.`
+  Don't block.
+- **`past_due`** — payment retry window. Render: `Last invoice failed —
+  Stripe is retrying. Update card at /mur upgrade to avoid pause.`
+  Don't block (Stripe handles the retry; quota gate stays open).
+- **`inactive`** — dormant. Don't run the calling verb. Render:
+  `Your free month ended without a subscription. The cofounder is paused
+  — no digests, no automations, no scans. Resume any time at
+  /mur upgrade.` Then stop.
+- **`canceled`** (transient — should only appear during the cancellation
+  webhook race) — treat as `active` for one render, log + move on.
+
+When the status check fails (network / 5xx), don't block the verb. Log
+the error and proceed without the badge — the server's own pre-flight
+gates (digest, automation runner, scan) will halt if the user is truly
+dormant.
+
 ## Failure modes
 
 - **Server unreachable / 5xx.** Bootstrap is a precondition for

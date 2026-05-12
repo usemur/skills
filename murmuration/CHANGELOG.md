@@ -4,6 +4,34 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.0] - 2026-05-11 — Subscription pricing + trial gate + dormancy
+
+Big release — the cofounder funnel moves off per-call credit purchases onto
+a $20/month subscription with monthly quota. See `plans/pricing-subscription.md`.
+
+- New verb `/mur upgrade` — opens Stripe Checkout for new subscriptions OR
+  Stripe Customer Portal for tier changes / cancellation / card updates.
+  Surfaces three self-serve tiers (Hobby $20 / Pro $49 / Team $99) plus a
+  "Contact us" path for higher volume.
+- `prompts/automation.md` create/edit flow renders a quota status footer.
+  Amber at 80% used, red at 95%, blocks at 100% with an upgrade nudge.
+- `prompts/_bootstrap.md` reads `subscriptionStatus` on every invocation.
+  When `inactive` (trial expired without subscription, or subscription
+  cancelled), the skill renders a "subscription needed" landing instead of
+  the normal scan/automate flow. Mur stops reading project data for
+  dormant users until they resubscribe.
+- `prompts/connect.md` celebrates trial activation when the second distinct
+  provider connects — that gesture earns a free month without requiring a
+  card. CC-on-file via Checkout is the other trigger; whichever fires first
+  wins, idempotent across both paths.
+- Welcome bonus + per-connection credits retired — replaced by the trial
+  flow. New users now have zero balance until they trigger the trial
+  (connect 2 tools OR start a subscription with Stripe's 30-day trial).
+- `/mur` heartbeat field renamed: `hasPositiveBalance` → `hasActiveQuota`.
+  The new field is true when `subscriptionStatus ∈ {trialing, active, past_due}`
+  AND `cofounderBalance > 0`. Stripe payment-retry grace (past_due) keeps
+  the gate open so a transient card decline doesn't kick paying users out.
+
 ## [0.2.5] - 2026-05-11 — scan.md routes stripe/sentry/resend to paste-into-vault
 
 - `prompts/scan.md` step 7 now branches paste-into-vault slugs (`stripe`,

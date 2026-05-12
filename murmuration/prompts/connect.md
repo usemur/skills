@@ -289,6 +289,39 @@ If connected, confirm:
 the next fire.
 ```
 
+### Trial activation (second connection)
+
+After the connection commits, the server checks distinct active providers.
+If this is the second one AND no trial has started yet (no Stripe subscription
+on file, no prior connections-path trial), it grants the user a free month
+of Hobby-tier quota — `cofounderBalance` is set to $20 and `subscriptionStatus`
+flips to `trialing`.
+
+Bootstrap on the next invocation will reflect the new state. To make the
+gesture visible *now*, re-read the status:
+
+```sh
+curl -fsSL https://usemur.dev/api/subscription/status \
+  -H "Authorization: Bearer <account key>"
+```
+
+If the response shows `status: "trialing"` AND `trialStartedAt` is within
+the last 60 seconds, the trial was just activated by this connection.
+Render:
+
+```
+You just connected your second tool — free month of cofounder
+started. Daily digest, scans, and automations are unlocked for
+30 days. No card needed.
+
+Add a card at /mur upgrade to keep things running past the trial.
+```
+
+If `status` was already `trialing` (the user got their trial via
+CC-on-file earlier), don't render this — it would be confusing. The
+trial trigger is idempotent on the server side; either path activates,
+not both.
+
 If still missing (or `installed-by-other` still / `not-installed`
 still for github):
 
