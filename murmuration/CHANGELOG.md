@@ -4,6 +4,20 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.4] - 2026-05-12 — email-flow setupInstructions rendering
+
+- `prompts/_post-connect.md` step 2 now branches on `setupInstructions.kind`
+  (was sentry-only). The new `kind: 'email-flow'` variant covers
+  `@mur/welcome-flow` and `@mur/churn-flow`: the install endpoint
+  intentionally HOLDS the FlowState gate off until the founder reviews
+  the subject/body and verifies the reply-to inbox, so the agent must
+  not say "the flow is on."
+- Step 3 wording is now status-aware. `kind === 'email-flow'` with
+  `needsFounderSetup === true` renders "setup started — finish at
+  `<setupUrl>`" instead of the misleading "is on." Sentry-autofix and
+  every other cofounder flow keep their existing confirm copy.
+- No verbs added, no script changes — this is a prompt-only patch.
+
 ## [0.3.3] - 2026-05-12 — drop Crisp from connector list
 
 - `prompts/connect.md` no longer lists `crisp` in the Composio OAuth

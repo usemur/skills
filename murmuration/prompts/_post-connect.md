@@ -148,14 +148,22 @@ X-Mur-Project-Id: <projectId>
 ### 2. Handle `setupInstructions` if present
 
 The install endpoint returns `{ install, setupInstructions? }` for
-cofounder flows (`installs.routes.ts:417`). Today only
-`sentry-autofix` populates it (vault URL, webhook URL, steps[],
-existing `githubApp.installations` array).
+cofounder flows. The payload is a discriminated union — branch on
+`setupInstructions.kind`:
 
-If present:
+- **`kind: "sentry"`** (sentry-autofix) — vault URL, webhook URL,
+  `steps[]`, plus a `githubApp.installations` array.
+- **`kind: "email-flow"`** (welcome-flow, churn-flow) — the install
+  endpoint intentionally HELD the FlowState gate off because these
+  flows send emails to the founder's customers. Until the founder
+  reviews + verifies the email copy, nothing fires. Fields:
+  `flowSlug`, `flowName`, `needsFounderSetup`, `setupUrl`,
+  `setupApiPath`, `steps[]`.
+
+For both kinds:
 - Render `setupInstructions.steps[]` verbatim as a numbered list.
   Don't collapse, paraphrase, or summarize — the user needs the
-  actual webhook URL, vault URL, scopes, and click path inline.
+  actual URLs, scopes, and click path inline.
 - Print URLs inline. Do not auto-launch — see `_deep-link.md`
   Rule 1. If the user replies `open it`, launch the most
   recently rendered URL via the platform-appropriate command
@@ -167,10 +175,34 @@ If absent, skip.
 
 ### 3. Confirm
 
-```
-<flow.display_name> is on. <one-line about what happens next —
-"Drafts a PR for every Sentry issue going forward.">
-```
+Wording depends on whether setup is complete.
+
+- **No `setupInstructions`** (most cofounder flows after install):
+  ```
+  <flow.display_name> is on. <one-line about what happens next —
+  "Drafts a PR for every Sentry issue going forward.">
+  ```
+
+- **`setupInstructions.kind === "email-flow"` AND `needsFounderSetup === true`**:
+  do NOT say the flow is on. The gate is intentionally held off
+  until the founder completes setup. Use wording like:
+  ```
+  <flow.display_name> setup started. Finish at <setupUrl> —
+  Mur won't send any customer emails until you review the
+  subject + body and click the verification link.
+  ```
+
+- **`setupInstructions.kind === "email-flow"` AND `needsFounderSetup === false`**:
+  the founder already has a saved config; this install call was a
+  no-op edit pointer. Render the edit URL:
+  ```
+  <flow.display_name> is already configured for this project.
+  Edit subject/body or pause/resume at <setupUrl>.
+  ```
+
+- **`setupInstructions.kind === "sentry"`**: confirm as before;
+  the setup steps are operational (webhook + GitHub App), not a
+  customer-trust gate.
 
 ## Checking current install state
 

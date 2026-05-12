@@ -93,29 +93,81 @@ function buildApp() {
   return app;
 }
 
-export function runInstallEndpointTest(registrySlug: string): void {
+export interface InstallEndpointTestOptions {
+  /**
+   * When true, the install endpoint MUST NOT flip the FlowState
+   * `enabled` gate — used by welcome-flow / churn-flow, which hold
+   * the gate off until the founder completes setup (subject + body
+   * + reply-to verification). The response still returns 201 and a
+   * `setupInstructions` payload describing the next step.
+   */
+  holdsGate?: boolean;
+}
+
+export function runInstallEndpointTest(
+  registrySlug: string,
+  options: InstallEndpointTestOptions = {},
+): void {
   const normalized = normalizeSlug(registrySlug);
+  const holdsGate = options.holdsGate === true;
 
   describe(`install endpoint: ${registrySlug}`, () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
-    it('returns 201 and flips the FlowState enabled gate', async () => {
-      const res = await request(buildApp())
-        .post('/api/flows/install')
-        .send({ slug: registrySlug, actingAgent: 'claude-code' });
+    it(
+      holdsGate
+        ? 'returns 201 with email-flow setupInstructions and does NOT flip the gate'
+        : 'returns 201 and flips the FlowState enabled gate',
+      async () => {
+        const res = await request(buildApp())
+          .post('/api/flows/install')
+          .send({ slug: registrySlug, actingAgent: 'claude-code' });
 
-      expect(res.status, JSON.stringify(res.body)).toBe(201);
-      expect(res.body.install.flow.flowType).toBe('cofounder');
-      expect(res.body.install.flow.slug).toBe(normalized);
-      expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
-    });
+        expect(res.status, JSON.stringify(res.body)).toBe(201);
+        expect(res.body.install.flow.flowType).toBe('cofounder');
+        expect(res.body.install.flow.slug).toBe(normalized);
+        if (holdsGate) {
+          // The ENABLED gate must stay off — but a stub CONFIG row is
+          // written so the install surfaces in the dashboard list.
+          assertNoEnabledFlip();
+          assertStubConfigWritten(normalized);
+          expect(res.body.setupInstructions?.kind).toBe('email-flow');
+          expect(res.body.setupInstructions?.needsFounderSetup).toBe(true);
+        } else {
+          expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
+        }
+      },
+    );
 
     it('accepts the bare slug form', async () => {
       const res = await request(buildApp()).post('/api/flows/install').send({ slug: normalized });
       expect(res.status, JSON.stringify(res.body)).toBe(201);
-      expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
+      if (holdsGate) {
+        assertNoEnabledFlip();
+      } else {
+        expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
+      }
     });
   });
+}
+
+function assertNoEnabledFlip(): void {
+  const calls = (setFlowState as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+  for (const call of calls) {
+    expect(call[2]).not.toBe('enabled');
+  }
+}
+
+function assertStubConfigWritten(slug: string): void {
+  expect(setFlowState).toHaveBeenCalledWith(
+    'proj-primary',
+    slug,
+    'config',
+    expect.objectContaining({
+      status: 'SETUP',
+      pausedReason: 'agent-install-pending-founder-setup',
+    }),
+  );
 }
