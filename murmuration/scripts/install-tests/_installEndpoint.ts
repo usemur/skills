@@ -80,6 +80,19 @@ vi.mock('../../../src/config/index.js', () => ({
   },
 }));
 
+// installCofounderFlowForDeveloper now enforces "off until required
+// tool is connected" via loadDeveloperConnections. The install-test
+// harness asserts the gate-flip / stub-config behavior assuming tools
+// ARE connected; mock a permissive set so the precondition passes for
+// every flow in the registry. The route-handler tests in
+// src/api/routes/installs.routes.test.ts exercise the refusal branch
+// directly.
+vi.mock('../../../src/services/integrations/connectionState.js', () => ({
+  loadDeveloperConnections: vi.fn(async () => ({
+    slugs: new Set(['github', 'sentry', 'stripe', 'linear']),
+  })),
+}));
+
 const { default: installsRouter } = await import('../../../src/api/routes/installs.routes.js');
 const { errorHandler } = await import('../../../src/api/middleware/errorHandler.js');
 const { setFlowState } = await import('../../../src/services/flowState.service.js');
