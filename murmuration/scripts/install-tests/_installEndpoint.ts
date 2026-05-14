@@ -47,7 +47,7 @@ vi.mock('../../../src/db/client.js', () => ({
 }));
 
 vi.mock('../../../src/api/middleware/projectContext.js', () => ({
-  resolveProjectContext: vi.fn(async () => ({ projectId: 'proj-test', fellBackToPrimary: true })),
+  resolveProjectContext: vi.fn(async () => ({ projectId: 'proj-test' })),
   PROJECT_HEADER: 'x-mur-project-id',
 }));
 
@@ -57,11 +57,6 @@ vi.mock('../../../src/services/flowState.service.js', async () => {
   );
   return { ...real, setFlowState: vi.fn(async () => ({ updatedAt: new Date() })) };
 });
-
-vi.mock('../../../src/services/projects.service.js', () => ({
-  getOrCreatePrimaryProject: vi.fn(async () => ({ id: 'proj-primary' })),
-  PRIMARY_PROJECT_NAME: 'Primary project',
-}));
 
 vi.mock('../../../src/api/middleware/auth.js', () => ({
   developerAuth: (req: { developerId: string }, _res: unknown, next: () => void) => {
@@ -149,7 +144,7 @@ export function runInstallEndpointTest(
           expect(res.body.setupInstructions?.kind).toBe('email-flow');
           expect(res.body.setupInstructions?.needsFounderSetup).toBe(true);
         } else {
-          expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
+          expect(setFlowState).toHaveBeenCalledWith('proj-test', normalized, 'enabled', true);
         }
       },
     );
@@ -160,7 +155,7 @@ export function runInstallEndpointTest(
       if (holdsGate) {
         assertNoEnabledFlip();
       } else {
-        expect(setFlowState).toHaveBeenCalledWith('proj-primary', normalized, 'enabled', true);
+        expect(setFlowState).toHaveBeenCalledWith('proj-test', normalized, 'enabled', true);
       }
     });
   });
@@ -175,7 +170,7 @@ function assertNoEnabledFlip(): void {
 
 function assertStubConfigWritten(slug: string): void {
   expect(setFlowState).toHaveBeenCalledWith(
-    'proj-primary',
+    'proj-test',
     slug,
     'config',
     expect.objectContaining({
