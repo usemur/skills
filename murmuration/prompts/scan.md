@@ -114,7 +114,10 @@ remote read (e.g. `usemur/cadence`). Two outcomes:
   branch — one URL covers all of them. When status is
   `installed-by-other`, capture the response's `accountLogin` plus
   `installer.login` / `installer.avatarUrl` into the entry's
-  `installer` field so the render can attribute it.
+  `installer` field so the render can attribute it. Also capture the
+  raw `status` value on the entry — `connect.md` renders different
+  copy for `scopable` (one-click scope) vs everything else (full
+  install flow), and the same distinction applies in Branch B.
 
 If `signInRequired` is true, skip every server call — every detected
 tool goes to `connectionsNeeded`.
@@ -126,11 +129,15 @@ the three families match `connect.md`'s routes, and the wrong branch
 either dead-ends in a 400 (Composio POST for a paste-into-vault slug)
 or mints a `github.com` URL the dashboard can't recover from.
 
-- For slug `github`: URL is the static dashboard route
-  `https://usemur.dev/dashboard/vault?tab=apps`. The skill never
-  emits github.com links — the dashboard's Apps tab owns the install
-  / join / scope flow and redirects to GitHub itself when needed.
-  See `_deep-link.md` Path B.
+- For slug `github`: URL is the dashboard Apps tab with the bootstrap
+  repo carried in `scopeRepo`:
+  `https://usemur.dev/dashboard/vault?tab=apps&scopeRepo=<urlencoded-owner/name>`.
+  The dashboard reads `scopeRepo` and (a) auto-adds it to the install's
+  scoped-repo list when status is `scopable` (one click — no GitHub
+  round-trip), or (b) prefills it into the install flow when the app
+  isn't yet on the right org. The skill never emits github.com links —
+  the dashboard's Apps tab owns the install / join / scope flow and
+  redirects to GitHub itself when needed. See `_deep-link.md` Path B.
 - For paste-into-vault slugs (`stripe`, `sentry`, `resend`): URL is a
   static dashboard deep-link that prefills the paste form. **Do not**
   POST `/api/connections/start` for these — the server's Composio app

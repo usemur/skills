@@ -4,6 +4,23 @@ Skill-pack version is tracked independently from the Mur backend (`/VERSION` at 
 repo root). Read by `bin/mur-update-check` to compare against the published version
 returned by `GET /api/skill/latest-version`.
 
+## [0.3.5] - 2026-05-14 — carry scopeRepo into the GitHub install URL
+
+- `prompts/scan.md` step 6 and `prompts/connect.md` step 3 append
+  `&scopeRepo=<urlencoded-owner/name>` to the dashboard URL. The Apps
+  tab reads it and auto-adds the repo to `scopedRepoFullNames` when an
+  existing install already grants it — one click instead of finding
+  the repo in a list of every repo on the org.
+- `prompts/connect.md` splits `scopable` out of the generic dashboard
+  hand-off. The old copy bucketed `scopable` with `not-installed` and
+  rendered "didn't land / needs admin approval" — misleading when the
+  App is in fact installed and only the Mur-side scope list is missing
+  the entry. New `scopable` branch reflects "one click finishes adding
+  it" instead.
+- `prompts/scan.md` records the raw `status` on the
+  `connectionsNeeded` entry so Branch B can pick the same per-status
+  copy as `connect.md`.
+
 ## [0.3.4] - 2026-05-12 — email-flow setupInstructions rendering
 
 - `prompts/_post-connect.md` step 2 now branches on `setupInstructions.kind`

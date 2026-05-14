@@ -94,7 +94,7 @@ X-Mur-Project-Id: <projectId>
   (don't click Install — GitHub will dead-end you on the App settings
   page):
 
-    https://usemur.dev/dashboard/vault?tab=apps
+    https://usemur.dev/dashboard/vault?tab=apps&scopeRepo=<urlencoded-owner/name>
 
   Click the link, or reply `open it` and I'll launch your browser.
   Type `done` when you've joined and I'll re-check.
@@ -106,13 +106,29 @@ X-Mur-Project-Id: <projectId>
   "(originally by @<installer.login>)" clause when installer is null.
   Skip step 4's "Connecting <tool>" framing — that's Composio-only.
   (Path B — see `_deep-link.md`.)
-- Anything else (`scopable`, `needs-grant`, `not-installed`) → render
-  the dashboard hand-off:
+- `scopable` → the App is already installed on the right org and has
+  access to this repo; only the Mur-side scope list is missing the
+  entry. The dashboard auto-adds it from the URL param — render the
+  one-click hand-off:
+
+  ```
+  GitHub App is installed on <accountLogin> and has access to this
+  repo — one click finishes adding it to your watched list:
+
+    https://usemur.dev/dashboard/vault?tab=apps&scopeRepo=<urlencoded-owner/name>
+
+  Click the link, or reply `open it` and I'll launch your browser.
+  Type `done` when you've landed there and I'll re-check.
+  ```
+
+  Skip step 4's "Connecting <tool>" framing.
+- Anything else (`needs-grant`, `not-installed`) → render the dashboard
+  hand-off:
 
   ```
   GitHub: finish setup in your dashboard.
 
-    https://usemur.dev/dashboard/vault?tab=apps
+    https://usemur.dev/dashboard/vault?tab=apps&scopeRepo=<urlencoded-owner/name>
 
   Click the link, or reply `open it` and I'll launch your browser.
   Type `done` when you've finished there and I'll re-check.
